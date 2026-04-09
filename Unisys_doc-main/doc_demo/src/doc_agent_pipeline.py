@@ -79,10 +79,12 @@ The document must contain these numbered sections:
 1. Executive Summary — what this program does, who triggers it, business importance
 2. Program Descriptions — each program in execution order: what it does, data read/written, business decisions, output produced
 3. Program Connectivity and Data Flow — which program calls which, shared data structures, data flow between programs
-4. Critical Business Rules and Validation Logic — list specific rules with conditions and actions
-5. Migration Notes — complexity rating, modern equivalent, recommended microservice boundary
+4. BMS Screen & CICS Interaction (for ONLINE programs) — describe the BMS screen layout (input/output fields, user interaction flow), CICS commands used (SEND MAP, RECEIVE MAP, READ, WRITE, XCTL, LINK, RETURN), and the screen navigation pattern
+5. JCL Batch Context (for batch programs) — describe which JCL jobs execute this program, the job steps, input/output datasets, and how the program fits into the batch processing chain
+6. Critical Business Rules and Validation Logic — list specific rules with conditions and actions
+7. Migration Notes — complexity rating, modern equivalent, recommended microservice boundary. For CICS programs suggest REST API + modern UI. For batch programs suggest cloud-native batch alternatives.
 
-Write in flowing prose with clear numbered headings. Reference actual program IDs, paragraph names, and file names throughout."""
+Write in flowing prose with clear numbered headings. Reference actual program IDs, paragraph names, copybook names, screen names, and file names throughout."""
 
     elif mode == "Module":
         instructions = f"""Write a comprehensive module specification document for the "{subject}" module.
@@ -92,11 +94,13 @@ The document must contain these numbered sections:
 2. Programs in This Module — each program with a clear one-paragraph description of its purpose
 3. Internal Flow — how programs within this module interact, the sequence of operations end-to-end
 4. Data Architecture — files, datasets, and shared copybooks this module uses
-5. Key Business Rules and Validations — enforced by programs in this module
-6. External Dependencies — what other modules/programs this module depends on and what depends on it
-7. Migration Strategy — recommended service boundary, suggested modern architecture, migration order for programs
+5. BMS Screens & CICS Interaction (for ONLINE programs) — describe BMS screen layouts (input/output fields), CICS commands, and user interaction flows for each screen-driven program in the module
+6. JCL Batch Context (for batch programs) — describe JCL jobs that execute module programs, datasets flowing in/out, batch execution dependencies
+7. Key Business Rules and Validations — enforced by programs in this module
+8. External Dependencies — what other modules/programs this module depends on and what depends on it
+9. Migration Strategy — recommended service boundary, suggested modern architecture (REST APIs for CICS screens, cloud batch for JCL jobs), migration order for programs
 
-Write in flowing prose with numbered headings. Reference specific program IDs and file names."""
+Write in flowing prose with numbered headings. Reference specific program IDs, screen names, copybook names, and file names."""
 
     else:  # Application
         instructions = """Write a comprehensive Application Architecture Document.
@@ -110,10 +114,12 @@ The document must contain these numbered sections:
 1. Executive Summary — what the application does, who uses it, business criticality, case for modernisation (2-3 paragraphs)
 2. System Architecture Overview — online CICS tier vs batch tier, entry points, schedulers, user touchpoints
 3. Module Breakdown — one numbered subsection per module containing: business domain, list of programs with one-sentence roles, how programs interact internally
-4. Inter-Module Data Flow — which modules depend on which, shared files/copybooks coupling modules, 3-4 critical data paths as step-by-step numbered flows
-5. Business Rule Inventory — rule categories with counts, top 5 highest-density programs and what kinds of rules they contain
-6. Migration Roadmap — for EACH module write: target microservice name, migration order (1=first) with justification, key technical risks, suggested tech stack. End with an overall ordered migration sequence as a numbered list.
-7. Risk Register — top 7 highest-risk components as a numbered list, each with: why it is high risk, concrete mitigation strategy"""
+4. CICS Online Tier & BMS Screens — describe the online programs and their BMS screen maps: what fields users see, input/output fields, CICS commands driving screen navigation (SEND MAP, RECEIVE MAP, XCTL, LINK), and how screens chain together
+5. Batch Processing Tier & JCL Jobs — describe JCL batch jobs: what each job does, programs executed, input/output datasets, batch processing flow and dependencies between online and batch tiers
+6. Inter-Module Data Flow — which modules depend on which, shared files/copybooks coupling modules, 3-4 critical data paths as step-by-step numbered flows
+7. Business Rule Inventory — rule categories with counts, top 5 highest-density programs and what kinds of rules they contain
+8. Migration Roadmap — for EACH module write: target microservice name, for CICS screens suggest REST API + modern UI (React/Angular), for batch JCL suggest cloud-native batch (AWS Batch/Step Functions), migration order (1=first) with justification, key technical risks, suggested tech stack. End with an overall ordered migration sequence.
+9. Risk Register — top 7 highest-risk components as a numbered list, each with: why it is high risk, concrete mitigation strategy"""
 
     return f"""{instructions}{feedback_block}
 
@@ -126,8 +132,8 @@ Write the complete document now:"""
 def _critique_prompt(mode: str, subject: str, draft: str) -> str:
     required = {
         "Program":     ["Executive Summary", "Program Descriptions", "Data Flow", "Business Rules", "Migration Notes"],
-        "Module":      ["Module Overview", "Programs in This Module", "Internal Flow", "Data Architecture", "Business Rules", "External Dependencies", "Migration Strategy"],
-        "Application": ["Executive Summary", "System Architecture", "Module Breakdown", "Inter-Module Data Flow", "Business Rule Inventory", "Migration Roadmap", "Risk Register"],
+        "Module":      ["Module Overview", "Programs in This Module", "Internal Flow", "Data Architecture", "BMS Screens", "JCL Batch", "Business Rules", "External Dependencies", "Migration Strategy"],
+        "Application": ["Executive Summary", "System Architecture", "Module Breakdown", "CICS Online Tier", "Batch Processing", "Inter-Module Data Flow", "Business Rule Inventory", "Migration Roadmap", "Risk Register"],
     }
     sections = ", ".join(required.get(mode, []))
 
