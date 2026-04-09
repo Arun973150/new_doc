@@ -1636,8 +1636,8 @@ def _fetch_program_subgraph(loader, program_id: str, depth: int) -> list:
     return programs
 
 
-def _build_llm_context(programs: list, mode: str, subject: str) -> str:
-    """Build a rich context string combining enriched English + raw JSON for each program."""
+def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> str:
+    """Build a rich context string combining enriched English + BMS screens + CICS + JCL for each program."""
     lines = []
     lines.append(f"# COBOL System Documentation Context")
     lines.append(f"Mode: {mode} | Subject: {subject}")
@@ -1669,7 +1669,7 @@ def _build_llm_context(programs: list, mode: str, subject: str) -> str:
         if ss:  lines.append(f"- Target Microservice: {ss}")
         if ma:  lines.append(f"- Migration Approach: {ma}")
 
-        # Dependencies (raw JSON)
+        # Dependencies
         calls = [c.get("called_program") for c in (prog.get("calls") or []) if c.get("called_program") not in ("UNKNOWN", None)]
         callers = [c.get("caller_program") for c in (prog.get("called_by") or [])]
         copybooks = [c.get("copybook_name") for c in (prog.get("copybooks") or [])]
@@ -1678,6 +1678,103 @@ def _build_llm_context(programs: list, mode: str, subject: str) -> str:
         if callers:   lines.append(f"- Called by: {', '.join(callers)}")
         if copybooks: lines.append(f"- Shared Data (Copybooks): {', '.join(copybooks)}")
         if files:     lines.append(f"- Files Accessed: {', '.join(files)}")
+
+        # ── CICS Commands ────────────────────────────────────────────────────
+        if loader:
+            try:
+                cics_stmts = loader.get_program_statements(pid, "EXEC_CICS")
+                if cics_stmts:
+                    lines.append(f"- CICS Commands ({len(cics_stmts)} total):")
+                    for cs in cics_stmts[:15]:
+                        import json as _json
+                        try:
+                            det = _json.loads(cs.get("details_json") or "{}")
+                        except Exception:
+                            det = {}
+                        cmd = det.get("cics_command", "UNKNOWN")
+                        details = det.get("details", {})
+                        detail_str = ", ".join(f"{k}={v}" for k, v in details.items()) if details else ""
+                        para = cs.get("paragraph_name", "")
+                        line = cs.get("line_number", "")
+                        entry = f"EXEC CICS {cmd}"
+                        if detail_str:
+                            entry += f" ({detail_str})"
+                        if para:
+                            entry += f" [in {para}, line {line}]"
+                        lines.append(f"  * {entry}")
+            except Exception:
+                pass
+
+        # ── BMS Screen Layout ────────────────────────────────────────────────
+        if loader:
+            try:
+                cursor = loader.conn.cursor()
+                cursor.execute("""
+                    SELECT s.id, s.screen_name, s.map_name, s.mapset_name, s.business_name
+                    FROM screens s
+                    WHERE s.associated_program = ?
+                """, (pid,))
+                screens = [dict(r) for r in cursor.fetchall()]
+                if screens:
+                    lines.append(f"- BMS Screens ({len(screens)} maps):")
+                    for scr in screens[:5]:
+                        sname = scr.get("screen_name", "")
+                        mapset = scr.get("mapset_name", "")
+                        sbname = scr.get("business_name") or ""
+                        lines.append(f"  * Screen: {sname} (mapset: {mapset})" + (f" — {sbname}" if sbname else ""))
+                        # Get fields
+                        cursor.execute("""
+                            SELECT field_name, field_type, length, row_position, col_position, attributes
+                            FROM screen_fields
+                            WHERE screen_id = ? AND field_name NOT LIKE '\\_LABEL%' ESCAPE '\\'
+                            ORDER BY row_position, col_position
+                        """, (scr["id"],))
+                        fields = [dict(r) for r in cursor.fetchall()]
+                        if fields:
+                            input_fields = [f for f in fields if f["field_type"] == "INPUT"]
+                            output_fields = [f for f in fields if f["field_type"] == "OUTPUT"]
+                            if input_fields:
+                                lines.append(f"    Input Fields: {', '.join(f['field_name'] + '(' + str(f['length']) + ')' for f in input_fields[:12])}")
+                            if output_fields:
+                                lines.append(f"    Output Fields: {', '.join(f['field_name'] + '(' + str(f['length']) + ')' for f in output_fields[:12])}")
+                            lines.append(f"    Total fields: {len(fields)} ({len(input_fields)} input, {len(output_fields)} output)")
+            except Exception:
+                pass
+
+        # ── JCL Job Context ──────────────────────────────────────────────────
+        if loader:
+            try:
+                jcl_jobs = loader.get_program_jcl_jobs(pid)
+                if jcl_jobs:
+                    lines.append(f"- JCL Execution Context ({len(jcl_jobs)} job steps):")
+                    seen_jobs = set()
+                    for j in jcl_jobs[:8]:
+                        jname = j.get("job_name", "")
+                        step = j.get("step_name", "")
+                        desc = j.get("job_description", "")
+                        comment = j.get("step_comments", "")
+                        entry = f"Job {jname}, Step {step}"
+                        if desc:
+                            entry += f" — {desc}"
+                        lines.append(f"  * {entry}")
+                        if comment and jname not in seen_jobs:
+                            lines.append(f"    Step purpose: {comment[:150]}")
+                        seen_jobs.add(jname)
+                        # Get datasets for this job/step
+                        if jname not in seen_jobs or len(seen_jobs) <= 3:
+                            try:
+                                job_detail = loader.get_jcl_job_details(jname)
+                                if job_detail:
+                                    in_ds = job_detail.get("input_datasets", [])
+                                    out_ds = job_detail.get("output_datasets", [])
+                                    if in_ds:
+                                        lines.append(f"    Input datasets: {', '.join(str(d) for d in in_ds[:5])}")
+                                    if out_ds:
+                                        lines.append(f"    Output datasets: {', '.join(str(d) for d in out_ds[:5])}")
+                            except Exception:
+                                pass
+            except Exception:
+                pass
 
         # Paragraph narratives
         paras = prog.get("paragraphs") or []
@@ -1728,7 +1825,9 @@ The document must:
 3. For each program: explain what it does, what data it reads/writes, what business decisions it makes, and what it produces
 4. Describe how the programs connect — which calls which, what data flows between them, what shared data structures exist
 5. Highlight any critical business rules or validation logic
-6. End with a Migration Notes section — complexity, suggested modern equivalent, recommended microservice boundary
+6. If the program is ONLINE (CICS): describe the BMS screen layout — what fields the user sees, what they can input, what gets displayed. Describe the CICS commands used (SEND MAP, RECEIVE MAP, READ, WRITE, XCTL, LINK, RETURN) and how they form the screen interaction flow
+7. If the program runs via JCL: describe the batch job context — job name, execution steps, input/output datasets, and how this program fits into the batch processing chain
+8. End with a Migration Notes section — complexity, suggested modern equivalent, recommended microservice boundary. For CICS programs, suggest REST API + modern UI replacement. For batch programs, suggest cloud-native batch or event-driven alternatives
 
 Write as proper technical documentation — clear headings, flowing prose, specific details. Avoid generic statements.
 
@@ -1747,9 +1846,11 @@ The document must:
 2. List all programs in this module with their individual purposes
 3. Explain the internal flow — how programs within this module interact, the sequence of operations
 4. Describe the data architecture — what files, datasets, and shared copybooks this module uses
-5. Document all key business rules and validations enforced by this module
-6. Describe external dependencies — what other modules/programs this module depends on or is depended upon by
-7. End with a Migration Strategy — recommended service boundary, suggested modern architecture, migration order for programs within this module
+5. For ONLINE programs: describe the BMS screen layouts (input/output fields, screen flow), CICS commands used, and the user interaction pattern (SEND MAP → user input → RECEIVE MAP → process → respond)
+6. For batch programs: describe the JCL job execution context — which jobs run the program, what datasets flow in/out, execution sequence and dependencies
+7. Document all key business rules and validations enforced by this module
+8. Describe external dependencies — what other modules/programs this module depends on or is depended upon by
+9. End with a Migration Strategy — recommended service boundary, suggested modern architecture (REST APIs for CICS screens, cloud batch for JCL jobs), migration order for programs within this module
 
 Write as a proper software specification — clear sections, numbered headings, specific technical details, flowing explanations.
 
@@ -1782,22 +1883,30 @@ The document must contain these numbered sections:
    - List of programs with one-sentence role for each
    - How programs within the module interact internally
 
-4. Inter-Module Data Flow
+4. CICS Online Tier & BMS Screens
+   Describe the online (CICS) programs and their associated BMS screen maps. For each screen: what fields the user sees, the interaction flow (SEND MAP → input → RECEIVE MAP → process), and what CICS commands drive the screen navigation. Explain how XCTL and LINK route between screens.
+
+5. Batch Processing Tier & JCL Jobs
+   Describe the JCL batch jobs: what each job does, which programs it executes, what datasets flow in and out, and the batch execution schedule/dependencies. Explain how batch and online tiers interact (e.g., batch jobs processing transactions queued by online programs).
+
+6. Inter-Module Data Flow
    Which modules depend on which other modules. Shared files and copybooks that couple modules together. The three or four most critical data paths through the system described as step-by-step flows.
 
-5. Business Rule Inventory
+7. Business Rule Inventory
    The rule categories, how many rules exist in each category, and which modules carry the highest rule density. Identify the top 5 programs by rule count and describe what kinds of rules they contain.
 
-6. Migration Roadmap
+8. Migration Roadmap
    For EACH module, write a numbered subsection containing:
    - Recommended target microservice name
+   - For CICS screens: suggest REST API + modern UI (React/Angular) replacement
+   - For batch JCL: suggest cloud-native batch (AWS Batch, Step Functions) or event-driven alternatives
    - Migration order (1 = migrate first, higher = migrate later) with justification
    - Key technical risks for this module
    - Suggested modern technology stack
 
    After all modules, write a recommended overall migration sequence as a numbered ordered list.
 
-7. Risk Register
+9. Risk Register
    The top 7 highest-risk components as a numbered list. For each: the program or module name, why it is high risk (coupling, size, MQ dependencies, unknown purpose), and a concrete mitigation strategy.
 
 SYSTEM DATA:
@@ -1882,6 +1991,13 @@ def _fetch_application_subgraph(loader) -> dict:
     modules      = loader.get_all_modules()
     call_graph   = loader.get_call_graph()
     rules        = loader.get_all_business_rules()
+    screens      = loader.get_all_screens()
+    try:
+        jcl_cursor = loader.conn.cursor()
+        jcl_cursor.execute("SELECT job_name, job_description, step_count, programs_called, input_datasets, output_datasets FROM jcl_jobs")
+        jcl_jobs = [dict(r) for r in jcl_cursor.fetchall()]
+    except Exception:
+        jcl_jobs = []
 
     program_details = []
     for prog in programs:
@@ -1897,23 +2013,29 @@ def _fetch_application_subgraph(loader) -> dict:
         "modules": modules,
         "call_graph": call_graph,
         "rules": rules,
+        "screens": screens,
+        "jcl_jobs": jcl_jobs,
         "stats": {
             "total_programs": len(programs),
             "total_modules": len(modules),
             "total_calls": len(call_graph),
             "total_rules": len(rules),
+            "total_screens": len(screens),
+            "total_jcl_jobs": len(jcl_jobs),
         },
     }
 
 
 def _build_application_llm_context(data: dict) -> str:
     """Build a compact but rich context string for the entire application."""
+    import json as _json
     from collections import Counter
     stats = data["stats"]
     lines = [
         "# COBOL Application — System-Wide Context",
         f"Programs: {stats['total_programs']} | Modules: {stats['total_modules']} "
-        f"| Call Relationships: {stats['total_calls']} | Business Rules: {stats['total_rules']}",
+        f"| Call Relationships: {stats['total_calls']} | Business Rules: {stats['total_rules']} "
+        f"| BMS Screens: {stats.get('total_screens', 0)} | JCL Jobs: {stats.get('total_jcl_jobs', 0)}",
         "",
     ]
 
@@ -1928,11 +2050,55 @@ def _build_application_llm_context(data: dict) -> str:
             if p.get("business_purpose"):
                 lines.append(f"  - {p['program_id']}: {p['business_purpose'][:120]}")
 
-    # Call graph (top 60 edges — enough for LLM to reason about flow)
+    # Call graph (top 60 edges)
     lines.append("\n## Key Call Relationships")
     for call in data["call_graph"][:60]:
         if call.get("called_program") not in ("UNKNOWN", None):
-            lines.append(f"- {call['caller_program']} → {call['called_program']}")
+            lines.append(f"- {call['caller_program']} -> {call['called_program']}")
+
+    # ── BMS Screen Summary ───────────────────────────────────────────────────
+    app_screens = data.get("screens", [])
+    if app_screens:
+        lines.append(f"\n## BMS Screen Maps ({len(app_screens)} screens)")
+        for scr in app_screens[:30]:
+            sname = scr.get("screen_name", "")
+            mapset = scr.get("mapset_name", "")
+            assoc = scr.get("associated_program") or "unlinked"
+            field_names = scr.get("field_names", "") or ""
+            lines.append(f"- {sname} (mapset: {mapset}, program: {assoc})")
+            if field_names:
+                lines.append(f"  Fields: {field_names[:200]}")
+
+    # ── JCL Jobs Summary ─────────────────────────────────────────────────────
+    app_jcl = data.get("jcl_jobs", [])
+    if app_jcl:
+        lines.append(f"\n## JCL Batch Jobs ({len(app_jcl)} jobs)")
+        for j in app_jcl[:30]:
+            jname = j.get("job_name", "")
+            desc = j.get("job_description", "")
+            steps = j.get("step_count", 0)
+            try:
+                progs_called = _json.loads(j.get("programs_called") or "[]")
+            except Exception:
+                progs_called = []
+            try:
+                in_ds = _json.loads(j.get("input_datasets") or "[]")
+            except Exception:
+                in_ds = []
+            try:
+                out_ds = _json.loads(j.get("output_datasets") or "[]")
+            except Exception:
+                out_ds = []
+            entry = f"- {jname} ({steps} steps)"
+            if desc:
+                entry += f" — {desc}"
+            lines.append(entry)
+            if progs_called:
+                lines.append(f"  Executes: {', '.join(str(p) for p in progs_called[:8])}")
+            if in_ds:
+                lines.append(f"  Reads: {', '.join(str(d) for d in in_ds[:5])}")
+            if out_ds:
+                lines.append(f"  Writes: {', '.join(str(d) for d in out_ds[:5])}")
 
     # Business rule category summary
     lines.append(f"\n## Business Rule Categories ({stats['total_rules']} rules)")
@@ -2452,7 +2618,7 @@ def page_doc_generator():
                 # Build context
                 if mode == "Program":
                     prog_data  = _fetch_program_subgraph(loader, subject, depth)
-                    context    = _build_llm_context(prog_data, mode, subject)
+                    context    = _build_llm_context(prog_data, mode, subject, loader=loader)
                     prog_count = len(prog_data)
 
                 elif mode == "Module":
@@ -2462,7 +2628,7 @@ def page_doc_generator():
                             details = loader.get_program_details(p["program_id"])
                             if details:
                                 prog_data.append(details)
-                    context    = _build_llm_context(prog_data, mode, subject)
+                    context    = _build_llm_context(prog_data, mode, subject, loader=loader)
                     prog_count = len(prog_data)
 
                 else:  # Application
