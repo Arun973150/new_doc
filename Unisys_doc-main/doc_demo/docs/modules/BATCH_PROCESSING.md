@@ -13,11 +13,11 @@ Batch Processing (Uncategorised)
 
 | Program | Type | Lines | Business Purpose |
 |---------|------|-------|-----------------|
-| [CBPAUP0C](../programs/CBPAUP0C.md) | BATCH | 387 | This program is triggered by a scheduled batch job to proces... |
+| [CBPAUP0C](../programs/CBPAUP0C.md) | BATCH | 387 |  |
 
 
 
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

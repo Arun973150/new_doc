@@ -14,10 +14,10 @@ graph LR
     CODATE01["CODATE01"] --> MQGET["MQGET"]
     CODATE01["CODATE01"] --> MQPUT["MQPUT"]
     CODATE01["CODATE01"] --> MQCLOSE["MQCLOSE"]
-    COPAUA0C["Message Queue Request Processor"] --> MQOPEN["MQOPEN"]
-    COPAUA0C["Message Queue Request Processor"] --> MQGET["MQGET"]
-    COPAUA0C["Message Queue Request Processor"] --> MQPUT1["MQPUT1"]
-    COPAUA0C["Message Queue Request Processor"] --> MQCLOSE["MQCLOSE"]
+    COPAUA0C["COPAUA0C"] --> MQOPEN["MQOPEN"]
+    COPAUA0C["COPAUA0C"] --> MQGET["MQGET"]
+    COPAUA0C["COPAUA0C"] --> MQPUT1["MQPUT1"]
+    COPAUA0C["COPAUA0C"] --> MQCLOSE["MQCLOSE"]
 ```
 
 ## Call Matrix
@@ -128,4 +128,4 @@ Programs that don't call any other program (utility or terminal logic):
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

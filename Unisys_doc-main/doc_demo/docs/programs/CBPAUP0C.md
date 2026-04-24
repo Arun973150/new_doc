@@ -1,6 +1,6 @@
 # Program: CBPAUP0C
 
-> **Authorization Expiration Processor**
+
 ---
 
 ## Quick Reference
@@ -17,33 +17,7 @@
 
 > **View Source:** [Open CBPAUP0C.cbl](../carddemo/CBPAUP0C.cbl#L1)
 
-## Business Purpose
 
-This program is triggered by a scheduled batch job to process authorization records. It iterates through authorization details and summaries, checks for expired records, and deletes them if necessary. The program appears to maintain data integrity by removing outdated authorization information. It does not read or write to any external files, but rather relies on included copybooks CIPAUDTY and CIPAUSMY for data definitions. The program's output is the updated authorization dataset, which is not explicitly written to a file but rather maintained in the system's memory.
-
-**Used By:** Batch Scheduler  |  **Process:** Authorization Management
-## Migration Summary
-
-| Attribute | Value |
-|-----------|-------|
-| Migration Complexity | **2/5** — The program's logic is relatively straightforward, but the lack of explicit file I/O and reliance on included copybooks may require additional analysis to ensure correct data mapping and transformation. |
-| Modern Equivalent | Scheduled batch job or a database stored procedure |
-| Target Microservice | `auth-service` |
-
-### How to Migrate This Program
-
-First, identify and document the data definitions from the included copybooks CIPAUDTY and CIPAUSMY. Next, refactor the program's logic into a modern programming language, such as Java or Python. Then, integrate the refactored code with a scheduling framework, like Apache Airflow or Quartz Scheduler, to maintain the batch job functionality. Finally, test the migrated program to ensure data integrity and correct authorization record processing.
-
-### Data Contracts (Input / Output)
-
-The program consumes authorization details and summaries, and produces an updated authorization dataset.
-
-### Migration Risks
-
-> ⚠️ Data corruption or loss during migration, incorrect interpretation of copybook data definitions, and potential issues with scheduling and job execution in the new environment.
-
-
----
 
 ## Dependency Context
 
@@ -91,7 +65,6 @@ flowchart TD
     CB_CIPAUSMY -.- COPAUS0C
     COPAUS1C["COPAUS1C"]:::coupled
     CB_CIPAUSMY -.- COPAUS1C
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -267,7 +240,7 @@ flowchart TD
 
 
 
-### Remove Expired Authorization Details
+### 5000-DELETE-AUTH-DTL
 
 | | |
 |---|---|
@@ -275,11 +248,9 @@ flowchart TD
 | **Lines** | 303 - 323 |
 | **View Code** | [Jump to Line 303](../carddemo/CBPAUP0C.cbl#L303) |
 
-This function is triggered when the program needs to clean up outdated authorization details. It starts by checking each authorization detail record to see if it has expired. If a record is found to be expired, the program deletes it from the system's memory to maintain data integrity. The program relies on data definitions from included copybooks to understand the structure of the authorization details. By removing expired records, the program ensures that only current and valid authorization information is kept. The updated authorization dataset is then maintained in the system's memory for further processing.
 
-> **Purpose:** Its role is to remove expired authorization details to maintain data integrity and ensure only valid information is kept.
 
-### Exit Authorization Detail Processing
+### 5000-EXIT
 
 | | |
 |---|---|
@@ -287,11 +258,9 @@ This function is triggered when the program needs to clean up outdated authoriza
 | **Lines** | 324 - 327 |
 | **View Code** | [Jump to Line 324](../carddemo/CBPAUP0C.cbl#L324) |
 
-This function is triggered after the program has finished processing authorization details. It marks the end of the authorization detail processing section and allows the program to move on to the next step. There are no specific actions or decisions made in this function, as its sole purpose is to provide a clear exit point. The program does not read or write any data during this function, and it does not return any values. The function simply signals the end of the authorization detail processing section. The program then proceeds to the next section, which may involve processing authorization summaries.
 
-> **Purpose:** Its role is to provide a clear exit point for the authorization detail processing section and allow the program to proceed to the next step.
 
-### Remove Expired Authorization Summaries
+### 6000-DELETE-AUTH-SUMMARY
 
 | | |
 |---|---|
@@ -299,11 +268,9 @@ This function is triggered after the program has finished processing authorizati
 | **Lines** | 328 - 347 |
 | **View Code** | [Jump to Line 328](../carddemo/CBPAUP0C.cbl#L328) |
 
-This function is triggered when the program needs to clean up outdated authorization summaries. It starts by checking each authorization summary record to see if it has expired. If a record is found to be expired, the program deletes it from the system's memory to maintain data integrity. The program relies on data definitions from included copybooks to understand the structure of the authorization summaries. By removing expired records, the program ensures that only current and valid authorization information is kept. The updated authorization dataset is then maintained in the system's memory for further processing.
 
-> **Purpose:** Its role is to remove expired authorization summaries to maintain data integrity and ensure only valid information is kept.
 
-### Exit Authorization Summary Processing
+### 6000-EXIT
 
 | | |
 |---|---|
@@ -311,11 +278,9 @@ This function is triggered when the program needs to clean up outdated authoriza
 | **Lines** | 348 - 351 |
 | **View Code** | [Jump to Line 348](../carddemo/CBPAUP0C.cbl#L348) |
 
-This function is triggered after the program has finished processing authorization summaries. It marks the end of the authorization summary processing section and allows the program to move on to the next step. There are no specific actions or decisions made in this function, as its sole purpose is to provide a clear exit point. The program does not read or write any data during this function, and it does not return any values. The function simply signals the end of the authorization summary processing section. The program then proceeds to the next section, which may involve taking a checkpoint or handling errors.
 
-> **Purpose:** Its role is to provide a clear exit point for the authorization summary processing section and allow the program to proceed to the next step.
 
-### Take Checkpoint for Error Recovery
+### 9000-TAKE-CHECKPOINT
 
 | | |
 |---|---|
@@ -323,11 +288,9 @@ This function is triggered after the program has finished processing authorizati
 | **Lines** | 352 - 372 |
 | **View Code** | [Jump to Line 352](../carddemo/CBPAUP0C.cbl#L352) |
 
-This function is triggered at a specific point in the program to create a checkpoint for error recovery. It saves the current state of the program, including any updated authorization data, so that if an error occurs, the program can recover from this point. The program relies on system resources to create the checkpoint, and it does not read or write any external files. By taking a checkpoint, the program ensures that it can recover from errors and maintain data integrity. The checkpoint is stored in the system's memory, and the program can use it to restart processing if an error occurs. The function allows the program to proceed with confidence, knowing that it can recover from any errors that may occur.
 
-> **Purpose:** Its role is to create a checkpoint for error recovery, allowing the program to restart processing from a known good state if an error occurs.
 
-### Exit Checkpoint Processing
+### 9000-EXIT
 
 | | |
 |---|---|
@@ -335,11 +298,9 @@ This function is triggered at a specific point in the program to create a checkp
 | **Lines** | 373 - 376 |
 | **View Code** | [Jump to Line 373](../carddemo/CBPAUP0C.cbl#L373) |
 
-This function is triggered after the program has finished taking a checkpoint. It marks the end of the checkpoint processing section and allows the program to move on to the next step. There are no specific actions or decisions made in this function, as its sole purpose is to provide a clear exit point. The program does not read or write any data during this function, and it does not return any values. The function simply signals the end of the checkpoint processing section. The program then proceeds to the next section, which may involve handling errors or exiting the program.
 
-> **Purpose:** Its role is to provide a clear exit point for the checkpoint processing section and allow the program to proceed to the next step.
 
-### Handle Abnormal Termination
+### 9999-ABEND
 
 | | |
 |---|---|
@@ -347,11 +308,9 @@ This function is triggered after the program has finished taking a checkpoint. I
 | **Lines** | 377 - 384 |
 | **View Code** | [Jump to Line 377](../carddemo/CBPAUP0C.cbl#L377) |
 
-This function is triggered when the program encounters an error or exception that requires abnormal termination. It takes control of the program's termination process, ensuring that any necessary cleanup or recovery actions are taken. The program may write error messages or update system logs to record the error. The function then signals the end of the program, allowing the system to terminate the program and release any resources it was using. The program does not attempt to recover from the error, but instead allows the system to handle the termination. The function provides a controlled exit point for the program, ensuring that the system remains in a stable state.
 
-> **Purpose:** Its role is to handle abnormal termination of the program, ensuring that any necessary cleanup or recovery actions are taken before the program exits.
 
-### Exit Abnormal Termination Handling
+### 9999-EXIT
 
 | | |
 |---|---|
@@ -359,9 +318,8 @@ This function is triggered when the program encounters an error or exception tha
 | **Lines** | 385 - 387 |
 | **View Code** | [Jump to Line 385](../carddemo/CBPAUP0C.cbl#L385) |
 
-This function is triggered after the program has finished handling an abnormal termination. It marks the end of the abnormal termination handling section and allows the system to finalize the program's termination. There are no specific actions or decisions made in this function, as its sole purpose is to provide a clear exit point. The program does not read or write any data during this function, and it does not return any values. The function simply signals the end of the abnormal termination handling section, allowing the system to release any remaining resources and terminate the program. The system then proceeds to finalize the program's termination, ensuring that all resources are released and the system remains in a stable state.
 
-> **Purpose:** Its role is to provide a clear exit point for the abnormal termination handling section, allowing the system to finalize the program's termination.
+
 
 
 
@@ -375,4 +333,4 @@ This function is triggered after the program has finished handling an abnormal t
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

@@ -1,6 +1,6 @@
 # Program: COPAUS1C
 
-> **Authentication View Handler**
+
 ---
 
 ## Quick Reference
@@ -17,33 +17,7 @@
 
 > **View Source:** [Open COPAUS1C.cbl](../carddemo/COPAUS1C.cbl#L1)
 
-## Business Purpose
 
-This program is triggered when a user navigates to the authentication view screen. It processes user input, such as the enter key or function keys, and populates the screen with authentication details. The program reads and updates authentication records, and it handles errors by rolling back changes. The program's purpose is to manage the display and editing of authentication information, and it produces an updated authentication view screen. The program's functionality is divided into several steps, including reading authentication records, populating the screen with details, and updating the records if necessary.
-
-**Used By:** Customer Service Representative  |  **Process:** Authentication
-## Migration Summary
-
-| Attribute | Value |
-|-----------|-------|
-| Migration Complexity | **3/5** — The program's complexity is moderate due to its online nature and multiple steps involved in processing user input and updating authentication records. |
-| Modern Equivalent | REST API endpoint for authentication |
-| Target Microservice | `auth-service` |
-
-### How to Migrate This Program
-
-First, identify the key business logic and rules within the COBOL program and translate them into a modern programming language. Next, design a REST API endpoint to handle user input and authentication record updates. Then, implement the API endpoint using a framework such as Spring Boot or Node.js, and integrate it with a database to store and retrieve authentication records. Finally, test the API endpoint thoroughly to ensure it meets the required functionality and security standards.
-
-### Data Contracts (Input / Output)
-
-The program consumes user input such as username and password, and produces an updated authentication view screen with details such as user profile information and authentication status.
-
-### Migration Risks
-
-> ⚠️ Key migration risks include ensuring the security and integrity of user authentication data, handling errors and exceptions properly, and maintaining consistency with existing business rules and logic.
-
-
----
 
 ## Dependency Context
 
@@ -139,7 +113,6 @@ flowchart TD
     CB_CSMSG02Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSMSG02Y -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -236,7 +209,7 @@ flowchart TD
 
 ## Paragraphs
 
-### Initialize Authentication Process
+### MAIN-PARA
 
 | | |
 |---|---|
@@ -244,11 +217,9 @@ flowchart TD
 | **Lines** | 157 - 207 |
 | **View Code** | [Jump to Line 157](../carddemo/COPAUS1C.cbl#L157) |
 
-This paragraph is triggered when the program starts, and it sets the stage for the authentication process. It does not perform any specific actions, but rather serves as the entry point for the program. The program then proceeds to read authentication records and populate the screen with details. The paragraph does not make any decisions or update any data, but it is essential for the overall program flow. The program's functionality is divided into several steps, and this paragraph marks the beginning of the process. The paragraph's actions are not explicitly defined, but it is a crucial part of the program's initialization.
 
-> **Purpose:** It serves as the entry point for the program, initializing the authentication process.
 
-### Handle Enter Key Press
+### PROCESS-ENTER-KEY
 
 | | |
 |---|---|
@@ -256,11 +227,9 @@ This paragraph is triggered when the program starts, and it sets the stage for t
 | **Lines** | 208 - 229 |
 | **View Code** | [Jump to Line 208](../carddemo/COPAUS1C.cbl#L208) |
 
-This paragraph is triggered when the user presses the enter key, and it processes the input to determine the next course of action. The program reads the user's input and checks if it is valid, making decisions based on the input data. If the input is valid, the program proceeds to update the authentication records, but if it is not, the program rolls back any changes made. The paragraph writes or updates the authentication records based on the user's input, and it returns or signals the outcome of the process. The program's actions are determined by the user's input, and this paragraph handles the enter key press event. The paragraph's purpose is to manage the user's input and update the authentication records accordingly.
 
-> **Purpose:** It handles the enter key press event, processing the user's input and updating the authentication records.
 
-### Detect Authentication Fraud
+### MARK-AUTH-FRAUD
 
 | | |
 |---|---|
@@ -268,11 +237,9 @@ This paragraph is triggered when the user presses the enter key, and it processe
 | **Lines** | 230 - 267 |
 | **View Code** | [Jump to Line 230](../carddemo/COPAUS1C.cbl#L230) |
 
-This paragraph is triggered when the program needs to detect potential authentication fraud, and it analyzes the user's input to identify suspicious activity. The program reads the user's input data and checks for any patterns or anomalies that may indicate fraud. If the program detects any suspicious activity, it makes decisions based on the input data and updates the authentication records accordingly. The paragraph writes or updates the authentication records with the fraud detection results, and it returns or signals the outcome of the process. The program's actions are determined by the user's input and the fraud detection rules, and this paragraph handles the fraud detection event. The paragraph's purpose is to detect and prevent authentication fraud.
 
-> **Purpose:** It detects and prevents authentication fraud by analyzing the user's input and updating the authentication records.
 
-### Handle PF8 Key Press
+### PROCESS-PF8-KEY
 
 | | |
 |---|---|
@@ -280,11 +247,9 @@ This paragraph is triggered when the program needs to detect potential authentic
 | **Lines** | 268 - 290 |
 | **View Code** | [Jump to Line 268](../carddemo/COPAUS1C.cbl#L268) |
 
-This paragraph is triggered when the user presses the PF8 key, and it processes the input to determine the next course of action. The program reads the user's input and checks if it is valid, making decisions based on the input data. If the input is valid, the program proceeds to update the authentication records, but if it is not, the program rolls back any changes made. The paragraph writes or updates the authentication records based on the user's input, and it returns or signals the outcome of the process. The program's actions are determined by the user's input, and this paragraph handles the PF8 key press event. The paragraph's purpose is to manage the user's input and update the authentication records accordingly.
 
-> **Purpose:** It handles the PF8 key press event, processing the user's input and updating the authentication records.
 
-### Populate Authentication Details
+### POPULATE-AUTH-DETAILS
 
 | | |
 |---|---|
@@ -292,11 +257,9 @@ This paragraph is triggered when the user presses the PF8 key, and it processes 
 | **Lines** | 291 - 359 |
 | **View Code** | [Jump to Line 291](../carddemo/COPAUS1C.cbl#L291) |
 
-This paragraph is triggered when the program needs to populate the authentication details on the screen, and it reads the authentication records to retrieve the necessary data. The program reads the authentication records and extracts the relevant information, such as user credentials and authentication status. The paragraph then writes or updates the screen with the extracted data, making decisions based on the input data. If the data is valid, the program proceeds to display the authentication details, but if it is not, the program rolls back any changes made. The paragraph returns or signals the outcome of the process, and its purpose is to populate the authentication details on the screen.
 
-> **Purpose:** It populates the authentication details on the screen by reading the authentication records and extracting the relevant information.
 
-### Return to Previous Screen
+### RETURN-TO-PREV-SCREEN
 
 | | |
 |---|---|
@@ -304,11 +267,9 @@ This paragraph is triggered when the program needs to populate the authenticatio
 | **Lines** | 360 - 372 |
 | **View Code** | [Jump to Line 360](../carddemo/COPAUS1C.cbl#L360) |
 
-This paragraph is triggered when the program needs to return to the previous screen, and it manages the screen navigation process. The program reads the current screen data and checks if it is valid, making decisions based on the input data. If the data is valid, the program proceeds to return to the previous screen, but if it is not, the program rolls back any changes made. The paragraph writes or updates the screen data based on the user's input, and it returns or signals the outcome of the process. The program's actions are determined by the user's input, and this paragraph handles the screen navigation event. The paragraph's purpose is to manage the screen navigation and return to the previous screen.
 
-> **Purpose:** It manages the screen navigation and returns to the previous screen based on the user's input.
 
-### Send Authentication View Screen
+### SEND-AUTHVIEW-SCREEN
 
 | | |
 |---|---|
@@ -316,11 +277,9 @@ This paragraph is triggered when the program needs to return to the previous scr
 | **Lines** | 373 - 397 |
 | **View Code** | [Jump to Line 373](../carddemo/COPAUS1C.cbl#L373) |
 
-This paragraph is triggered when the program needs to send the authentication view screen to the user, and it manages the screen display process. The program reads the authentication records and extracts the relevant information, such as user credentials and authentication status. The paragraph then writes or updates the screen with the extracted data, making decisions based on the input data. If the data is valid, the program proceeds to display the authentication view screen, but if it is not, the program rolls back any changes made. The paragraph returns or signals the outcome of the process, and its purpose is to send the authentication view screen to the user.
 
-> **Purpose:** It sends the authentication view screen to the user by reading the authentication records and extracting the relevant information.
 
-### Receive Authentication View Screen
+### RECEIVE-AUTHVIEW-SCREEN
 
 | | |
 |---|---|
@@ -328,11 +287,9 @@ This paragraph is triggered when the program needs to send the authentication vi
 | **Lines** | 398 - 408 |
 | **View Code** | [Jump to Line 398](../carddemo/COPAUS1C.cbl#L398) |
 
-This paragraph is triggered when the program receives the authentication view screen from the user, and it manages the screen input process. The program reads the user's input data and checks if it is valid, making decisions based on the input data. If the input is valid, the program proceeds to update the authentication records, but if it is not, the program rolls back any changes made. The paragraph writes or updates the authentication records based on the user's input, and it returns or signals the outcome of the process. The program's actions are determined by the user's input, and this paragraph handles the screen input event. The paragraph's purpose is to receive the authentication view screen from the user and update the authentication records.
 
-> **Purpose:** It receives the authentication view screen from the user and updates the authentication records based on the user's input.
 
-### Populate Header Information
+### POPULATE-HEADER-INFO
 
 | | |
 |---|---|
@@ -340,11 +297,9 @@ This paragraph is triggered when the program receives the authentication view sc
 | **Lines** | 409 - 430 |
 | **View Code** | [Jump to Line 409](../carddemo/COPAUS1C.cbl#L409) |
 
-This paragraph is triggered when the program needs to populate the header information on the screen, and it reads the relevant data to retrieve the necessary information. The program reads the header records and extracts the relevant information, such as user credentials and authentication status. The paragraph then writes or updates the screen with the extracted data, making decisions based on the input data. If the data is valid, the program proceeds to display the header information, but if it is not, the program rolls back any changes made. The paragraph returns or signals the outcome of the process, and its purpose is to populate the header information on the screen.
 
-> **Purpose:** It populates the header information on the screen by reading the header records and extracting the relevant information.
 
-### Read Authentication Record
+### READ-AUTH-RECORD
 
 | | |
 |---|---|
@@ -352,11 +307,9 @@ This paragraph is triggered when the program needs to populate the header inform
 | **Lines** | 431 - 492 |
 | **View Code** | [Jump to Line 431](../carddemo/COPAUS1C.cbl#L431) |
 
-This paragraph is triggered when the program needs to read an authentication record, and it manages the record retrieval process. The program reads the authentication records and extracts the relevant information, such as user credentials and authentication status. The paragraph then writes or updates the internal data structures with the extracted data, making decisions based on the input data. If the data is valid, the program proceeds to use the extracted data, but if it is not, the program rolls back any changes made. The paragraph returns or signals the outcome of the process, and its purpose is to read the authentication record and extract the relevant information.
 
-> **Purpose:** It reads the authentication record and extracts the relevant information, such as user credentials and authentication status.
 
-### Retrieve Next Authentication Record
+### READ-NEXT-AUTH-RECORD
 
 | | |
 |---|---|
@@ -364,11 +317,9 @@ This paragraph is triggered when the program needs to read an authentication rec
 | **Lines** | 493 - 519 |
 | **View Code** | [Jump to Line 493](../carddemo/COPAUS1C.cbl#L493) |
 
-This process is triggered when the program needs to fetch the next authentication record. It starts by checking if there are more records to read, and if so, it retrieves the next record from the authentication database. The record contains user authentication details, which are then stored in memory for further processing. The process continues until all records have been read or an error occurs. If an error occurs, the program will handle it accordingly. The retrieved record is then made available for the next step in the program.
 
-> **Purpose:** Its role is to fetch authentication records from the database for further processing and display.
 
-### Update Authentication Details
+### UPDATE-AUTH-DETAILS
 
 | | |
 |---|---|
@@ -376,11 +327,9 @@ This process is triggered when the program needs to fetch the next authenticatio
 | **Lines** | 520 - 556 |
 | **View Code** | [Jump to Line 520](../carddemo/COPAUS1C.cbl#L520) |
 
-This process is triggered when the user has made changes to their authentication details and needs to save them. It starts by checking if the user has made any changes, and if so, it updates the corresponding authentication record in the database. The process involves validating the new details, checking for any errors, and then writing the updated record back to the database. If any errors occur during the update process, the program will handle them accordingly. The updated record is then saved, and the program continues with the next step. The process ensures that the authentication details are up-to-date and accurate.
 
-> **Purpose:** Its role is to update the authentication records in the database with the new details provided by the user.
 
-### Commit Changes
+### TAKE-SYNCPOINT
 
 | | |
 |---|---|
@@ -388,11 +337,9 @@ This process is triggered when the user has made changes to their authentication
 | **Lines** | 557 - 564 |
 | **View Code** | [Jump to Line 557](../carddemo/COPAUS1C.cbl#L557) |
 
-This process is triggered after the program has made changes to the authentication records. It involves committing the changes to ensure that they are saved permanently in the database. The process starts by checking if all changes have been successfully made, and if so, it commits the changes. If any errors occur during the commit process, the program will handle them accordingly. The commit process ensures that the changes are atomic, meaning that either all changes are saved or none are. This ensures data consistency and integrity. The process then signals that the changes have been committed.
 
-> **Purpose:** Its role is to commit the changes made to the authentication records to ensure data consistency and integrity.
 
-### Revert Changes
+### ROLL-BACK
 
 | | |
 |---|---|
@@ -400,11 +347,9 @@ This process is triggered after the program has made changes to the authenticati
 | **Lines** | 565 - 573 |
 | **View Code** | [Jump to Line 565](../carddemo/COPAUS1C.cbl#L565) |
 
-This process is triggered when an error occurs during the update process, and the program needs to revert the changes made. It involves rolling back the changes to ensure that the database remains in a consistent state. The process starts by checking what changes need to be rolled back, and then it reverts those changes. The roll-back process ensures that the database is restored to its previous state, as if the changes were never made. The process then signals that the changes have been rolled back. This ensures that the data remains consistent and accurate.
 
-> **Purpose:** Its role is to revert the changes made to the authentication records in case of an error, ensuring data consistency and integrity.
 
-### Schedule Program Switch
+### SCHEDULE-PSB
 
 | | |
 |---|---|
@@ -412,9 +357,8 @@ This process is triggered when an error occurs during the update process, and th
 | **Lines** | 574 - 605 |
 | **View Code** | [Jump to Line 574](../carddemo/COPAUS1C.cbl#L574) |
 
-This process is triggered when the program needs to switch to a different program or screen. It involves scheduling the switch to ensure that the program flows correctly. The process starts by checking what program or screen to switch to, and then it schedules the switch. The scheduling process involves updating the program's control data to reflect the switch. The process then signals that the switch has been scheduled. This ensures that the program flows correctly and that the user is presented with the correct screen or program.
 
-> **Purpose:** Its role is to schedule the switch to a different program or screen, ensuring that the program flows correctly and the user is presented with the correct screen.
+
 
 
 
@@ -428,4 +372,4 @@ This process is triggered when the program needs to switch to a different progra
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

@@ -343,6 +343,7 @@ def render_sidebar():
         ("Explorer",          "◈"),
         ("Doc Generator",     "⊕"),
         ("JCL Jobs",          "≡"),
+        ("CICS Commands",     "⚙"),
         ("Migration",         "⇢"),
         ("Rules",             "⊛"),
         ("Search",            "⌕"),
@@ -1306,6 +1307,229 @@ def page_file_viewer():
                 st.rerun()
     except Exception:
         pass
+
+#
+# CICS Commands
+#
+
+def page_cics():
+    st.header("CICS Commands")
+    st.caption("EXEC CICS commands extracted from COBOL source — screens, transfers, file ops, and more.")
+
+    db_path = os.getenv("DB_PATH", "data/cobol_knowledge.db")
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+    except Exception as e:
+        st.error(f"Database not ready. ({e})")
+        return
+
+    # Check if exec_cics table exists
+    table_check = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='exec_cics'"
+    ).fetchone()
+    if not table_check:
+        st.warning("No `exec_cics` table found. Run the pipeline to populate CICS data.")
+        conn.close()
+        return
+
+    total = conn.execute("SELECT COUNT(*) FROM exec_cics").fetchone()[0]
+    if total == 0:
+        st.info("No CICS commands found.")
+        conn.close()
+        return
+
+    progs_with_cics = conn.execute(
+        "SELECT COUNT(DISTINCT program_id) FROM exec_cics"
+    ).fetchone()[0]
+    distinct_cmds = conn.execute(
+        "SELECT COUNT(DISTINCT command) FROM exec_cics"
+    ).fetchone()[0]
+    unknown_count = conn.execute(
+        "SELECT COUNT(*) FROM exec_cics WHERE command='UNKNOWN'"
+    ).fetchone()[0]
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Commands", total)
+    c2.metric("Programs Using CICS", progs_with_cics)
+    c3.metric("Distinct Commands", distinct_cmds)
+    c4.metric("Unresolved", unknown_count)
+
+    st.divider()
+
+    # Command type breakdown
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Commands by Type")
+        cmd_counts = [dict(r) for r in conn.execute("""
+            SELECT command, COUNT(*) as cnt
+            FROM exec_cics
+            GROUP BY command
+            ORDER BY cnt DESC
+        """).fetchall()]
+        if cmd_counts:
+            df = pd.DataFrame(cmd_counts)
+            st.bar_chart(df.set_index("command"))
+
+    with col2:
+        st.subheader("Top Programs by CICS Usage")
+        prog_counts = [dict(r) for r in conn.execute("""
+            SELECT ec.program_id, p.business_name, COUNT(*) as cics_count
+            FROM exec_cics ec
+            LEFT JOIN programs p ON ec.program_id = p.program_id
+            GROUP BY ec.program_id
+            ORDER BY cics_count DESC
+            LIMIT 15
+        """).fetchall()]
+        if prog_counts:
+            st.dataframe(pd.DataFrame(prog_counts),
+                         use_container_width=True, hide_index=True, height=400)
+
+    st.divider()
+
+    # Browse with filters
+    st.subheader("Browse Commands")
+    fc1, fc2, fc3 = st.columns([2, 2, 1])
+
+    all_commands = ["(All)"] + [r["command"] for r in cmd_counts]
+    selected_cmd = fc1.selectbox("Filter by command", all_commands, key="cics_cmd_filter")
+
+    all_progs_cics = [dict(r) for r in conn.execute(
+        "SELECT DISTINCT program_id FROM exec_cics ORDER BY program_id"
+    ).fetchall()]
+    prog_options = ["(All)"] + [r["program_id"] for r in all_progs_cics]
+    selected_prog = fc2.selectbox("Filter by program", prog_options, key="cics_prog_filter")
+
+    limit = fc3.number_input("Limit", min_value=10, max_value=500, value=100, step=10,
+                              key="cics_limit")
+
+    where_clauses = []
+    params = []
+    if selected_cmd != "(All)":
+        where_clauses.append("command = ?")
+        params.append(selected_cmd)
+    if selected_prog != "(All)":
+        where_clauses.append("program_id = ?")
+        params.append(selected_prog)
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    rows = [dict(r) for r in conn.execute(f"""
+        SELECT program_id, command, paragraph_name, line_number, details_json
+        FROM exec_cics
+        {where_sql}
+        ORDER BY program_id, line_number
+        LIMIT {int(limit)}
+    """, tuple(params)).fetchall()]
+
+    if rows:
+        display_rows = []
+        for r in rows:
+            details_str = "-"
+            if r.get("details_json"):
+                try:
+                    d = json.loads(r["details_json"])
+                    inner = d.get("details", d)
+                    if isinstance(inner, dict) and inner:
+                        details_str = ", ".join(f"{k}={v}" for k, v in inner.items())
+                except Exception:
+                    pass
+            display_rows.append({
+                "Program":   r["program_id"],
+                "Command":   r["command"],
+                "Paragraph": r.get("paragraph_name") or "-",
+                "Line":      r.get("line_number") or "-",
+                "Details":   details_str,
+            })
+        st.dataframe(pd.DataFrame(display_rows),
+                     use_container_width=True, hide_index=True, height=400)
+    else:
+        st.info("No commands match the current filters.")
+
+    st.divider()
+
+    # Categorized flows
+    st.subheader("CICS-Driven Flows")
+    tab1, tab2, tab3 = st.tabs([
+        "BMS Screens (SEND/RECEIVE)",
+        "Program Transfers (XCTL/LINK)",
+        "File Ops (READ/WRITE)",
+    ])
+
+    def _detail(r, key):
+        if r.get("details_json"):
+            try:
+                d = json.loads(r["details_json"])
+                inner = d.get("details", d) or {}
+                return inner.get(key, "-")
+            except Exception:
+                return "-"
+        return "-"
+
+    with tab1:
+        screen_ops = [dict(r) for r in conn.execute("""
+            SELECT program_id, command, paragraph_name, line_number, details_json
+            FROM exec_cics
+            WHERE command IN ('SEND', 'RECEIVE')
+            ORDER BY program_id, line_number
+        """).fetchall()]
+        if screen_ops:
+            mapped = [{
+                "Program": r["program_id"], "Op": r["command"],
+                "Map":     _detail(r, "map"),
+                "Mapset":  _detail(r, "mapset"),
+                "Line":    r.get("line_number") or "-",
+            } for r in screen_ops]
+            st.dataframe(pd.DataFrame(mapped),
+                         use_container_width=True, hide_index=True, height=350)
+        else:
+            st.info("No SEND/RECEIVE MAP commands found.")
+
+    with tab2:
+        transfers = [dict(r) for r in conn.execute("""
+            SELECT program_id, command, paragraph_name, line_number, details_json
+            FROM exec_cics
+            WHERE command IN ('XCTL', 'LINK')
+            ORDER BY program_id, line_number
+        """).fetchall()]
+        if transfers:
+            mapped = [{
+                "From Program":   r["program_id"], "Op": r["command"],
+                "Target Program": _detail(r, "program"),
+                "Commarea":       _detail(r, "commarea"),
+                "Line":           r.get("line_number") or "-",
+            } for r in transfers]
+            st.dataframe(pd.DataFrame(mapped),
+                         use_container_width=True, hide_index=True, height=350)
+        else:
+            st.info("No XCTL/LINK commands found.")
+
+    with tab3:
+        file_ops = [dict(r) for r in conn.execute("""
+            SELECT program_id, command, paragraph_name, line_number, details_json
+            FROM exec_cics
+            WHERE command IN ('READ', 'WRITE', 'REWRITE', 'DELETE',
+                              'STARTBR', 'READNEXT', 'READPREV', 'ENDBR')
+            ORDER BY program_id, line_number
+        """).fetchall()]
+        if file_ops:
+            mapped = []
+            for r in file_ops:
+                ds = _detail(r, "dataset")
+                if ds == "-":
+                    ds = _detail(r, "file")
+                mapped.append({
+                    "Program":      r["program_id"], "Op": r["command"],
+                    "Dataset/File": ds,
+                    "RIDFLD":       _detail(r, "ridfld"),
+                    "Line":         r.get("line_number") or "-",
+                })
+            st.dataframe(pd.DataFrame(mapped),
+                         use_container_width=True, hide_index=True, height=350)
+        else:
+            st.info("No CICS file operations found.")
+
+    conn.close()
+
 
 #
 # Tab 5: JCL Jobs
@@ -2810,6 +3034,7 @@ elif _page == "Modules":           page_modules()
 elif _page == "Explorer":          page_explorer()
 elif _page == "Doc Generator":     page_doc_generator()
 elif _page == "JCL Jobs":          page_jcl()
+elif _page == "CICS Commands":     page_cics()
 elif _page == "Migration":         page_migration()
 elif _page == "Rules":             page_rules()
 elif _page == "Search":            page_search(repo_path)

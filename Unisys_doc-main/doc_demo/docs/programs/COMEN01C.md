@@ -104,7 +104,6 @@ flowchart TD
     CB_DFHAID -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHAID -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -259,6 +258,22 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 107 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `INQUIRE` | None | 148 | {"details": {"program": "CDEMO-MENU-OPT-PGMNAME(WS-OPTION"}} |
+| `XCTL` | None | 156 | {"details": {"program": "CDEMO-MENU-OPT-PGMNAME(WS-OPTION", "commarea": "CARDDEM... |
+| `XCTL` | None | 184 | {"details": {"program": "CDEMO-MENU-OPT-PGMNAME(WS-OPTION", "commarea": "CARDDEM... |
+| `XCTL` | None | 201 | {"details": {"program": "CDEMO-TO-PROGRAM"}} |
+| `SEND` | None | 215 | {"details": {"map": "COMEN1A", "mapset": "COMEN01", "from": "COMEN1AO"}} |
+| `RECEIVE` | None | 227 | {"details": {"map": "COMEN1A", "mapset": "COMEN01", "into": "COMEN1AI", "resp": ... |
+
+**Summary:** 7 CICS command(s) — RETURN (1), INQUIRE (1), XCTL (3), SEND (1), RECEIVE (1)
+
 ## Business Rules
 
 - **Menu Option Selection** `BR-318`  
@@ -323,4 +338,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

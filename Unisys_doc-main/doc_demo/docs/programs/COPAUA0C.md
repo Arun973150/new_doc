@@ -1,6 +1,6 @@
 # Program: COPAUA0C
 
-> **Message Queue Request Processor**
+
 ---
 
 ## Quick Reference
@@ -17,41 +17,7 @@
 
 > **View Source:** [Open COPAUA0C.cbl](../carddemo/COPAUA0C.cbl#L1)
 
-## Business Purpose
 
-This program is triggered by incoming message queue requests. It opens a request queue, extracts the request message, reads the request from the message queue, and processes the authentication. The program then reads cross-reference records and performs further processing. The outcome of this processing is not explicitly stated in the provided code, but it appears to involve putting a message back into the queue. The program handles the flow of messages between different systems or components, ensuring that requests are properly authenticated and processed.
-
-**Used By:** System or Batch Scheduler  |  **Process:** Transaction Processing
-## Migration Summary
-
-| Attribute | Value |
-|-----------|-------|
-| Migration Complexity | **3/5** — The program's complexity stems from its interaction with message queues and the need to replicate this functionality in a modern cloud-based architecture. |
-| Modern Equivalent | Kafka consumer or a message queue listener |
-| Target Microservice | `message-service or auth-service` |
-
-### How to Migrate This Program
-
-First, identify the message queue technology to be used in the cloud, such as Amazon SQS or Azure Service Bus. Next, refactor the COBOL code into a modern programming language, such as Java or Python, to interact with the chosen message queue. Then, implement authentication and authorization using modern security frameworks and libraries. Finally, integrate the new service with other microservices and test the end-to-end workflow.
-
-### Data Contracts (Input / Output)
-
-The program consumes incoming message queue requests and produces authenticated and processed messages to be put back into the queue.
-
-### Migration Risks
-
-> ⚠️ Key migration risks include ensuring message queue compatibility, handling authentication and authorization correctly, and maintaining the integrity of the message processing workflow.
-
-### Migrate These First
-
-The following programs should be migrated before this one:
-
-- [`MQOPEN`](MQOPEN.md)
-- [`MQGET`](MQGET.md)
-- [`MQPUT1`](MQPUT1.md)
-- [`MQCLOSE`](MQCLOSE.md)
-
----
 
 ## Dependency Context
 
@@ -142,7 +108,6 @@ flowchart TD
     CB_CMQODV -.- COACCT01
     CODATE01["CODATE01"]:::coupled
     CB_CMQODV -.- CODATE01
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -344,7 +309,7 @@ flowchart TD
 
 
 
-### Retrieve Incoming Message Request
+### 3100-READ-REQUEST-MQ
 
 | | |
 |---|---|
@@ -352,11 +317,9 @@ flowchart TD
 | **Lines** | 386 - 433 |
 | **View Code** | [Jump to Line 386](../carddemo/COPAUA0C.cbl#L386) |
 
-This process is triggered when a new message is received in the request queue. It opens the request queue and extracts the incoming message. The message is then read and processed to determine the type of request. The request data is stored for further processing. The program then proceeds to authenticate the request. The purpose of this step is to initiate the processing of the incoming message.
 
-> **Purpose:** It initiates the processing of incoming message requests by retrieving and preparing the request data for authentication.
 
-### Exit Read Request Process
+### 3100-EXIT
 
 | | |
 |---|---|
@@ -364,11 +327,9 @@ This process is triggered when a new message is received in the request queue. I
 | **Lines** | 434 - 437 |
 | **View Code** | [Jump to Line 434](../carddemo/COPAUA0C.cbl#L434) |
 
-This process is triggered after the request message has been read and processed. It marks the end of the read request process. The program then proceeds to the next step in the overall flow. This step does not perform any specific actions on the data. It simply signals the completion of the read request process. The program flow then continues to the next paragraph.
 
-> **Purpose:** It marks the end of the read request process and allows the program to proceed to the next step.
 
-### Authenticate Request
+### 5000-PROCESS-AUTH
 
 | | |
 |---|---|
@@ -376,11 +337,9 @@ This process is triggered after the request message has been read and processed.
 | **Lines** | 438 - 467 |
 | **View Code** | [Jump to Line 438](../carddemo/COPAUA0C.cbl#L438) |
 
-This process is triggered after the request message has been read. It takes the request data and authenticates it to ensure it is valid. The authentication process involves checking the request against a set of predefined rules or criteria. If the request is valid, it proceeds to the next step. If not, it may trigger an error or exception. The purpose of this step is to verify the authenticity of the request.
 
-> **Purpose:** It authenticates the incoming request to ensure it is valid and authorized before proceeding with further processing.
 
-### Exit Authentication Process
+### 5000-EXIT
 
 | | |
 |---|---|
@@ -388,11 +347,9 @@ This process is triggered after the request message has been read. It takes the 
 | **Lines** | 468 - 471 |
 | **View Code** | [Jump to Line 468](../carddemo/COPAUA0C.cbl#L468) |
 
-This process is triggered after the request has been authenticated. It marks the end of the authentication process. The program then proceeds to the next step in the overall flow. This step does not perform any specific actions on the data. It simply signals the completion of the authentication process. The program flow then continues to the next paragraph.
 
-> **Purpose:** It marks the end of the authentication process and allows the program to proceed to the next step.
 
-### Retrieve Cross-Reference Record
+### 5100-READ-XREF-RECORD
 
 | | |
 |---|---|
@@ -400,11 +357,9 @@ This process is triggered after the request has been authenticated. It marks the
 | **Lines** | 472 - 515 |
 | **View Code** | [Jump to Line 472](../carddemo/COPAUA0C.cbl#L472) |
 
-This process is triggered after the request has been authenticated. It reads a cross-reference record from a database or file. The record contains additional information related to the request. The data is then stored for further processing. The program uses this data to make decisions or perform calculations. The purpose of this step is to gather more information about the request.
 
-> **Purpose:** It retrieves additional information about the request from a cross-reference record to support further processing.
 
-### Exit Cross-Reference Record Process
+### 5100-EXIT
 
 | | |
 |---|---|
@@ -412,11 +367,9 @@ This process is triggered after the request has been authenticated. It reads a c
 | **Lines** | 516 - 519 |
 | **View Code** | [Jump to Line 516](../carddemo/COPAUA0C.cbl#L516) |
 
-This process is triggered after the cross-reference record has been read. It marks the end of the cross-reference record process. The program then proceeds to the next step in the overall flow. This step does not perform any specific actions on the data. It simply signals the completion of the cross-reference record process. The program flow then continues to the next paragraph.
 
-> **Purpose:** It marks the end of the cross-reference record process and allows the program to proceed to the next step.
 
-### Retrieve Account Record
+### 5200-READ-ACCT-RECORD
 
 | | |
 |---|---|
@@ -424,11 +377,9 @@ This process is triggered after the cross-reference record has been read. It mar
 | **Lines** | 520 - 563 |
 | **View Code** | [Jump to Line 520](../carddemo/COPAUA0C.cbl#L520) |
 
-This process is triggered after the cross-reference record has been read. It reads an account record from a database or file. The record contains information about the account associated with the request. The data is then stored for further processing. The program uses this data to make decisions or perform calculations. The purpose of this step is to gather more information about the account.
 
-> **Purpose:** It retrieves information about the account associated with the request to support further processing.
 
-### Exit Account Record Process
+### 5200-EXIT
 
 | | |
 |---|---|
@@ -436,11 +387,9 @@ This process is triggered after the cross-reference record has been read. It rea
 | **Lines** | 564 - 567 |
 | **View Code** | [Jump to Line 564](../carddemo/COPAUA0C.cbl#L564) |
 
-This process is triggered after the account record has been read. It marks the end of the account record process. The program then proceeds to the next step in the overall flow. This step does not perform any specific actions on the data. It simply signals the completion of the account record process. The program flow then continues to the next paragraph.
 
-> **Purpose:** It marks the end of the account record process and allows the program to proceed to the next step.
 
-### Retrieve Customer Record
+### 5300-READ-CUST-RECORD
 
 | | |
 |---|---|
@@ -448,11 +397,9 @@ This process is triggered after the account record has been read. It marks the e
 | **Lines** | 568 - 611 |
 | **View Code** | [Jump to Line 568](../carddemo/COPAUA0C.cbl#L568) |
 
-This process is triggered after the account record has been read. It reads a customer record from a database or file. The record contains information about the customer associated with the request. The data is then stored for further processing. The program uses this data to make decisions or perform calculations. The purpose of this step is to gather more information about the customer.
 
-> **Purpose:** It retrieves information about the customer associated with the request to support further processing.
 
-### Exit Customer Record Process
+### 5300-EXIT
 
 | | |
 |---|---|
@@ -460,9 +407,7 @@ This process is triggered after the account record has been read. It reads a cus
 | **Lines** | 612 - 615 |
 | **View Code** | [Jump to Line 612](../carddemo/COPAUA0C.cbl#L612) |
 
-This process is triggered after the customer record has been read. It marks the end of the customer record process. The program then proceeds to the next step in the overall flow. This step does not perform any specific actions on the data. It simply signals the completion of the customer record process. The program flow then continues to the next paragraph.
 
-> **Purpose:** It marks the end of the customer record process and allows the program to proceed to the next step.
 
 ### 5500-READ-AUTH-SUMMRY
 
@@ -686,6 +631,7 @@ This process is triggered after the customer record has been read. It marks the 
 
 
 
+
 ## Business Rules
 
 *No business rules extracted yet. Run LLM enrichment to extract rules from IF/EVALUATE logic.*
@@ -696,4 +642,4 @@ This process is triggered after the customer record has been read. It marks the 
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

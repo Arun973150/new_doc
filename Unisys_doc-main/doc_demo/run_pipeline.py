@@ -27,10 +27,10 @@ result = run_pipeline(
     output_dir="docs",
     db_path="data/cobol_knowledge.db",
     schema_path="schemas/cobol_knowledge.sql",
-    skip_parse=True,       # Set to False to re-parse with ProLeap
-    skip_jcl=False,        # Parse JCL files from carddemo/
-    skip_enrich=False,     # Set to False + set GROQ_API_KEY to enable LLM enrichment
-    skip_neo4j=False,      # Neo4j Desktop running at localhost:7687
+    skip_parse=True,       # Already parsed — using existing parsed_output/
+    skip_jcl=True,         # Already parsed — cached jcl_jobs.json will be loaded
+    skip_enrich=True,      # Already enriched — using existing enriched_output/
+    skip_neo4j=False,      # Export to remote Neo4j
     cobol_format="FIXED",
     groq_model="gemini-2.0-flash",   # Vertex AI model
 )

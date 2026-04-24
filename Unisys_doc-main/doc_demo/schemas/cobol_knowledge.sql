@@ -370,6 +370,23 @@ CREATE INDEX IF NOT EXISTS idx_jcl_datasets_job ON jcl_datasets(job_name);
 CREATE INDEX IF NOT EXISTS idx_jcl_datasets_dsn ON jcl_datasets(dsn);
 
 -- ============================================
+-- Table: exec_cics
+-- EXEC CICS commands found in programs
+-- ============================================
+CREATE TABLE IF NOT EXISTS exec_cics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    command TEXT NOT NULL,           -- SEND, RECEIVE, READ, WRITE, REWRITE, DELETE, XCTL, LINK, RETURN, etc.
+    paragraph_name TEXT,
+    line_number INTEGER,
+    details_json TEXT,               -- JSON with resource, mapset, dataset, transid, etc.
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exec_cics_program ON exec_cics(program_id);
+CREATE INDEX IF NOT EXISTS idx_exec_cics_command ON exec_cics(command);
+
+-- ============================================
 -- Full-Text Search Tables (FTS5)
 -- ============================================
 CREATE VIRTUAL TABLE IF NOT EXISTS programs_fts USING fts5(

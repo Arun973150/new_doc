@@ -111,7 +111,6 @@ flowchart TD
     CB_DFHBMSCA -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHBMSCA -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -253,6 +252,25 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 98 | {"details": {"transid": "WS-TRANID", "length": "LENGTH OF CARDDEMO-COMMAREA", "c... |
+| `RECEIVE` | None | 110 | {"details": {"map": "COSGN0A", "mapset": "COSGN00", "resp": "WS-RESP-CD"}} |
+| `SEND` | None | 151 | {"details": {"map": "COSGN0A", "mapset": "COSGN00", "from": "COSGN0AO"}} |
+| `SEND` | None | 164 | {"details": {"from": "WS-MESSAGE", "length": "LENGTH OF WS-MESSAGE"}} |
+| `RETURN` | None | 171 | {"details": {}} |
+| `ASSIGN` | None | 198 | {"details": {}} |
+| `ASSIGN` | None | 202 | {"details": {}} |
+| `READ` | None | 211 | {"details": {"dataset": "WS-USRSEC-FILE", "into": "SEC-USER-DATA", "length": "LE... |
+| `XCTL` | None | 231 | {"details": {"program": "COADM01C", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 236 | {"details": {"program": "COMEN01C", "commarea": "CARDDEMO-COMMAREA"}} |
+
+**Summary:** 10 CICS command(s) — RETURN (2), RECEIVE (1), SEND (2), ASSIGN (2), READ (1), XCTL (2)
+
 ## Business Rules
 
 - **Invalid Login Attempt** `BR-332`  
@@ -332,4 +350,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

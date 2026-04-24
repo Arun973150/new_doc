@@ -117,7 +117,7 @@
 | Name | Level | Picture | Program | Business Name |
 |------|-------|---------|---------|---------------|
 | `ALIGN-PSA` | 1 | `9(16)` | [CBSTM03A](programs/CBSTM03A.md) | None |
-| `DFHCOMMAREA` | 1 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Communication Area |
+| `DFHCOMMAREA` | 1 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
 | `DFHCOMMAREA` | 1 | `None` | [COADM01C](programs/COADM01C.md) | None |
 | `DFHCOMMAREA` | 1 | `None` | [COBIL00C](programs/COBIL00C.md) | None |
 | `DFHCOMMAREA` | 1 | `None` | [COMEN01C](programs/COMEN01C.md) | None |
@@ -173,41 +173,41 @@
 | `M03B-REWRITE` | 88 | `None` | [CBSTM03B](programs/CBSTM03B.md) | None |
 | `M03B-WRITE` | 88 | `None` | [CBSTM03B](programs/CBSTM03B.md) | None |
 | `NULL-UCB` | 88 | `None` | [CBSTM03A](programs/CBSTM03A.md) | None |
-| `PA-ACQR-COUNTRY-CODE` | 5 | `X(03)` | [COPAUS2C](programs/COPAUS2C.md) | Acquirer Country Code |
-| `PA-APPROVED-AMT` | 5 | `S9(10)V99` | [COPAUS2C](programs/COPAUS2C.md) | Approved Amount |
-| `PA-AUTH-APPROVED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Authorization Approved |
-| `PA-AUTH-DATE-9C` | 10 | `S9(05)` | [COPAUS2C](programs/COPAUS2C.md) | Authorization Date |
-| `PA-AUTH-FRAUD` | 5 | `X(01)` | [COPAUS2C](programs/COPAUS2C.md) | Authorization Fraud Code |
-| `PA-AUTH-ID-CODE` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | Authorization ID Code |
-| `PA-AUTH-ORIG-DATE` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | Original Authorization Date |
-| `PA-AUTH-ORIG-TIME` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | Original Authorization Time |
-| `PA-AUTH-RESP-CODE` | 5 | `X(02)` | [COPAUS2C](programs/COPAUS2C.md) | Authorization Response Code |
-| `PA-AUTH-RESP-REASON` | 5 | `X(04)` | [COPAUS2C](programs/COPAUS2C.md) | Authorization Response Reason |
-| `PA-AUTH-TIME-9C` | 10 | `S9(09)` | [COPAUS2C](programs/COPAUS2C.md) | Authorization Time |
-| `PA-AUTH-TYPE` | 5 | `X(04)` | [COPAUS2C](programs/COPAUS2C.md) | Authorization Type |
-| `PA-AUTHORIZATION-KEY` | 5 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Authorization Key |
-| `PA-CARD-EXPIRY-DATE` | 5 | `X(04)` | [COPAUS2C](programs/COPAUS2C.md) | Card Expiry Date |
-| `PA-CARD-NUM` | 5 | `X(16)` | [COPAUS2C](programs/COPAUS2C.md) | Card Number |
-| `PA-FRAUD-CONFIRMED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Fraud Confirmed Indicator |
-| `PA-FRAUD-REMOVED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Fraud Removed Indicator |
-| `PA-FRAUD-RPT-DATE` | 5 | `X(08)` | [COPAUS2C](programs/COPAUS2C.md) | Fraud Report Date |
-| `PA-MATCH-AUTH-DECLINED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Match Authorization Declined Indicator |
-| `PA-MATCH-PENDING` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Match Pending Indicator |
-| `PA-MATCH-PENDING-EXPIRED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Match Pending Expired Indicator |
-| `PA-MATCH-STATUS` | 5 | `X(01)` | [COPAUS2C](programs/COPAUS2C.md) | Match Status Code |
-| `PA-MATCHED-WITH-TRAN` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | Matched with Transaction Indicator |
-| `PA-MERCHANT-CATAGORY-CODE` | 5 | `X(04)` | [COPAUS2C](programs/COPAUS2C.md) | Merchant Category Code |
-| `PA-MERCHANT-CITY` | 5 | `X(13)` | [COPAUS2C](programs/COPAUS2C.md) | Merchant City |
-| `PA-MERCHANT-ID` | 5 | `X(15)` | [COPAUS2C](programs/COPAUS2C.md) | Merchant Identification Number |
-| `PA-MERCHANT-NAME` | 5 | `X(22)` | [COPAUS2C](programs/COPAUS2C.md) | Merchant Name |
-| `PA-MERCHANT-STATE` | 5 | `X(02)` | [COPAUS2C](programs/COPAUS2C.md) | Merchant State |
-| `PA-MERCHANT-ZIP` | 5 | `X(09)` | [COPAUS2C](programs/COPAUS2C.md) | Merchant ZIP Code |
-| `PA-MESSAGE-SOURCE` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | Message Source |
-| `PA-MESSAGE-TYPE` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | Message Type |
-| `PA-POS-ENTRY-MODE` | 5 | `9(02)` | [COPAUS2C](programs/COPAUS2C.md) | Point of Sale Entry Mode |
-| `PA-PROCESSING-CODE` | 5 | `9(06)` | [COPAUS2C](programs/COPAUS2C.md) | Processing Code |
-| `PA-TRANSACTION-AMT` | 5 | `S9(10)V99` | [COPAUS2C](programs/COPAUS2C.md) | Transaction Amount |
-| `PA-TRANSACTION-ID` | 5 | `X(15)` | [COPAUS2C](programs/COPAUS2C.md) | Transaction Identification Number |
+| `PA-ACQR-COUNTRY-CODE` | 5 | `X(03)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-APPROVED-AMT` | 5 | `S9(10)V99` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-APPROVED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-DATE-9C` | 10 | `S9(05)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-FRAUD` | 5 | `X(01)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-ID-CODE` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-ORIG-DATE` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-ORIG-TIME` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-RESP-CODE` | 5 | `X(02)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-RESP-REASON` | 5 | `X(04)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-TIME-9C` | 10 | `S9(09)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTH-TYPE` | 5 | `X(04)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-AUTHORIZATION-KEY` | 5 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-CARD-EXPIRY-DATE` | 5 | `X(04)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-CARD-NUM` | 5 | `X(16)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-FRAUD-CONFIRMED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-FRAUD-REMOVED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-FRAUD-RPT-DATE` | 5 | `X(08)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MATCH-AUTH-DECLINED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MATCH-PENDING` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MATCH-PENDING-EXPIRED` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MATCH-STATUS` | 5 | `X(01)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MATCHED-WITH-TRAN` | 88 | `None` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MERCHANT-CATAGORY-CODE` | 5 | `X(04)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MERCHANT-CITY` | 5 | `X(13)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MERCHANT-ID` | 5 | `X(15)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MERCHANT-NAME` | 5 | `X(22)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MERCHANT-STATE` | 5 | `X(02)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MERCHANT-ZIP` | 5 | `X(09)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MESSAGE-SOURCE` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-MESSAGE-TYPE` | 5 | `X(06)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-POS-ENTRY-MODE` | 5 | `9(02)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-PROCESSING-CODE` | 5 | `9(06)` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-TRANSACTION-AMT` | 5 | `S9(10)V99` | [COPAUS2C](programs/COPAUS2C.md) | None |
+| `PA-TRANSACTION-ID` | 5 | `X(15)` | [COPAUS2C](programs/COPAUS2C.md) | None |
 | `PADFL-DBDNAME` | 5 | `X(08)` | [DBUNLDGS](programs/DBUNLDGS.md) | None |
 | `PADFL-KEYFB` | 5 | `X(255)` | [DBUNLDGS](programs/DBUNLDGS.md) | None |
 | `PADFL-KEYFB-NAME` | 5 | `S9(05)` | [DBUNLDGS](programs/DBUNLDGS.md) | None |
@@ -222,4 +222,4 @@
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

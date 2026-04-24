@@ -13,11 +13,11 @@ Database Operations
 
 | Program | Type | Lines | Business Purpose |
 |---------|------|-------|-----------------|
-| [DBUNLDGS](../programs/DBUNLDGS.md) | BATCH | 367 | This program is triggered by a scheduled batch job to unload... |
+| [DBUNLDGS](../programs/DBUNLDGS.md) | BATCH | 367 |  |
 
 
 
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*
