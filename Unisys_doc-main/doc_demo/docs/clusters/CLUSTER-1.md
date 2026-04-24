@@ -22,7 +22,7 @@ A change to any one of them has the potential to affect the others.
 | [CBCUS01C](../programs/CBCUS01C.md) | BATCH | None |
 | [CBEXPORT](../programs/CBEXPORT.md) | BATCH | None |
 | [CBIMPORT](../programs/CBIMPORT.md) | BATCH | None |
-| [CBPAUP0C](../programs/CBPAUP0C.md) | BATCH | Authorization Expiration Processor |
+| [CBPAUP0C](../programs/CBPAUP0C.md) | BATCH | None |
 | [CBSTM03A](../programs/CBSTM03A.md) | BATCH | None |
 | [CBTRN01C](../programs/CBTRN01C.md) | BATCH | None |
 | [CBTRN02C](../programs/CBTRN02C.md) | BATCH | None |
@@ -37,10 +37,10 @@ A change to any one of them has the potential to affect the others.
 | [COCRDUPC](../programs/COCRDUPC.md) | ONLINE | None |
 | [CODATE01](../programs/CODATE01.md) | ONLINE | None |
 | [COMEN01C](../programs/COMEN01C.md) | ONLINE | None |
-| [COPAUA0C](../programs/COPAUA0C.md) | ONLINE | Message Queue Request Processor |
-| [COPAUS0C](../programs/COPAUS0C.md) | ONLINE | Authorization Management Handler |
-| [COPAUS1C](../programs/COPAUS1C.md) | ONLINE | Authentication View Handler |
-| [COPAUS2C](../programs/COPAUS2C.md) | ONLINE | Authentication Time Update Handler |
+| [COPAUA0C](../programs/COPAUA0C.md) | ONLINE | None |
+| [COPAUS0C](../programs/COPAUS0C.md) | ONLINE | None |
+| [COPAUS1C](../programs/COPAUS1C.md) | ONLINE | None |
+| [COPAUS2C](../programs/COPAUS2C.md) | ONLINE | None |
 | [CORPT00C](../programs/CORPT00C.md) | ONLINE | None |
 | [COSGN00C](../programs/COSGN00C.md) | ONLINE | None |
 | [COTRN00C](../programs/COTRN00C.md) | ONLINE | None |
@@ -51,7 +51,7 @@ A change to any one of them has the potential to affect the others.
 | [COUSR01C](../programs/COUSR01C.md) | ONLINE | None |
 | [COUSR02C](../programs/COUSR02C.md) | ONLINE | None |
 | [COUSR03C](../programs/COUSR03C.md) | ONLINE | None |
-| [DBUNLDGS](../programs/DBUNLDGS.md) | BATCH | Authorization Summary Unloader |
+| [DBUNLDGS](../programs/DBUNLDGS.md) | BATCH | None |
 | [PAUDBLOD](../programs/PAUDBLOD.md) | BATCH | None |
 | [PAUDBUNL](../programs/PAUDBUNL.md) | BATCH | None |
 
@@ -97,4 +97,4 @@ These copybooks are shared by 2+ programs in this cluster. Changing them affects
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

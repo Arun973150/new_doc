@@ -78,7 +78,9 @@ class Neo4jExporter:
             "CREATE CONSTRAINT IF NOT EXISTS FOR (d:DataItem) REQUIRE d.id IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (r:BusinessRule) REQUIRE r.id IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (s:Screen) REQUIRE s.name IS UNIQUE",
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (m:Module) REQUIRE m.id IS UNIQUE"
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (m:Module) REQUIRE m.id IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (cb:Copybook) REQUIRE cb.name IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (j:JclJob) REQUIRE j.name IS UNIQUE",
         ]
         
         with self.driver.session() as session:
@@ -104,19 +106,31 @@ class Neo4jExporter:
         
         # Export programs
         self._export_programs(db_loader)
-        
+
         # Export modules
         self._export_modules(db_loader)
-        
+
         # Export files
         self._export_files(db_loader)
-        
+
         # Export business rules
         self._export_business_rules(db_loader)
-        
-        # Export relationships
+
+        # Export screens (BMS)
+        self._export_screens(db_loader)
+
+        # Export copybooks
+        self._export_copybooks(db_loader)
+
+        # Export JCL jobs
+        self._export_jcl_jobs(db_loader)
+
+        # Export CICS commands
+        self._export_cics_commands(db_loader)
+
+        # Export relationships (calls + performs)
         self._export_relationships(db_loader)
-        
+
         console.print("[green]✓ Neo4j export complete[/green]")
     
     def _export_programs(self, db_loader):
@@ -259,12 +273,235 @@ class Neo4jExporter:
                     "programId": rule["program_id"]
                 })
     
+    def _export_screens(self, db_loader):
+        """Export BMS screen nodes and link to programs."""
+        screens = db_loader.get_all_screens()
+
+        console.print(f"  Exporting {len(screens)} screens...")
+
+        with self.driver.session() as session:
+            for screen in screens:
+                screen_name = screen.get("screen_name") or screen.get("map_name") or "UNKNOWN"
+                session.run("""
+                    MERGE (s:Screen {name: $name})
+                    SET s.mapName = $mapName,
+                        s.mapsetName = $mapsetName,
+                        s.businessName = $businessName,
+                        s.filePath = $filePath
+                """, {
+                    "name": screen_name,
+                    "mapName": screen.get("map_name"),
+                    "mapsetName": screen.get("mapset_name"),
+                    "businessName": screen.get("business_name"),
+                    "filePath": screen.get("file_path"),
+                })
+
+                # Link screen to its associated program
+                prog = screen.get("associated_program")
+                if prog:
+                    session.run("""
+                        MATCH (p:Program {id: $programId})
+                        MATCH (s:Screen {name: $screenName})
+                        MERGE (p)-[:USES_SCREEN]->(s)
+                    """, {
+                        "programId": prog,
+                        "screenName": screen_name,
+                    })
+
+                # Export screen fields as properties (compact)
+                field_names = screen.get("field_names")
+                if field_names:
+                    session.run("""
+                        MATCH (s:Screen {name: $name})
+                        SET s.fields = $fields
+                    """, {
+                        "name": screen_name,
+                        "fields": field_names,
+                    })
+
+    def _export_copybooks(self, db_loader):
+        """Export copybook nodes and INCLUDES relationships."""
+        copybooks = db_loader.get_copybooks()
+
+        console.print(f"  Exporting {len(copybooks)} copybooks...")
+
+        with self.driver.session() as session:
+            for cb in copybooks:
+                cb_name = cb["copybook_name"]
+                session.run("""
+                    MERGE (cb:Copybook {name: $name})
+                    SET cb.filePath = $filePath,
+                        cb.businessName = $businessName,
+                        cb.description = $description
+                """, {
+                    "name": cb_name,
+                    "filePath": cb.get("file_path"),
+                    "businessName": cb.get("business_name"),
+                    "description": cb.get("description"),
+                })
+
+                # Link programs that use this copybook
+                used_by = cb.get("used_by") or ""
+                for prog_id in [p.strip() for p in used_by.split(",") if p.strip()]:
+                    session.run("""
+                        MATCH (p:Program {id: $programId})
+                        MATCH (cb:Copybook {name: $cbName})
+                        MERGE (p)-[:INCLUDES]->(cb)
+                    """, {
+                        "programId": prog_id,
+                        "cbName": cb_name,
+                    })
+
+    def _export_jcl_jobs(self, db_loader):
+        """Export JCL job nodes, steps, and EXECUTES relationships."""
+        jobs = db_loader.get_all_jcl_jobs()
+
+        console.print(f"  Exporting {len(jobs)} JCL jobs...")
+
+        with self.driver.session() as session:
+            for job in jobs:
+                job_name = job["job_name"]
+                session.run("""
+                    MERGE (j:JclJob {name: $name})
+                    SET j.fileName = $fileName,
+                        j.filePath = $filePath,
+                        j.description = $description,
+                        j.jobClass = $jobClass,
+                        j.stepCount = $stepCount
+                """, {
+                    "name": job_name,
+                    "fileName": job.get("file_name"),
+                    "filePath": job.get("file_path"),
+                    "description": job.get("job_description"),
+                    "jobClass": job.get("job_class"),
+                    "stepCount": job.get("step_count", 0),
+                })
+
+                # Link JCL job to the COBOL programs it executes
+                programs_called = job.get("programs_called") or []
+                for prog_id in programs_called:
+                    session.run("""
+                        MATCH (j:JclJob {name: $jobName})
+                        MATCH (p:Program {id: $programId})
+                        MERGE (j)-[:EXECUTES]->(p)
+                    """, {
+                        "jobName": job_name,
+                        "programId": prog_id,
+                    })
+
+                # Export datasets as properties (input/output DSNs)
+                input_ds = job.get("input_datasets") or []
+                output_ds = job.get("output_datasets") or []
+                if input_ds or output_ds:
+                    session.run("""
+                        MATCH (j:JclJob {name: $name})
+                        SET j.inputDatasets = $inputDs,
+                            j.outputDatasets = $outputDs
+                    """, {
+                        "name": job_name,
+                        "inputDs": input_ds,
+                        "outputDs": output_ds,
+                    })
+
+    def _export_cics_commands(self, db_loader):
+        """Export EXEC CICS commands as relationships from programs."""
+        cursor = db_loader.conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT program_id, command, paragraph_name, line_number, details_json
+                FROM exec_cics ORDER BY program_id, line_number
+            """)
+            cics_rows = [dict(row) for row in cursor.fetchall()]
+        except Exception:
+            cics_rows = []
+
+        if not cics_rows:
+            console.print("  No CICS commands to export")
+            return
+
+        console.print(f"  Exporting {len(cics_rows)} CICS commands...")
+
+        # Group by program for a summary node per program
+        from collections import defaultdict
+        import json as _json
+        by_program = defaultdict(list)
+        for row in cics_rows:
+            by_program[row["program_id"]].append(row)
+
+        with self.driver.session() as session:
+            for prog_id, commands in by_program.items():
+                # Create a CicsProfile node summarizing all CICS usage for this program
+                cmd_counts = defaultdict(int)
+                for c in commands:
+                    cmd_counts[c["command"]] += 1
+
+                session.run("""
+                    MERGE (cp:CicsProfile {programId: $programId})
+                    SET cp.totalCommands = $total,
+                        cp.commandSummary = $summary,
+                        cp.commands = $commands
+                """, {
+                    "programId": prog_id,
+                    "total": len(commands),
+                    "summary": ", ".join(f"{cmd}({cnt})" for cmd, cnt in cmd_counts.items()),
+                    "commands": list(cmd_counts.keys()),
+                })
+
+                # Link program to its CICS profile
+                session.run("""
+                    MATCH (p:Program {id: $programId})
+                    MATCH (cp:CicsProfile {programId: $programId})
+                    MERGE (p)-[:USES_CICS]->(cp)
+                """, {
+                    "programId": prog_id,
+                })
+
+                # Create individual CICS command edges for key commands
+                # (SEND MAP, RECEIVE MAP, XCTL, LINK → show screen/program connections)
+                for c in commands:
+                    details = {}
+                    if c.get("details_json"):
+                        try:
+                            details = _json.loads(c["details_json"])
+                        except Exception:
+                            pass
+
+                    cmd = c["command"]
+
+                    # SEND/RECEIVE MAP → link program to screen
+                    if cmd in ("SEND", "RECEIVE") and details.get("map"):
+                        session.run("""
+                            MATCH (p:Program {id: $programId})
+                            MATCH (s:Screen {name: $mapName})
+                            MERGE (p)-[r:CICS_MAP {command: $cmd}]->(s)
+                            SET r.lineNumber = $line
+                        """, {
+                            "programId": prog_id,
+                            "mapName": details["map"],
+                            "cmd": cmd,
+                            "line": c.get("line_number"),
+                        })
+
+                    # XCTL/LINK → link program to called program
+                    if cmd in ("XCTL", "LINK") and details.get("program"):
+                        session.run("""
+                            MATCH (p:Program {id: $programId})
+                            MATCH (target:Program {id: $targetId})
+                            MERGE (p)-[r:CICS_TRANSFER {command: $cmd}]->(target)
+                            SET r.lineNumber = $line
+                        """, {
+                            "programId": prog_id,
+                            "targetId": details["program"],
+                            "cmd": cmd,
+                            "line": c.get("line_number"),
+                        })
+
     def _export_relationships(self, db_loader):
         """Export CALLS and PERFORMS relationships."""
         call_graph = db_loader.get_call_graph()
-        
+
         console.print(f"  Exporting {len(call_graph)} call relationships...")
-        
+
         with self.driver.session() as session:
             for call in call_graph:
                 session.run("""
@@ -277,6 +514,32 @@ class Neo4jExporter:
                     "calledId": call["called_program"],
                     "lineNumber": call.get("line_number")
                 })
+
+            # Export PERFORMS relationships (intra-program control flow)
+            programs = db_loader.get_all_programs()
+            perform_count = 0
+            for prog in programs:
+                details = db_loader.get_program_details(prog["program_id"])
+                if not details:
+                    continue
+                for perf in details.get("performs", []):
+                    src_id = f"{prog['program_id']}:{perf['source_paragraph']}"
+                    tgt_id = f"{prog['program_id']}:{perf['target_paragraph']}"
+                    session.run("""
+                        MATCH (src:Paragraph {id: $srcId})
+                        MATCH (tgt:Paragraph {id: $tgtId})
+                        MERGE (src)-[r:PERFORMS]->(tgt)
+                        SET r.type = $perfType,
+                            r.lineNumber = $line
+                    """, {
+                        "srcId": src_id,
+                        "tgtId": tgt_id,
+                        "perfType": perf.get("perform_type", "SIMPLE"),
+                        "line": perf.get("line_number"),
+                    })
+                    perform_count += 1
+
+            console.print(f"  Exported {perform_count} perform relationships...")
     
     # ============================================
     # Graph Queries for Visualization

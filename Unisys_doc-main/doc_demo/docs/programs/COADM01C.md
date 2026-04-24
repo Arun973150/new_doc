@@ -104,7 +104,6 @@ flowchart TD
     CB_DFHAID -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHAID -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -272,6 +271,22 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `HANDLE` | None | 77 | {"details": {}} |
+| `RETURN` | None | 111 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 145 | {"details": {"program": "CDEMO-ADMIN-OPT-PGMNAME(WS-OPTION", "commarea": "CARDDE... |
+| `XCTL` | None | 168 | {"details": {"program": "CDEMO-TO-PROGRAM"}} |
+| `SEND` | None | 182 | {"details": {"map": "COADM1A", "mapset": "COADM01", "from": "COADM1AO"}} |
+| `RECEIVE` | None | 194 | {"details": {"map": "COADM1A", "mapset": "COADM01", "into": "COADM1AI", "resp": ... |
+| `RETURN` | None | 280 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+
+**Summary:** 7 CICS command(s) — HANDLE (1), RETURN (2), XCTL (2), SEND (1), RECEIVE (1)
+
 ## Business Rules
 
 - **Invalid Program ID Error** `BR-302`  
@@ -333,4 +348,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

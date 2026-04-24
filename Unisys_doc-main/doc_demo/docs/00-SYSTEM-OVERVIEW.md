@@ -1,6 +1,6 @@
 # CardDemo - System Overview
 
-> **Auto-generated documentation** | 2026-03-16 21:06  
+> **Auto-generated documentation** | 2026-04-13 12:16  
 > Analyzed from 44 COBOL programs across 20 functional modules
 
 ---
@@ -18,8 +18,9 @@ of CICS online screens and batch JCL jobs.
 |--------|-------|
 | Programs | 44 |
 | Functional Modules | 20 |
-| BMS Screens | 189 |
+| BMS Screens | 315 |
 | Data Items | 7383 |
+| CICS Commands | 101 |
 | Inter-Program Calls | 59 |
 | Business Rules | 447 |
 | Copybooks | 68 |

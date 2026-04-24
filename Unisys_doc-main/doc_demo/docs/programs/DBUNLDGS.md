@@ -1,6 +1,6 @@
 # Program: DBUNLDGS
 
-> **Authorization Summary Unloader**
+
 ---
 
 ## Quick Reference
@@ -17,11 +17,7 @@
 
 > **View Source:** [Open DBUNLDGS.CBL](../carddemo/DBUNLDGS.CBL#L1)
 
-## Business Purpose
 
-This program is triggered by a scheduled batch job to unload authorization summary data. It iterates through authorization records, processes each record, and inserts parent and child segments into a database. The program reads and writes various data items, including authorization dates, expiry days, and application IDs. It produces updated authorization summary records and tracks the number of records written, read, and deleted. The program also handles errors and exceptions, and provides summary information for auditing and reporting purposes.
-
-**Used By:** Batch Scheduler  |  **Process:** Transaction Processing
 
 ## Dependency Context
 
@@ -98,7 +94,6 @@ flowchart TD
     CB_PAUTBPCB -.- PAUDBLOD
     PAUDBUNL["PAUDBUNL"]:::coupled
     CB_PAUTBPCB -.- PAUDBUNL
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -330,6 +325,7 @@ flowchart TD
 
 
 
+
 ## Business Rules
 
 - **Authorization Summary Record Found** `BR-003`  
@@ -358,49 +354,49 @@ flowchart TD
 
 | Name | Level | Picture | Section | Business Name |
 |------|-------|---------|---------|---------------|
-| `OPFIL1-REC` | 1 | `X(100)` | WORKING-STORAGE | Output File 1 Record |
-| `OPFIL2-REC` | 1 | `None` | WORKING-STORAGE | Output File 2 Record |
-| `ROOT-SEG-KEY` | 5 | `S9(11)` | WORKING-STORAGE | Root Segment Key |
-| `CHILD-SEG-REC` | 5 | `X(200)` | WORKING-STORAGE | Child Segment Record |
-| `WS-VARIABLES` | 1 | `None` | WORKING-STORAGE | Working Storage Variables |
-| `WS-PGMNAME` | 5 | `X(08)` | WORKING-STORAGE | Program Name |
-| `CURRENT-DATE` | 5 | `9(06)` | WORKING-STORAGE | Current Date |
-| `CURRENT-YYDDD` | 5 | `9(05)` | WORKING-STORAGE | Current Year and Day |
-| `WS-AUTH-DATE` | 5 | `9(05)` | WORKING-STORAGE | Authorization Date |
-| `WS-EXPIRY-DAYS` | 5 | `S9(4)` | WORKING-STORAGE | Expiry Days |
-| `WS-DAY-DIFF` | 5 | `S9(4)` | WORKING-STORAGE | Day Difference |
-| `IDX` | 5 | `S9(4)` | WORKING-STORAGE | Index |
-| `WS-CURR-APP-ID` | 5 | `9(11)` | WORKING-STORAGE | Current Application ID |
-| `WS-NO-CHKP` | 5 | `9(8)` | WORKING-STORAGE | Number of Checkpoints |
-| `WS-AUTH-SMRY-PROC-CNT` | 5 | `9(8)` | WORKING-STORAGE | Authorization Summary Process Count |
-| `WS-TOT-REC-WRITTEN` | 5 | `S9(8)` | WORKING-STORAGE | Total Records Written |
-| `WS-NO-SUMRY-READ` | 5 | `S9(8)` | WORKING-STORAGE | Number of Summary Records Read |
-| `WS-NO-SUMRY-DELETED` | 5 | `S9(8)` | WORKING-STORAGE | Number of Summary Records Deleted |
-| `WS-NO-DTL-READ` | 5 | `S9(8)` | WORKING-STORAGE | Number of Detail Records Read |
-| `WS-NO-DTL-DELETED` | 5 | `S9(8)` | WORKING-STORAGE | Number of Detail Records Deleted |
-| `WS-ERR-FLG` | 5 | `X(01)` | WORKING-STORAGE | Error Flag |
-| `ERR-FLG-ON` | 88 | `None` | WORKING-STORAGE | Error Flag On |
-| `ERR-FLG-OFF` | 88 | `None` | WORKING-STORAGE | Error Flag Off |
-| `WS-END-OF-AUTHDB-FLAG` | 5 | `X(01)` | WORKING-STORAGE | End of Authorization Database Flag |
-| `END-OF-AUTHDB` | 88 | `None` | WORKING-STORAGE | End of Authorization Database |
-| `NOT-END-OF-AUTHDB` | 88 | `None` | WORKING-STORAGE | Authorization Database Not Exhausted |
-| `WS-MORE-AUTHS-FLAG` | 5 | `X(01)` | WORKING-STORAGE | More Authorizations Flag |
-| `MORE-AUTHS` | 88 | `None` | WORKING-STORAGE | More Authorizations Exist |
-| `NO-MORE-AUTHS` | 88 | `None` | WORKING-STORAGE | No More Authorizations Exist |
-| `WS-END-OF-ROOT-SEG` | 5 | `X(01)` | WORKING-STORAGE | End of Root Segment Indicator |
-| `WS-END-OF-CHILD-SEG` | 5 | `X(01)` | WORKING-STORAGE | End of Child Segment Indicator |
-| `WS-INFILE-STATUS` | 5 | `X(02)` | WORKING-STORAGE | Input File Status |
-| `WS-OUTFL1-STATUS` | 5 | `X(02)` | WORKING-STORAGE | First Output File Status |
-| `WS-OUTFL2-STATUS` | 5 | `X(02)` | WORKING-STORAGE | Second Output File Status |
-| `WS-CUSTID-STATUS` | 5 | `X(02)` | WORKING-STORAGE | Customer ID Status |
-| `END-OF-FILE` | 88 | `None` | WORKING-STORAGE | End of File Indicator |
-| `WK-CHKPT-ID` | 5 | `None` | WORKING-STORAGE | Checkpoint ID |
+| `OPFIL1-REC` | 1 | `X(100)` | WORKING-STORAGE | None |
+| `OPFIL2-REC` | 1 | `None` | WORKING-STORAGE | None |
+| `ROOT-SEG-KEY` | 5 | `S9(11)` | WORKING-STORAGE | None |
+| `CHILD-SEG-REC` | 5 | `X(200)` | WORKING-STORAGE | None |
+| `WS-VARIABLES` | 1 | `None` | WORKING-STORAGE | None |
+| `WS-PGMNAME` | 5 | `X(08)` | WORKING-STORAGE | None |
+| `CURRENT-DATE` | 5 | `9(06)` | WORKING-STORAGE | None |
+| `CURRENT-YYDDD` | 5 | `9(05)` | WORKING-STORAGE | None |
+| `WS-AUTH-DATE` | 5 | `9(05)` | WORKING-STORAGE | None |
+| `WS-EXPIRY-DAYS` | 5 | `S9(4)` | WORKING-STORAGE | None |
+| `WS-DAY-DIFF` | 5 | `S9(4)` | WORKING-STORAGE | None |
+| `IDX` | 5 | `S9(4)` | WORKING-STORAGE | None |
+| `WS-CURR-APP-ID` | 5 | `9(11)` | WORKING-STORAGE | None |
+| `WS-NO-CHKP` | 5 | `9(8)` | WORKING-STORAGE | None |
+| `WS-AUTH-SMRY-PROC-CNT` | 5 | `9(8)` | WORKING-STORAGE | None |
+| `WS-TOT-REC-WRITTEN` | 5 | `S9(8)` | WORKING-STORAGE | None |
+| `WS-NO-SUMRY-READ` | 5 | `S9(8)` | WORKING-STORAGE | None |
+| `WS-NO-SUMRY-DELETED` | 5 | `S9(8)` | WORKING-STORAGE | None |
+| `WS-NO-DTL-READ` | 5 | `S9(8)` | WORKING-STORAGE | None |
+| `WS-NO-DTL-DELETED` | 5 | `S9(8)` | WORKING-STORAGE | None |
+| `WS-ERR-FLG` | 5 | `X(01)` | WORKING-STORAGE | None |
+| `ERR-FLG-ON` | 88 | `None` | WORKING-STORAGE | None |
+| `ERR-FLG-OFF` | 88 | `None` | WORKING-STORAGE | None |
+| `WS-END-OF-AUTHDB-FLAG` | 5 | `X(01)` | WORKING-STORAGE | None |
+| `END-OF-AUTHDB` | 88 | `None` | WORKING-STORAGE | None |
+| `NOT-END-OF-AUTHDB` | 88 | `None` | WORKING-STORAGE | None |
+| `WS-MORE-AUTHS-FLAG` | 5 | `X(01)` | WORKING-STORAGE | None |
+| `MORE-AUTHS` | 88 | `None` | WORKING-STORAGE | None |
+| `NO-MORE-AUTHS` | 88 | `None` | WORKING-STORAGE | None |
+| `WS-END-OF-ROOT-SEG` | 5 | `X(01)` | WORKING-STORAGE | None |
+| `WS-END-OF-CHILD-SEG` | 5 | `X(01)` | WORKING-STORAGE | None |
+| `WS-INFILE-STATUS` | 5 | `X(02)` | WORKING-STORAGE | None |
+| `WS-OUTFL1-STATUS` | 5 | `X(02)` | WORKING-STORAGE | None |
+| `WS-OUTFL2-STATUS` | 5 | `X(02)` | WORKING-STORAGE | None |
+| `WS-CUSTID-STATUS` | 5 | `X(02)` | WORKING-STORAGE | None |
+| `END-OF-FILE` | 88 | `None` | WORKING-STORAGE | None |
+| `WK-CHKPT-ID` | 5 | `None` | WORKING-STORAGE | None |
 | `FILLER` | 10 | `X(04)` | WORKING-STORAGE | None |
-| `WK-CHKPT-ID-CTR` | 10 | `9(04)` | WORKING-STORAGE | Checkpoint ID Counter |
-| `WS-IMS-VARIABLES` | 1 | `None` | WORKING-STORAGE | IMS Variables |
+| `WK-CHKPT-ID-CTR` | 10 | `9(04)` | WORKING-STORAGE | None |
+| `WS-IMS-VARIABLES` | 1 | `None` | WORKING-STORAGE | None |
 
 *Showing 40 of 162 data items. See [Data Dictionary](../data-dictionary.md).*
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

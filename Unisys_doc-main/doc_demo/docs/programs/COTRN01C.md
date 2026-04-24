@@ -111,7 +111,6 @@ flowchart TD
     CB_DFHBMSCA -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHBMSCA -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -293,6 +292,20 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 136 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 205 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `SEND` | None | 219 | {"details": {"map": "COTRN1A", "mapset": "COTRN01", "from": "COTRN1AO"}} |
+| `RECEIVE` | None | 232 | {"details": {"map": "COTRN1A", "mapset": "COTRN01", "into": "COTRN1AI", "resp": ... |
+| `READ` | None | 269 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
+
+**Summary:** 5 CICS command(s) — RETURN (1), XCTL (1), SEND (1), RECEIVE (1), READ (1)
+
 ## Business Rules
 
 - **Transaction Code Validation** `BR-359`  
@@ -357,4 +370,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

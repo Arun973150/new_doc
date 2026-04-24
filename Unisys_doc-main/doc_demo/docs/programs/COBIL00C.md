@@ -113,7 +113,6 @@ flowchart TD
     CB_CVTRA05Y -.- CBEXPORT
     CBIMPORT["CBIMPORT"]:::coupled
     CB_CVTRA05Y -.- CBIMPORT
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -377,6 +376,28 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 146 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `ASKTIME` | None | 251 | {"details": {}} |
+| `FORMATTIME` | None | 255 | {"details": {}} |
+| `XCTL` | None | 281 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `SEND` | None | 295 | {"details": {"map": "COBIL0A", "mapset": "COBIL00", "from": "COBIL0AO"}} |
+| `RECEIVE` | None | 308 | {"details": {"map": "COBIL0A", "mapset": "COBIL00", "into": "COBIL0AI", "resp": ... |
+| `READ` | None | 345 | {"details": {"dataset": "WS-ACCTDAT-FILE", "into": "ACCOUNT-RECORD", "length": "... |
+| `REWRITE` | None | 379 | {"details": {"dataset": "WS-ACCTDAT-FILE", "from": "ACCOUNT-RECORD", "length": "... |
+| `READ` | None | 410 | {"details": {"dataset": "WS-CXACAIX-FILE", "into": "CARD-XREF-RECORD", "length":... |
+| `STARTBR` | None | 443 | {"details": {"dataset": "WS-TRANSACT-FILE", "length": "LENGTH OF TRAN-ID", "ridf... |
+| `READPREV` | None | 474 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
+| `ENDBR` | None | 503 | {"details": {"dataset": "WS-TRANSACT-FILE"}} |
+| `WRITE` | None | 512 | {"details": {"dataset": "WS-TRANSACT-FILE", "from": "TRAN-RECORD", "length": "LE... |
+
+**Summary:** 13 CICS command(s) — RETURN (1), ASKTIME (1), FORMATTIME (1), XCTL (1), SEND (1), RECEIVE (1), READ (2), REWRITE (1), STARTBR (1), READPREV (1), ENDBR (1), WRITE (1)
+
 ## Business Rules
 
 - **Insufficient Funds Check** `BR-305`  
@@ -468,4 +489,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

@@ -111,7 +111,6 @@ flowchart TD
     CB_DFHBMSCA -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHBMSCA -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -306,6 +305,22 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 199 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `WRITEQ` | None | 517 | {"details": {"from": "JCL-RECORD", "length": "LENGTH OF JCL-RECORD", "queue": "J... |
+| `XCTL` | None | 548 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `SEND` | None | 563 | {"details": {"map": "CORPT0A", "mapset": "CORPT00", "from": "CORPT0AO"}} |
+| `SEND` | None | 571 | {"details": {"map": "CORPT0A", "mapset": "CORPT00", "from": "CORPT0AO"}} |
+| `RETURN` | None | 587 | {"details": {"transid": "WS-TRANID", "length": "LENGTH OF CARDDEMO-COMMAREA", "c... |
+| `RECEIVE` | None | 598 | {"details": {"map": "CORPT0A", "mapset": "CORPT00", "into": "CORPT0AI", "resp": ... |
+
+**Summary:** 7 CICS command(s) — RETURN (2), WRITEQ (1), XCTL (1), SEND (2), RECEIVE (1)
+
 ## Business Rules
 
 - **Transaction Report Submission** `BR-322`  
@@ -388,4 +403,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

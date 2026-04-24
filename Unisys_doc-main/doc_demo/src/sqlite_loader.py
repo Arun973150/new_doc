@@ -76,6 +76,21 @@ class SQLiteLoader:
                 UNIQUE(mode, subject)
             )
         """)
+
+        # Create exec_cics table (EXEC CICS commands per program)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS exec_cics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                command TEXT NOT NULL,
+                paragraph_name TEXT,
+                line_number INTEGER,
+                details_json TEXT,
+                FOREIGN KEY (program_id) REFERENCES programs(program_id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_exec_cics_program ON exec_cics(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_exec_cics_command ON exec_cics(command)")
         self.conn.commit()
 
     def close(self):
@@ -229,7 +244,7 @@ class SQLiteLoader:
 
                     # Clear old data for this program
                     for table in ["paragraphs", "data_items", "files", "statements",
-                                  "performs", "copybook_usage"]:
+                                  "performs", "copybook_usage", "exec_cics"]:
                         cursor.execute(f"DELETE FROM {table} WHERE program_id = ?", (program_id,))
                     # program_calls uses caller_program, not program_id
                     cursor.execute("DELETE FROM program_calls WHERE caller_program = ?", (program_id,))
@@ -340,6 +355,33 @@ class SQLiteLoader:
                             INSERT OR REPLACE INTO copybook_usage (program_id, copybook_name) VALUES (?, ?)
                         """, (program_id, cb))
 
+                    # Insert EXEC CICS commands
+                    # If ProLeap gave all UNKNOWN commands, extract from source
+                    cics_list = program.get("exec_cics", [])
+                    all_unknown = cics_list and all(
+                        c.get("command", "UNKNOWN") == "UNKNOWN" for c in cics_list
+                    )
+                    if all_unknown and program.get("file_path"):
+                        cics_list = self._extract_cics_from_source(
+                            program["file_path"], program.get("paragraphs", [])
+                        )
+
+                    for cics in cics_list:
+                        details = {k: v for k, v in cics.items()
+                                   if k not in ("command", "line_number", "paragraph")}
+                        cursor.execute("""
+                            INSERT INTO exec_cics (
+                                program_id, command, paragraph_name,
+                                line_number, details_json
+                            ) VALUES (?, ?, ?, ?, ?)
+                        """, (
+                            program_id,
+                            cics.get("command", "UNKNOWN"),
+                            cics.get("paragraph"),
+                            cics.get("line_number"),
+                            json.dumps(details) if details else None
+                        ))
+
                 except Exception as e:
                     import traceback
                     console.print(f"[yellow]Warning: Error loading {program.get('program_id')}: {e}[/yellow]")
@@ -368,6 +410,84 @@ class SQLiteLoader:
             console.print(f"[yellow]Warning: FTS trigger re-creation: {e}[/yellow]")
 
         console.print(f"[green]OK - Loaded {len(programs)} programs[/green]")
+
+    @staticmethod
+    def _extract_cics_from_source(file_path: str, paragraphs: List[Dict]) -> List[Dict]:
+        """Extract EXEC CICS commands directly from COBOL source when ProLeap gives empty raw_text."""
+        import re
+        from pathlib import Path
+
+        src = Path(file_path)
+        if not src.exists():
+            return []
+
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+
+        lines = content.split("\n")
+
+        # Build paragraph line-range lookup
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        results = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            line_num = i + 1
+
+            # Skip comment lines (column 7 = *)
+            if len(line) > 6 and line[6] == "*":
+                i += 1
+                continue
+
+            upper = line.upper()
+            if "EXEC CICS" not in upper:
+                i += 1
+                continue
+
+            # Collect the full EXEC CICS block (may span multiple lines until END-EXEC)
+            block_lines = [line]
+            j = i + 1
+            while j < len(lines):
+                next_line = lines[j]
+                block_lines.append(next_line)
+                if "END-EXEC" in next_line.upper():
+                    break
+                j += 1
+            i = j + 1
+
+            # Join and extract command + parameters
+            block = " ".join(l[6:] if len(l) > 6 else l for l in block_lines)
+            block = re.sub(r"\s+", " ", block).strip()
+
+            m = re.search(r"EXEC\s+CICS\s+(\w+)", block, re.IGNORECASE)
+            cmd = m.group(1).upper() if m else "UNKNOWN"
+
+            details = {}
+            for param in ["MAP", "MAPSET", "PROGRAM", "DATASET", "FILE", "TRANSID",
+                          "FROM", "INTO", "LENGTH", "RIDFLD", "COMMAREA", "QUEUE",
+                          "RESP", "CURSOR", "ERASE"]:
+                pm = re.search(rf"{param}\s*\(\s*([^)]+)\s*\)", block, re.IGNORECASE)
+                if pm:
+                    details[param.lower()] = pm.group(1).strip().strip("'\"")
+
+            para_name = _find_paragraph(line_num)
+            results.append({
+                "command": cmd,
+                "line_number": line_num,
+                "paragraph": para_name,
+                "details": details,
+            })
+
+        return results
 
     def load_screens(self, screens: List[Dict]):
         """Load BMS screen definitions."""
@@ -529,6 +649,7 @@ class SQLiteLoader:
             ("called_by", "SELECT * FROM program_calls WHERE called_program = ?"),
             ("performs", "SELECT * FROM performs WHERE program_id = ?"),
             ("business_rules", "SELECT * FROM business_rules WHERE program_id = ?"),
+            ("exec_cics", "SELECT * FROM exec_cics WHERE program_id = ? ORDER BY line_number"),
         ]:
             cursor.execute(query, (program_id,))
             result[key] = [dict(row) for row in cursor.fetchall()]

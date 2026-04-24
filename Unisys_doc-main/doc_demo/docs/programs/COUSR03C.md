@@ -111,7 +111,6 @@ flowchart TD
     CB_DFHBMSCA -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHBMSCA -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -309,6 +308,21 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 134 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 205 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `SEND` | None | 219 | {"details": {"map": "COUSR3A", "mapset": "COUSR03", "from": "COUSR3AO"}} |
+| `RECEIVE` | None | 232 | {"details": {"map": "COUSR3A", "mapset": "COUSR03", "into": "COUSR3AI", "resp": ... |
+| `READ` | None | 269 | {"details": {"dataset": "WS-USRSEC-FILE", "into": "SEC-USER-DATA", "length": "LE... |
+| `DELETE` | None | 307 | {"details": {"dataset": "WS-USRSEC-FILE", "resp": "WS-RESP-CD"}} |
+
+**Summary:** 6 CICS command(s) — RETURN (1), XCTL (1), SEND (1), RECEIVE (1), READ (1), DELETE (1)
+
 ## Business Rules
 
 - **User Deletion Authorization** `BR-432`  
@@ -400,4 +414,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

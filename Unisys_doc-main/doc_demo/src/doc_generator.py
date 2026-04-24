@@ -79,6 +79,7 @@ of CICS online screens and batch JCL jobs.
 | Functional Modules | {{ total_modules }} |
 | BMS Screens | {{ total_screens }} |
 | Data Items | {{ total_data_items }} |
+| CICS Commands | {{ total_cics_commands }} |
 | Inter-Program Calls | {{ total_calls }} |
 | Business Rules | {{ total_rules }} |
 | Copybooks | {{ total_copybooks }} |
@@ -386,7 +387,7 @@ flowchart TD
     CB_{{ cb.copybook_name | mermaid_id }} -.- {{ u.program_id | mermaid_id }}
 {% endfor %}
 {% endif %}
-{% endfor %}
+{% endfor %}
 {% if impact.transitive_callers %}
 {% for tc in impact.transitive_callers[:5] %}
 {% if tc not in dep_callers | map(attribute="caller_program") | list %}
@@ -507,6 +508,30 @@ This program is run by the following batch JCL jobs:
 {% for j in jcl_jobs %}
 | [{{ j.job_name }}](../jcl/{{ j.job_name }}.md) | `{{ j.step_name }}` | {{ j.step_comments | default("-") | truncate(80) }} |
 {% endfor %}
+
+{% endif %}
+
+{% if exec_cics %}
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+{% for c in exec_cics %}
+| `{{ c.command }}` | {{ c.paragraph_name | default("-") }} | {{ c.line_number | default("-") }} | {{ c.details_json | default("-") | truncate(80) }} |
+{% endfor %}
+
+{% set cics_commands = exec_cics | map(attribute="command") | list %}
+{% set cics_summary = {} %}
+{% for c in exec_cics %}
+{% if c.command in cics_summary %}
+{% set _ = cics_summary.update({c.command: cics_summary[c.command] + 1}) %}
+{% else %}
+{% set _ = cics_summary.update({c.command: 1}) %}
+{% endif %}
+{% endfor %}
+**Summary:** {{ exec_cics | length }} CICS command(s) — {% for cmd, cnt in cics_summary.items() %}{{ cmd }} ({{ cnt }}){% if not loop.last %}, {% endif %}{% endfor %}
 
 {% endif %}
 
@@ -1135,6 +1160,8 @@ class DocGenerator:
         cursor = self.db.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM data_items")
         total_data_items = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM exec_cics")
+        total_cics_commands = cursor.fetchone()[0]
 
         online = [p for p in programs if (p.get("program_type") or "").upper() == "ONLINE"]
         batch = [p for p in programs if (p.get("program_type") or "").upper() != "ONLINE"]
@@ -1151,6 +1178,7 @@ class DocGenerator:
             total_modules=len(modules),
             total_screens=len(screens),
             total_data_items=total_data_items,
+            total_cics_commands=total_cics_commands,
             total_calls=len(call_graph),
             total_rules=len(rules),
             total_copybooks=len(copybooks),

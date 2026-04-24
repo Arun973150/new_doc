@@ -111,7 +111,6 @@ flowchart TD
     CB_DFHBMSCA -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHBMSCA -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -365,6 +364,26 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 141 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 196 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 206 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 514 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `SEND` | None | 529 | {"details": {"map": "COUSR0A", "mapset": "COUSR00", "from": "COUSR0AO"}} |
+| `SEND` | None | 537 | {"details": {"map": "COUSR0A", "mapset": "COUSR00", "from": "COUSR0AO"}} |
+| `RECEIVE` | None | 551 | {"details": {"map": "COUSR0A", "mapset": "COUSR00", "into": "COUSR0AI", "resp": ... |
+| `STARTBR` | None | 588 | {"details": {"dataset": "WS-USRSEC-FILE", "length": "LENGTH OF SEC-USR-ID", "rid... |
+| `READNEXT` | None | 621 | {"details": {"dataset": "WS-USRSEC-FILE", "into": "SEC-USER-DATA", "length": "LE... |
+| `READPREV` | None | 655 | {"details": {"dataset": "WS-USRSEC-FILE", "into": "SEC-USER-DATA", "length": "LE... |
+| `ENDBR` | None | 689 | {"details": {"dataset": "WS-USRSEC-FILE"}} |
+
+**Summary:** 11 CICS command(s) — RETURN (1), XCTL (3), SEND (2), RECEIVE (1), STARTBR (1), READNEXT (1), READPREV (1), ENDBR (1)
+
 ## Business Rules
 
 - **Display User Data** `BR-389`  
@@ -492,4 +511,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

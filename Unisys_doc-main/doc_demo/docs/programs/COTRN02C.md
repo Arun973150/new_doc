@@ -120,7 +120,6 @@ flowchart TD
     CB_CVTRA05Y -.- CBEXPORT
     CBIMPORT["CBIMPORT"]:::coupled
     CB_CVTRA05Y -.- CBIMPORT
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -410,6 +409,26 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 156 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 508 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `SEND` | None | 522 | {"details": {"map": "COTRN2A", "mapset": "COTRN02", "from": "COTRN2AO"}} |
+| `RETURN` | None | 530 | {"details": {"transid": "WS-TRANID", "length": "LENGTH OF CARDDEMO-COMMAREA", "c... |
+| `RECEIVE` | None | 541 | {"details": {"map": "COTRN2A", "mapset": "COTRN02", "into": "COTRN2AI", "resp": ... |
+| `READ` | None | 578 | {"details": {"dataset": "WS-CXACAIX-FILE", "into": "CARD-XREF-RECORD", "length":... |
+| `READ` | None | 611 | {"details": {"dataset": "WS-CCXREF-FILE", "into": "CARD-XREF-RECORD", "length": ... |
+| `STARTBR` | None | 644 | {"details": {"dataset": "WS-TRANSACT-FILE", "length": "LENGTH OF TRAN-ID", "ridf... |
+| `READPREV` | MAIN-PARA | 675 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
+| `ENDBR` | MAIN-PARA | 704 | {"details": {"dataset": "WS-TRANSACT-FILE"}} |
+| `WRITE` | MAIN-PARA | 713 | {"details": {"dataset": "WS-TRANSACT-FILE", "from": "TRAN-RECORD", "length": "LE... |
+
+**Summary:** 11 CICS command(s) — RETURN (2), XCTL (1), SEND (1), RECEIVE (1), READ (2), STARTBR (1), READPREV (1), ENDBR (1), WRITE (1)
+
 ## Business Rules
 
 - **Transaction Record Creation** `BR-363`  
@@ -540,4 +559,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

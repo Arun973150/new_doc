@@ -111,7 +111,6 @@ flowchart TD
     CB_DFHBMSCA -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHBMSCA -.- COACTVWC
-
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -371,6 +370,25 @@ flowchart TD
 
 
 
+## CICS Commands
+
+This program uses the following EXEC CICS commands:
+
+| Command | Paragraph | Line | Details |
+|---------|-----------|------|---------|
+| `RETURN` | None | 138 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 192 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | None | 518 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `SEND` | None | 534 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "from": "COTRN0AO"}} |
+| `SEND` | None | 542 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "from": "COTRN0AO"}} |
+| `RECEIVE` | None | 556 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "into": "COTRN0AI", "resp": ... |
+| `STARTBR` | None | 593 | {"details": {"dataset": "WS-TRANSACT-FILE", "length": "LENGTH OF TRAN-ID", "ridf... |
+| `READNEXT` | None | 626 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
+| `READPREV` | None | 660 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
+| `ENDBR` | None | 694 | {"details": {"dataset": "WS-TRANSACT-FILE"}} |
+
+**Summary:** 10 CICS command(s) — RETURN (1), XCTL (2), SEND (2), RECEIVE (1), STARTBR (1), READNEXT (1), READPREV (1), ENDBR (1)
+
 ## Business Rules
 
 - **Transaction Display Limit Reached** `BR-341`  
@@ -477,4 +495,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*

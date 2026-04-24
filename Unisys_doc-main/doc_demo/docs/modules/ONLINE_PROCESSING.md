@@ -16,10 +16,10 @@ Online Processing (Uncategorised)
 | [COACCT01](../programs/COACCT01.md) | ONLINE | 621 |  |
 | [COBTUPDT](../programs/COBTUPDT.md) | DB2 | 238 |  |
 | [CODATE01](../programs/CODATE01.md) | ONLINE | 525 |  |
-| [COPAUA0C](../programs/COPAUA0C.md) | ONLINE | 1027 | This program is triggered by incoming message queue requests... |
-| [COPAUS0C](../programs/COPAUS0C.md) | ONLINE | 1033 | This program is triggered by a user's interaction with a CIC... |
-| [COPAUS1C](../programs/COPAUS1C.md) | ONLINE | 605 | This program is triggered when a user navigates to the authe... |
-| [COPAUS2C](../programs/COPAUS2C.md) | ONLINE | 245 | This program is triggered when a user signs on to the system... |
+| [COPAUA0C](../programs/COPAUA0C.md) | ONLINE | 1027 |  |
+| [COPAUS0C](../programs/COPAUS0C.md) | ONLINE | 1033 |  |
+| [COPAUS1C](../programs/COPAUS1C.md) | ONLINE | 605 |  |
+| [COPAUS2C](../programs/COPAUS2C.md) | ONLINE | 245 |  |
 | [COTRTLIC](../programs/COTRTLIC.md) | ONLINE | 2099 |  |
 
 ## Internal Call Flow
@@ -70,8 +70,14 @@ flowchart LR
 | [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
 | [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
 | [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
 
 
 ---
 
-*Generated 2026-03-16 21:06*
+*Generated 2026-04-13 12:16*
