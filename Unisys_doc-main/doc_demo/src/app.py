@@ -2223,6 +2223,19 @@ def _fetch_application_subgraph(loader) -> dict:
     except Exception:
         jcl_jobs = []
 
+    # CICS command summary per program
+    try:
+        cics_cursor = loader.conn.cursor()
+        cics_cursor.execute("""
+            SELECT program_id, command, COUNT(*) as cnt
+            FROM exec_cics
+            GROUP BY program_id, command
+            ORDER BY program_id, cnt DESC
+        """)
+        cics_rows = [dict(r) for r in cics_cursor.fetchall()]
+    except Exception:
+        cics_rows = []
+
     program_details = []
     for prog in programs:
         details = loader.get_program_details(prog["program_id"])
@@ -2239,6 +2252,7 @@ def _fetch_application_subgraph(loader) -> dict:
         "rules": rules,
         "screens": screens,
         "jcl_jobs": jcl_jobs,
+        "cics_rows": cics_rows,
         "stats": {
             "total_programs": len(programs),
             "total_modules": len(modules),
@@ -2246,6 +2260,8 @@ def _fetch_application_subgraph(loader) -> dict:
             "total_rules": len(rules),
             "total_screens": len(screens),
             "total_jcl_jobs": len(jcl_jobs),
+            "total_cics_commands": sum(r.get("cnt", 0) for r in cics_rows),
+            "total_cics_programs": len({r["program_id"] for r in cics_rows}),
         },
     }
 
@@ -2259,7 +2275,8 @@ def _build_application_llm_context(data: dict) -> str:
         "# COBOL Application — System-Wide Context",
         f"Programs: {stats['total_programs']} | Modules: {stats['total_modules']} "
         f"| Call Relationships: {stats['total_calls']} | Business Rules: {stats['total_rules']} "
-        f"| BMS Screens: {stats.get('total_screens', 0)} | JCL Jobs: {stats.get('total_jcl_jobs', 0)}",
+        f"| BMS Screens: {stats.get('total_screens', 0)} | JCL Jobs: {stats.get('total_jcl_jobs', 0)} "
+        f"| CICS Commands: {stats.get('total_cics_commands', 0)} across {stats.get('total_cics_programs', 0)} programs",
         "",
     ]
 
@@ -2323,6 +2340,39 @@ def _build_application_llm_context(data: dict) -> str:
                 lines.append(f"  Reads: {', '.join(str(d) for d in in_ds[:5])}")
             if out_ds:
                 lines.append(f"  Writes: {', '.join(str(d) for d in out_ds[:5])}")
+
+    # ── CICS Command Summary ─────────────────────────────────────────────────
+    cics_rows = data.get("cics_rows", [])
+    if cics_rows:
+        # Group by program
+        from collections import defaultdict
+        by_program = defaultdict(list)
+        for r in cics_rows:
+            by_program[r["program_id"]].append((r["command"], r["cnt"]))
+
+        # Overall command-type histogram
+        cmd_totals = Counter()
+        for r in cics_rows:
+            cmd_totals[r["command"]] += r["cnt"]
+
+        lines.append(
+            f"\n## CICS Command Usage "
+            f"({stats.get('total_cics_commands', 0)} commands across "
+            f"{stats.get('total_cics_programs', 0)} programs)"
+        )
+        lines.append("\n### Command Types Across the Application")
+        for cmd, cnt in cmd_totals.most_common():
+            lines.append(f"- {cmd}: {cnt}")
+
+        lines.append("\n### Top CICS-Using Programs")
+        prog_totals = sorted(
+            ((pid, sum(cnt for _, cnt in cmds)) for pid, cmds in by_program.items()),
+            key=lambda x: -x[1],
+        )
+        for pid, total in prog_totals[:15]:
+            cmds = by_program[pid]
+            cmd_str = ", ".join(f"{c}({n})" for c, n in cmds)
+            lines.append(f"- {pid}: {total} commands — {cmd_str}")
 
     # Business rule category summary
     lines.append(f"\n## Business Rule Categories ({stats['total_rules']} rules)")
