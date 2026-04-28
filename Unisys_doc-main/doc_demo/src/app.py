@@ -1986,6 +1986,12 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
     lines.append(f"# COBOL System Documentation Context")
     lines.append(f"Mode: {mode} | Subject: {subject}")
     lines.append(f"Total programs in scope: {len(programs)}\n")
+    lines.append("GROUNDING RULES:")
+    lines.append("- Use only facts explicitly present in this SYSTEM DATA.")
+    lines.append("- Do not infer access technology. If VSAM, DB2, IMS, DL/I, CICS, or JCL is not listed for a program, write \"not present in extracted data\".")
+    lines.append("- Copybook names may only come from the Shared Data (Copybooks) line for that program.")
+    lines.append("- File and dataset names may only come from Files Accessed or Input/Output Datasets.")
+    lines.append("- IMS claims may only come from the IMS DL/I Calls section.\n")
 
     for prog in programs:
         pid = prog.get("program_id", "?")
@@ -2018,46 +2024,127 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
         callers = [c.get("caller_program") for c in (prog.get("called_by") or [])]
         copybooks = [c.get("copybook_name") for c in (prog.get("copybooks") or [])]
         files = [f.get("file_name") for f in (prog.get("files") or [])]
+        if loader and not copybooks:
+            try:
+                cur_copy = loader.conn.cursor()
+                cur_copy.execute(
+                    "SELECT copybook_name FROM copybook_usage WHERE program_id = ? ORDER BY copybook_name",
+                    (pid,),
+                )
+                copybooks = [r["copybook_name"] for r in cur_copy.fetchall() if r["copybook_name"]]
+            except Exception:
+                pass
         if calls:     lines.append(f"- Calls: {', '.join(calls)}")
         if callers:   lines.append(f"- Called by: {', '.join(callers)}")
         if copybooks:
             lines.append(f"- Shared Data (Copybooks) — ONLY these copybooks are used by this program: {', '.join(copybooks)}")
         else:
-            lines.append("- Shared Data (Copybooks): NONE — this program does not COPY any copybooks.")
+            lines.append("- Shared Data (Copybooks): NONE listed in extracted copybook_usage data.")
         if files:     lines.append(f"- Files Accessed: {', '.join(files)}")
 
-        # ── Copybook Structure (top-level fields) ────────────────────────────
+        # Cross-check the physical source so the LLM sees the actual COPY lines,
+        # not just derived database rows.
+        source_copybooks = []
+        source_values = []
+        try:
+            import re as _re_source
+            source_path = prog.get("file_path")
+            if source_path and Path(source_path).exists():
+                source_text_for_facts = Path(source_path).read_text(encoding="utf-8", errors="ignore")
+                source_body_lines = []
+                for raw_line in source_text_for_facts.splitlines():
+                    if len(raw_line) > 6 and raw_line[6] == "*":
+                        continue
+                    body = raw_line[6:] if len(raw_line) > 6 else raw_line
+                    source_body_lines.append(body[:66] if len(body) > 66 else body)
+                source_body = "\n".join(source_body_lines)
+                for m in _re_source.finditer(r"\bCOPY\s+([A-Z0-9_-]+)\s*\.", source_body, _re_source.IGNORECASE):
+                    cb = m.group(1).upper()
+                    if cb not in source_copybooks:
+                        source_copybooks.append(cb)
+                for name in ("WS-PGMNAME", "WS-INFIL1-STATUS", "WS-INFIL2-STATUS", "PAUT-PCB-STATUS"):
+                    m = _re_source.search(
+                        rf"\b{name}\b[\s\S]{{0,90}}?\bVALUE\s+['\"]([^'\"]*)['\"]",
+                        source_body,
+                        _re_source.IGNORECASE,
+                    )
+                    if m:
+                        source_values.append(f"{name} VALUE '{m.group(1)}'")
+        except Exception:
+            pass
+        if source_copybooks:
+            lines.append(f"- Source COPY statements (must be documented exactly): {', '.join(source_copybooks)}")
+        if source_values:
+            lines.append(f"- Source literal/status facts: {', '.join(source_values)}")
+
+        # ── Copybook Field Dictionaries (from copybook_fields table) ─────────
         if loader and copybooks:
             try:
-                cursor_cb = loader.conn.cursor()
-                for cb_name in copybooks[:10]:  # cap to avoid context explosion
-                    # Copybook data items may be stored with program_id = copybook_name
-                    # or duplicated under each consuming program. Try copybook name first.
-                    cursor_cb.execute("""
-                        SELECT name, level_number, picture, section
-                        FROM data_items
-                        WHERE program_id = ? AND level_number IN (1, 5)
-                        ORDER BY line_number
-                        LIMIT 15
-                    """, (cb_name,))
-                    cb_fields = [dict(r) for r in cursor_cb.fetchall()]
+                for cb_name in copybooks[:10]:  # cap copybooks per program
+                    cb_fields = loader.get_copybook_fields(cb_name)
                     if not cb_fields:
-                        # Fallback: search in the consuming program's data items
-                        # for items whose parent chain matches the copybook prefix
-                        cursor_cb.execute("""
-                            SELECT name, level_number, picture, section
-                            FROM data_items
-                            WHERE program_id = ? AND level_number IN (1, 5)
-                              AND name LIKE ?
-                            ORDER BY line_number
-                            LIMIT 15
-                        """, (pid, cb_name[:4] + "%"))
-                        cb_fields = [dict(r) for r in cursor_cb.fetchall()]
-                    if cb_fields:
-                        lines.append(f"  Copybook {cb_name} structure:")
-                        for f in cb_fields:
-                            pic_str = f" PIC {f['picture']}" if f.get("picture") else ""
-                            lines.append(f"    - {f['name']} (level {f['level_number']}{pic_str})")
+                        continue
+                    lines.append(f"- Copybook `{cb_name}` field dictionary:")
+                    for f in cb_fields[:30]:  # cap fields per copybook
+                        lvl = f.get("level_number") or ""
+                        pic = f.get("picture") or ""
+                        usage = f.get("usage") or ""
+                        parent = f.get("parent_name") or ""
+                        attrs = []
+                        if pic:    attrs.append(f"PIC {pic}")
+                        if usage:  attrs.append(usage)
+                        if f.get("occurs_count"): attrs.append(f"OCCURS {f['occurs_count']}")
+                        if f.get("redefines_target"): attrs.append(f"REDEFINES {f['redefines_target']}")
+                        attr_str = " ".join(attrs)
+                        parent_str = f" (under {parent})" if parent else ""
+                        lines.append(f"    {lvl:>02} {f['field_name']:<30} {attr_str}{parent_str}")
+                    if len(cb_fields) > 30:
+                        lines.append(f"    ... +{len(cb_fields) - 30} more fields")
+            except Exception:
+                pass
+
+        # ── FD Record Layouts (file contracts) ───────────────────────────────
+        if loader:
+            try:
+                fd_records = loader.get_program_file_records(pid)
+                if fd_records:
+                    by_file = {}
+                    for r in fd_records:
+                        by_file.setdefault(r["file_name"], []).append(r)
+                    lines.append(f"- File Record Layouts ({len(by_file)} file(s)):")
+                    for fname, items in list(by_file.items())[:8]:
+                        rec_name = next((it.get("record_name") for it in items if it.get("record_name")), fname)
+                        lines.append(f"  FD `{fname}` (record `{rec_name}`):")
+                        for it in items[:25]:
+                            lvl = it.get("level_number") or ""
+                            pic = it.get("picture") or ""
+                            usage = it.get("usage") or ""
+                            parent = it.get("parent_name") or ""
+                            attrs = " ".join(filter(None, [f"PIC {pic}" if pic else "", usage]))
+                            parent_str = f" (under {parent})" if parent else ""
+                            lines.append(f"    {lvl:>02} {it['field_name']:<30} {attrs}{parent_str}")
+                        if len(items) > 25:
+                            lines.append(f"    ... +{len(items) - 25} more fields")
+            except Exception:
+                pass
+
+        # ── Data Movements (lineage: src -> dst) ─────────────────────────────
+        if loader:
+            try:
+                moves = loader.get_program_data_movements(pid, limit=40)
+                if moves:
+                    lines.append(f"- Data Lineage / MOVE flow ({len(moves)} captured, top entries):")
+                    for m in moves[:25]:
+                        src = m["source_field"]
+                        dst = m["destination_field"]
+                        para = m.get("paragraph_name") or "?"
+                        line = m.get("line_number") or "?"
+                        if m.get("is_literal"):
+                            lines.append(f"    '{src}' -> {dst}   [{para}:L{line}]")
+                        else:
+                            lines.append(f"    {src} -> {dst}   [{para}:L{line}]")
+                    if len(moves) > 25:
+                        lines.append(f"    ... +{len(moves) - 25} more movements")
             except Exception:
                 pass
 
@@ -2212,7 +2299,7 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                 cur_ims = loader.conn.cursor()
                 cur_ims.execute("""
                     SELECT function_code, function_name, pcb_name, segment_area,
-                           ssa_name, ssa_segment, paragraph_name, line_number
+                           ssa_name, ssa_segment, ssa_qualifier, paragraph_name, line_number
                     FROM ims_calls WHERE program_id = ? ORDER BY line_number
                 """, (pid,))
                 ims_rows = [dict(r) for r in cur_ims.fetchall()]
@@ -2225,6 +2312,7 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                         area = im.get("segment_area", "")
                         ssa = im.get("ssa_name", "")
                         seg = im.get("ssa_segment", "")
+                        qual = im.get("ssa_qualifier", "")
                         para = im.get("paragraph_name", "")
                         lno = im.get("line_number", "")
                         entry = f"CALL 'CBLTDLI' {fn}"
@@ -2238,9 +2326,25 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                             entry += f", SSA={ssa}"
                         if seg:
                             entry += f" (segment: {seg})"
+                        if qual:
+                            entry += f", qualifier: {qual}"
                         if para:
                             entry += f" [in {para}, line {lno}]"
                         lines.append(f"  * {entry}")
+                    ssa_rows = [im for im in ims_rows if im.get("ssa_name")]
+                    if ssa_rows:
+                        lines.append("  SSA structures that must be explained:")
+                        seen_ssas = set()
+                        for im in ssa_rows:
+                            ssa = im.get("ssa_name", "")
+                            if not ssa or ssa in seen_ssas:
+                                continue
+                            seen_ssas.add(ssa)
+                            seg = im.get("ssa_segment") or "(segment not present in extracted data)"
+                            qual = im.get("ssa_qualifier") or "(no qualifier present in extracted data)"
+                            lines.append(f"    - {ssa}: segment={seg}; qualifier={qual}")
+                    if any(im.get("function_code") == "ENTRY" for im in ims_rows):
+                        lines.append("  IMS entry point: ENTRY 'DLITCBL' is present and must be documented as the IMS batch entry point.")
             except Exception:
                 pass
 
@@ -2265,6 +2369,57 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                 lines.append(f"  * `{pname}`{line_suffix}{detail}")
             if len(paras) > 25:
                 lines.append(f"  ... and {len(paras) - 25} more paragraphs")
+
+        # IMS programs need source-grounded paragraph bodies; otherwise the LLM
+        # tends to infer DL/I behavior from names alone.
+        try:
+            from pathlib import Path as _Path
+            source_path = prog.get("file_path")
+            ims_rows_for_source = prog.get("ims_calls") or []
+            source_text = ""
+            if source_path and _Path(source_path).exists():
+                source_text = _Path(source_path).read_text(encoding="utf-8", errors="ignore")
+            if paras and source_text and (ims_rows_for_source or "CBLTDLI" in source_text.upper() or "DLITCBL" in source_text.upper()):
+                source_lines = source_text.splitlines()
+
+                def _cobol_body(raw_line: str) -> str:
+                    if len(raw_line) > 6 and raw_line[6] == "*":
+                        return ""
+                    body = raw_line[6:] if len(raw_line) > 6 else raw_line
+                    return (body[:66] if len(body) > 66 else body).rstrip()
+
+                import re as _re_para
+                para_names = [p.get("paragraph_name", "").upper() for p in paras if p.get("paragraph_name")]
+                starts = []
+                for idx, raw in enumerate(source_lines, 1):
+                    body = _cobol_body(raw).strip().upper()
+                    for para_name in para_names:
+                        if _re_para.match(rf"^{_re_para.escape(para_name)}\s*\.", body):
+                            starts.append((idx, para_name))
+                            break
+                starts.sort()
+                source_ranges = {}
+                for pos, (start, para_name) in enumerate(starts):
+                    end = starts[pos + 1][0] - 1 if pos + 1 < len(starts) else len(source_lines)
+                    source_ranges[para_name] = (start, end)
+
+                lines.append("- IMS Paragraph Source Snippets (first 50 body lines per paragraph):")
+                for p in paras:
+                    pname = p.get("paragraph_name", "")
+                    start, end = source_ranges.get(pname.upper(), (p.get("line_start") or 0, p.get("line_end") or p.get("line_start") or 0))
+                    if not pname or not start:
+                        continue
+                    snippet = []
+                    for raw in source_lines[start - 1:min(end, start + 49, len(source_lines))]:
+                        body = _cobol_body(raw)
+                        if body.strip():
+                            snippet.append(body)
+                    if snippet:
+                        lines.append(f"  Paragraph `{pname}`:")
+                        for body in snippet:
+                            lines.append(f"    {body}")
+        except Exception:
+            pass
 
         # Business rules
         rules = prog.get("business_rules") or []
@@ -2303,6 +2458,17 @@ def _call_vertex_for_doc(context: str, mode: str, subject: str) -> str:
             max_output_tokens=max_tokens,
         )
 
+        grounding_rules = """GROUNDING RULES:
+- Do NOT infer access technology. If SYSTEM DATA does not explicitly state the program uses VSAM, DB2, IMS, DL/I, CICS, or JCL, do not claim it does.
+- Copybook names: only reference copybooks that appear verbatim in "Shared Data (Copybooks)" in SYSTEM DATA. Never substitute or invent names.
+- If "Shared Data (Copybooks)" or "Source COPY statements" lists copybooks, never write that the program has no COPY statements or no copybooks.
+- File and dataset names: only reference names that appear in "Files Accessed" or "Input/Output Datasets" in SYSTEM DATA.
+- IMS DL/I calls: only reference IMS functions that appear in the "IMS DL/I Calls" section of SYSTEM DATA. Do not infer IMS usage.
+- For IMS programs, document ENTRY 'DLITCBL' when present, each CBLTDLI function, PCB, segment area, SSA name, segment, qualifier, exact paragraph, and PCB status handling.
+- Business rules must be tied to exact source conditions and actions from SYSTEM DATA rather than generic summaries.
+- If a fact is missing from SYSTEM DATA, write "(not present in extracted data)" rather than guessing.
+"""
+
         if mode == "Program":
             prompt = f"""You are a senior software architect documenting a legacy COBOL system for migration to modern services.
 
@@ -2319,6 +2485,8 @@ The document must:
 8. End with a Migration Notes section — complexity, suggested modern equivalent, recommended microservice boundary. For CICS programs, suggest REST API + modern UI replacement. For batch programs, suggest cloud-native batch or event-driven alternatives
 
 Write as proper technical documentation — clear headings, flowing prose, specific details. Avoid generic statements.
+
+{grounding_rules}
 
 SYSTEM DATA:
 {context}
@@ -2342,6 +2510,8 @@ The document must:
 9. End with a Migration Strategy — recommended service boundary, suggested modern architecture (REST APIs for CICS screens, cloud batch for JCL jobs), migration order for programs within this module
 
 Write as a proper software specification — clear sections, numbered headings, specific technical details, flowing explanations.
+
+{grounding_rules}
 
 SYSTEM DATA:
 {context}
@@ -2397,6 +2567,8 @@ The document must contain these numbered sections:
 
 9. Risk Register
    The top 7 highest-risk components as a numbered list. For each: the program or module name, why it is high risk (coupling, size, MQ dependencies, unknown purpose), and a concrete mitigation strategy.
+
+{grounding_rules}
 
 SYSTEM DATA:
 {context}
@@ -3448,7 +3620,18 @@ def page_doc_generator():
                     prog_count = app_data["stats"]["total_programs"]
 
                 # Run the full agent pipeline — saves to DB internally
-                doc_text = run_doc_pipeline(mode, subject, context, db_path)
+                try:
+                    doc_text = run_doc_pipeline(mode, subject, context, db_path)
+                except Exception as exc:
+                    msg = str(exc)
+                    if "127.0.0.1:9" in msg or "tcp handshaker shutdown" in msg:
+                        st.error(
+                            "LLM connection failed because proxy environment variables point to "
+                            "127.0.0.1:9. Clear HTTP_PROXY, HTTPS_PROXY, and ALL_PROXY, then retry."
+                        )
+                    else:
+                        st.error(f"LLM document generation failed: {exc}")
+                    st.stop()
 
             st.session_state[cache_key]                  = doc_text
             st.session_state[f"{cache_key}_prog_count"]  = prog_count

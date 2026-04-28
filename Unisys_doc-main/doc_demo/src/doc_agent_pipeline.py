@@ -1,6 +1,6 @@
 """
 Agentic Documentation Pipeline
-LangGraph state machine: Writer → Critique → (loop max 2x) → Formatter → Save
+LangGraph state machine: Writer → Critique → Formatter → Grounding → Save
 
 Works for all three modes: Program, Module, Application.
 """
@@ -9,11 +9,12 @@ import os
 import json
 import re
 import functools
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from langchain_google_vertexai import ChatVertexAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from rich.console import Console
 console = Console(force_terminal=True, highlight=False)
@@ -29,14 +30,77 @@ class DocAgentState(TypedDict):
     critique_feedback:str   # issues found by Critique
     critique_passed:  bool  # True when Critique is satisfied
     formatted_doc:    str   # final cleaned document
+    grounding_passed: bool  # True when deterministic grounding checks pass
+    grounding_feedback:str  # source-grounding issues, if any
     iteration:        int   # how many write→critique loops have run
-    max_iterations:   int   # cap — default 2
+    max_iterations:   int   # cap — default 3
     saved:            bool
 
 
 # ── LLM factory ───────────────────────────────────────────────────────────────
 
+class DocRunRequest(BaseModel):
+    """Validated public input for the agentic documentation pipeline."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["Program", "Module", "Application"]
+    subject: str = Field(min_length=1)
+    context: str = Field(min_length=20)
+    db_path: str = Field(min_length=1)
+    max_iterations: int = Field(default=3, ge=1, le=5)
+
+    @field_validator("subject", "context", "db_path")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class CritiqueResult(BaseModel):
+    """Strict shape expected from the critique LLM JSON."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    passed: bool = True
+    issues: list[str] = Field(default_factory=list)
+
+    @field_validator("issues", mode="before")
+    @classmethod
+    def _normalise_issues(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [str(v).strip() for v in value if str(v).strip()]
+        return [str(value)]
+
+
+class GroundingReport(BaseModel):
+    """Deterministic save gate for source-grounded generated docs."""
+
+    passed: bool
+    issues: list[str] = Field(default_factory=list)
+
+
+class GeneratedDocRecord(BaseModel):
+    """Validated shape for generated_docs cache writes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["Program", "Module", "Application"]
+    subject: str = Field(min_length=1)
+    document_text: str = Field(min_length=100)
+
+
 def _get_llm():
+    # Some local shells set proxy vars to 127.0.0.1:9 as a network blackhole.
+    # gRPC honors those and Vertex AI then fails with "tcp handshaker shutdown".
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        val = os.environ.get(key, "")
+        if "127.0.0.1:9" in val or "localhost:9" in val:
+            os.environ.pop(key, None)
+
     # gemini-2.0-flash caps max_output_tokens at 8192;
     # gemini-2.5-flash supports up to 65536. Pick a safe default per model.
     model_name = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash")
@@ -61,10 +125,21 @@ GROUNDING RULES (mandatory — violations are treated as errors):
   program uses VSAM, DB2, IMS, or DL/I, do not claim it does.
 - Copybook names: only reference copybooks that appear verbatim in
   "Shared Data (Copybooks)" in SYSTEM DATA. Never substitute or invent names.
+- If "Shared Data (Copybooks)" or "Source COPY statements" lists copybooks,
+  never write that the program has no COPY statements or no copybooks.
 - File and dataset names: only reference names that appear in
   "Files Accessed" or "Input/Output Datasets" in SYSTEM DATA.
 - IMS DL/I calls: only reference IMS functions (GU, GHN, ISRT, REPL, DLET) that
   appear in the "IMS DL/I Calls" section of SYSTEM DATA. Do not infer IMS usage.
+- For IMS programs, explicitly document ENTRY 'DLITCBL' when present, every
+  CBLTDLI function, the PCB, segment area, SSA name, SSA segment, SSA qualifier,
+  and the exact paragraph where the call appears.
+- For IMS parent/child flows, describe the exact sequence from SYSTEM DATA:
+  input record read, key move to SSA key value, parent GU using the qualified SSA,
+  then child ISRT only when the PCB status condition allows it.
+- Business rules must tie each rule to concrete source conditions and actions
+  from SYSTEM DATA, such as file status fields and PCB status values. Do not
+  split one condition into repetitive generic rules.
 - If a fact is missing from SYSTEM DATA, write "(not present in extracted data)"
   rather than guessing.
 """
@@ -201,6 +276,118 @@ Respond with JSON only: {{"passed": true/false, "issues": ["specific issue 1", "
 
 # ── Node functions ─────────────────────────────────────────────────────────────
 
+def _program_context_block(context: str, subject: str) -> str:
+    """Return the SYSTEM DATA block for one program when present."""
+    marker = f"## Program: {subject}"
+    start = context.find(marker)
+    if start < 0:
+        return context
+    next_prog = context.find("\n## Program:", start + len(marker))
+    return context[start:] if next_prog < 0 else context[start:next_prog]
+
+
+def _csv_tokens_after_colon(line: str) -> list[str]:
+    if ":" not in line:
+        return []
+    return [
+        token.strip().strip("`.")
+        for token in line.split(":", 1)[1].split(",")
+        if token.strip()
+    ]
+
+
+def _ground_document(mode: str, subject: str, context: str, document: str) -> GroundingReport:
+    """Check high-risk source facts before caching LLM documentation."""
+    if mode != "Program":
+        return GroundingReport(passed=True)
+
+    block = _program_context_block(context, subject)
+    text_upper = document.upper()
+    issues: list[str] = []
+
+    expected_copybooks: set[str] = set()
+    ims_fn_counts: dict[str, int] = {}
+    for call_line in block.splitlines():
+        call_upper = call_line.upper()
+        fn_match = re.search(r"CALL\s+'CBLTDLI'\s+([A-Z0-9-]+)", call_upper)
+        if fn_match:
+            fn = fn_match.group(1)
+            ims_fn_counts[fn] = ims_fn_counts.get(fn, 0) + 1
+
+    for line in block.splitlines():
+        upper = line.upper()
+        if "SHARED DATA (COPYBOOKS)" in upper and "NONE" not in upper:
+            expected_copybooks.update(cb.upper() for cb in _csv_tokens_after_colon(line))
+        if "SOURCE COPY STATEMENTS" in upper:
+            expected_copybooks.update(cb.upper() for cb in _csv_tokens_after_colon(line))
+    expected_copybooks.discard("")
+    if expected_copybooks:
+        if re.search(r"DOES\s+NOT\s+COPY\s+ANY\s+COPYBOOKS|NO\s+COPYBOOKS", text_upper):
+            issues.append("Document contradicts source by saying the program has no copybooks.")
+        missing = sorted(cb for cb in expected_copybooks if cb not in text_upper)
+        if missing:
+            issues.append(f"Missing required copybook name(s): {', '.join(missing)}")
+
+    if "ENTRY 'DLITCBL'" in block.upper() and "DLITCBL" not in text_upper:
+        issues.append("Missing IMS ENTRY 'DLITCBL' entry point.")
+
+    for line in block.splitlines():
+        stripped = line.strip()
+        upper = stripped.upper()
+        if "CALL 'CBLTDLI'" in upper:
+            for token in re.findall(r"\b(GU|GHN|GHU|GN|GNP|GHNP|ISRT|REPL|DLET|CHKP|ENTRY)\b", upper):
+                if token not in text_upper:
+                    issues.append(f"Missing IMS function {token}.")
+            for key in ("PCB=", "AREA=", "SSA="):
+                if key in upper:
+                    value = upper.split(key, 1)[1].split(",", 1)[0].split()[0].strip("()[]")
+                    if value and value not in text_upper:
+                        issues.append(f"Missing IMS {key.rstrip('=')} {value}.")
+            m_para = re.search(r"\[IN\s+([A-Z0-9-]+),\s+LINE", upper)
+            if m_para and m_para.group(1) not in text_upper:
+                issues.append(f"Missing IMS call paragraph {m_para.group(1)}.")
+            fn_match = re.search(r"CALL\s+'CBLTDLI'\s+([A-Z0-9-]+)", upper)
+            if fn_match and m_para and ims_fn_counts.get(fn_match.group(1), 0) == 1:
+                fn = fn_match.group(1)
+                correct_para = m_para.group(1)
+                known_paras = set(re.findall(r"`([A-Z0-9][A-Z0-9-]+)`", block.upper()))
+                known_paras.update(re.findall(r"PARAGRAPH\s+([A-Z0-9][A-Z0-9-]+)", block.upper()))
+                known_paras.add("MAIN-PARA")
+                wrong_paras = sorted(p for p in known_paras if p != correct_para and "-" in p)
+                sentences = re.split(r"(?<=[.!?])\s+", text_upper)
+                for sentence in sentences:
+                    if fn not in sentence:
+                        continue
+                    for wrong_para in wrong_paras:
+                        if wrong_para in sentence and correct_para not in sentence:
+                            issues.append(
+                                f"Misattributes IMS function {fn} to {wrong_para}; source shows {correct_para}."
+                            )
+        if re.match(r"-\s*SOURCE LITERAL/STATUS FACTS:", upper):
+            for name, value in re.findall(r"([A-Z0-9-]+)\s+VALUE\s+'([^']+)'", upper):
+                if name not in text_upper or value not in text_upper:
+                    issues.append(f"Missing source literal {name}='{value}'.")
+        if re.match(r"-\s*([A-Z0-9-]+):\s+SEGMENT=", upper):
+            ssa = upper.split(":", 1)[0].lstrip("- ").strip()
+            if ssa and ssa not in text_upper:
+                issues.append(f"Missing IMS SSA {ssa}.")
+            seg_match = re.search(r"SEGMENT=([^;]+)", upper)
+            if seg_match:
+                segment = seg_match.group(1).strip()
+                if segment and not segment.startswith("(") and segment not in text_upper:
+                    issues.append(f"Missing IMS SSA segment {segment}.")
+            qual_match = re.search(r"QUALIFIER=([^;]+)", upper)
+            if qual_match:
+                qualifier = qual_match.group(1).strip()
+                if qualifier and not qualifier.startswith("("):
+                    for part in qualifier.split():
+                        if part and part not in text_upper:
+                            issues.append(f"Missing IMS SSA qualifier token {part}.")
+
+    deduped = list(dict.fromkeys(issues))
+    return GroundingReport(passed=not deduped, issues=deduped)
+
+
 def _write_node(state: DocAgentState) -> dict:
     iteration = state.get("iteration", 0)
     feedback  = state.get("critique_feedback", "")
@@ -228,13 +415,16 @@ def _critique_node(state: DocAgentState) -> dict:
     try:
         if "```" in content:
             content = content.split("```")[1].replace("json", "").strip()
-        result = json.loads(content)
+        result = CritiqueResult.model_validate(json.loads(content))
     except Exception:
         m = re.search(r'\{[\s\S]*\}', content)
-        result = json.loads(m.group()) if m else {"passed": True, "issues": []}
+        try:
+            result = CritiqueResult.model_validate(json.loads(m.group())) if m else CritiqueResult()
+        except Exception:
+            result = CritiqueResult(passed=False, issues=["Critique response was not valid JSON."])
 
-    passed = result.get("passed", True)
-    issues = result.get("issues", [])
+    passed = result.passed
+    issues = result.issues
 
     if passed:
         console.print("[green]  Critique: document passed quality check.[/green]")
@@ -259,14 +449,43 @@ def _format_node(state: DocAgentState) -> dict:
     return {"formatted_doc": response.content}
 
 
+def _grounding_node(state: DocAgentState) -> dict:
+    report = _ground_document(
+        state["mode"],
+        state["subject"],
+        state["context"],
+        state.get("formatted_doc") or state.get("draft", ""),
+    )
+    if report.passed:
+        console.print("[green]  Grounding: source-fact checks passed.[/green]")
+    else:
+        console.print(f"[yellow]  Grounding: {len(report.issues)} issue(s) found.[/yellow]")
+        for issue in report.issues[:8]:
+            console.print(f"[yellow]    · {issue}[/yellow]")
+    return {
+        "grounding_passed": report.passed,
+        "grounding_feedback": "\n".join(f"- {issue}" for issue in report.issues),
+        "critique_passed": report.passed,
+        "critique_feedback": "\n".join(f"- {issue}" for issue in report.issues),
+    }
+
+
 def _save_node(state: DocAgentState, db_path: str) -> dict:
     import sqlite3
+    if not state.get("grounding_passed", True):
+        console.print("[yellow]  Save: skipped because source-grounding checks failed.[/yellow]")
+        return {"saved": False}
     try:
+        record = GeneratedDocRecord(
+            mode=state["mode"],
+            subject=state["subject"],
+            document_text=state["formatted_doc"],
+        )
         conn = sqlite3.connect(db_path)
         conn.execute("""
             INSERT OR REPLACE INTO generated_docs (mode, subject, document_text, generated_at)
             VALUES (?, ?, ?, datetime('now'))
-        """, (state["mode"], state["subject"], state["formatted_doc"]))
+        """, (record.mode, record.subject, record.document_text))
         conn.commit()
         conn.close()
         console.print(f"[green]  Save: stored in DB ({state['mode']} / {state['subject']})[/green]")
@@ -282,6 +501,12 @@ def _should_revise(state: DocAgentState) -> str:
     return "format"
 
 
+def _should_save_or_revise(state: DocAgentState) -> str:
+    if not state.get("grounding_passed", True) and state.get("iteration", 0) < state.get("max_iterations", 2):
+        return "revise"
+    return "save"
+
+
 # ── Graph builder ──────────────────────────────────────────────────────────────
 
 def _build_pipeline(db_path: str):
@@ -290,6 +515,7 @@ def _build_pipeline(db_path: str):
     workflow.add_node("write",    _write_node)
     workflow.add_node("critique", _critique_node)
     workflow.add_node("format",   _format_node)
+    workflow.add_node("ground",   _grounding_node)
     workflow.add_node("save",     functools.partial(_save_node, db_path=db_path))
 
     workflow.add_edge(START,      "write")
@@ -298,7 +524,11 @@ def _build_pipeline(db_path: str):
         "revise": "write",
         "format": "format",
     })
-    workflow.add_edge("format",   "save")
+    workflow.add_edge("format",   "ground")
+    workflow.add_conditional_edges("ground", _should_save_or_revise, {
+        "revise": "write",
+        "save": "save",
+    })
     workflow.add_edge("save",     END)
 
     return workflow.compile()
@@ -308,23 +538,30 @@ def _build_pipeline(db_path: str):
 
 def run_doc_pipeline(mode: str, subject: str, context: str, db_path: str) -> str:
     """
-    Run Writer → Critique → (loop ≤2x) → Formatter → Save.
+    Run Writer → Critique → Formatter → Grounding → Save.
     Returns the final formatted document text.
     """
-    console.print(f"[cyan]Doc Pipeline: {mode} / {subject}[/cyan]")
+    try:
+        request = DocRunRequest(mode=mode, subject=subject, context=context, db_path=db_path)
+    except ValidationError as exc:
+        raise ValueError(f"Invalid documentation pipeline request: {exc}") from exc
 
-    pipeline = _build_pipeline(db_path)
+    console.print(f"[cyan]Doc Pipeline: {request.mode} / {request.subject}[/cyan]")
+
+    pipeline = _build_pipeline(request.db_path)
 
     initial: DocAgentState = {
-        "mode":             mode,
-        "subject":          subject,
-        "context":          context,
+        "mode":             request.mode,
+        "subject":          request.subject,
+        "context":          request.context,
         "draft":            "",
         "critique_feedback":"",
         "critique_passed":  False,
         "formatted_doc":    "",
+        "grounding_passed": True,
+        "grounding_feedback":"",
         "iteration":        0,
-        "max_iterations":   2,
+        "max_iterations":   request.max_iterations,
         "saved":            False,
     }
 

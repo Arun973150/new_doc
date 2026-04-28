@@ -133,6 +133,58 @@ class SQLiteLoader:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ims_calls_program ON ims_calls(program_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ims_calls_function ON ims_calls(function_code)")
 
+        # copybook_fields — field-level dictionary for each copybook
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS copybook_fields (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                copybook_name TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                level_number INTEGER,
+                picture TEXT,
+                usage TEXT,
+                value TEXT,
+                parent_name TEXT,
+                line_number INTEGER,
+                occurs_count INTEGER,
+                redefines_target TEXT
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_copybook_fields_name ON copybook_fields(copybook_name)")
+
+        # file_records — FD record layouts per program
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS file_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                record_name TEXT,
+                field_name TEXT,
+                level_number INTEGER,
+                picture TEXT,
+                usage TEXT,
+                parent_name TEXT,
+                line_number INTEGER
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_file_records_program ON file_records(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_file_records_file ON file_records(file_name)")
+
+        # data_movements — MOVE source -> destination (data lineage)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS data_movements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                source_field TEXT NOT NULL,
+                destination_field TEXT NOT NULL,
+                paragraph_name TEXT,
+                line_number INTEGER,
+                is_literal INTEGER DEFAULT 0
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_data_movements_program ON data_movements(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_data_movements_source ON data_movements(source_field)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_data_movements_dest ON data_movements(destination_field)")
+
         # Add resolved_target column to program_calls (dynamic CALL resolution)
         try:
             cursor.execute("ALTER TABLE program_calls ADD COLUMN resolved_target TEXT")
@@ -293,13 +345,48 @@ class SQLiteLoader:
                     # Clear old data for this program
                     for table in ["paragraphs", "data_items", "files", "statements",
                                   "performs", "copybook_usage", "exec_cics", "exec_sql",
-                                  "ims_calls"]:
+                                  "ims_calls", "file_records", "data_movements"]:
                         cursor.execute(f"DELETE FROM {table} WHERE program_id = ?", (program_id,))
                     # program_calls uses caller_program, not program_id
                     cursor.execute("DELETE FROM program_calls WHERE caller_program = ?", (program_id,))
 
-                    # Insert paragraphs
-                    for para in program.get("paragraphs", []):
+                    source_ranges = self._source_paragraph_ranges(
+                        program.get("file_path"), program.get("paragraphs", [])
+                    )
+
+                    def _source_paragraph_for_line(line_num):
+                        try:
+                            line_num = int(line_num or 0)
+                        except Exception:
+                            return None
+                        for pname, (start, end) in source_ranges.items():
+                            if start <= line_num <= end:
+                                return pname
+                        return None
+
+                    # Insert paragraphs. If ProLeap returned none AND we have source,
+                    # fall back to a regex paragraph parser so the program isn't blank.
+                    parsed_paras = program.get("paragraphs", []) or []
+                    if not parsed_paras and program.get("file_path"):
+                        try:
+                            fallback = self._extract_paragraphs_from_source(program["file_path"])
+                        except Exception:
+                            fallback = []
+                        if fallback:
+                            parsed_paras = fallback
+                            console.print(
+                                f"[cyan]  paragraphs fallback: extracted {len(fallback)} paragraphs from source for {program_id}[/cyan]"
+                            )
+                            # Also write back into the program dict so downstream
+                            # extractors (FD/MOVE/IMS) can use the paragraph ranges.
+                            program["paragraphs"] = fallback
+
+                    for para in parsed_paras:
+                        para_name = para.get("name")
+                        source_start, source_end = source_ranges.get(
+                            (para_name or "").upper(),
+                            (para.get("line_start"), para.get("line_end")),
+                        )
                         cursor.execute("""
                             INSERT OR REPLACE INTO paragraphs (
                                 program_id, paragraph_name, line_start, line_end,
@@ -307,9 +394,9 @@ class SQLiteLoader:
                             ) VALUES (?, ?, ?, ?, ?, ?, ?)
                         """, (
                             program_id,
-                            para.get("name"),
-                            para.get("line_start"),
-                            para.get("line_end"),
+                            para_name,
+                            source_start,
+                            source_end,
                             para.get("business_name"),
                             para.get("narrative"),
                             para.get("purpose")
@@ -355,6 +442,7 @@ class SQLiteLoader:
                     for stmt in program.get("statements", []):
                         details = {k: v for k, v in stmt.items()
                                    if k not in ("type", "line", "line_end", "paragraph", "raw_text")}
+                        stmt_para = _source_paragraph_for_line(stmt.get("line")) or stmt.get("paragraph")
                         cursor.execute("""
                             INSERT OR REPLACE INTO statements (
                                 program_id, paragraph_name, statement_type,
@@ -362,7 +450,7 @@ class SQLiteLoader:
                             ) VALUES (?, ?, ?, ?, ?)
                         """, (
                             program_id,
-                            stmt.get("paragraph"),
+                            stmt_para,
                             stmt.get("type"),
                             stmt.get("line"),
                             json.dumps(details) if details else None
@@ -383,6 +471,7 @@ class SQLiteLoader:
 
                     # Insert performs
                     for perf in program.get("performs", []):
+                        source_para = _source_paragraph_for_line(perf.get("line_number")) or perf.get("source_paragraph", "MAIN")
                         cursor.execute("""
                             INSERT OR REPLACE INTO performs (
                                 program_id, source_paragraph, target_paragraph,
@@ -390,7 +479,7 @@ class SQLiteLoader:
                             ) VALUES (?, ?, ?, ?, ?, ?)
                         """, (
                             program_id,
-                            perf.get("source_paragraph", "MAIN"),
+                            source_para,
                             perf.get("target_paragraph"),
                             perf.get("perform_type", "SIMPLE"),
                             perf.get("line_number"),
@@ -512,6 +601,74 @@ class SQLiteLoader:
                                 im.get("raw_text"),
                             ))
 
+                    # Insert SELECT/ASSIGN-derived file declarations
+                    if program.get("file_path"):
+                        try:
+                            file_decls = self._extract_files_from_source(program["file_path"])
+                            for f in file_decls:
+                                cursor.execute("""
+                                    INSERT INTO files (
+                                        program_id, file_name, file_type,
+                                        organization, access_mode, record_name
+                                    ) VALUES (?, ?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    f.get("file_name"),
+                                    f.get("file_type"),
+                                    f.get("organization"),
+                                    f.get("access_mode"),
+                                    f.get("record_key"),
+                                ))
+                        except Exception as _f_err:
+                            console.print(f"[yellow]  files extraction failed for {program_id}: {_f_err}[/yellow]")
+
+                    # Insert FD record layouts — extracted from source
+                    if program.get("file_path"):
+                        try:
+                            fd_records = self._extract_file_records_from_source(program["file_path"])
+                            for r in fd_records:
+                                cursor.execute("""
+                                    INSERT INTO file_records (
+                                        program_id, file_name, record_name, field_name,
+                                        level_number, picture, usage, parent_name, line_number
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    r.get("file_name"),
+                                    r.get("record_name"),
+                                    r.get("field_name"),
+                                    r.get("level_number"),
+                                    r.get("picture"),
+                                    r.get("usage"),
+                                    r.get("parent_name"),
+                                    r.get("line_number"),
+                                ))
+                        except Exception as _fd_err:
+                            console.print(f"[yellow]  FD extraction failed for {program_id}: {_fd_err}[/yellow]")
+
+                    # Insert MOVE-based data lineage — extracted from source
+                    if program.get("file_path"):
+                        try:
+                            moves = self._extract_movements_from_source(
+                                program["file_path"], program.get("paragraphs", [])
+                            )
+                            for mv in moves:
+                                cursor.execute("""
+                                    INSERT INTO data_movements (
+                                        program_id, source_field, destination_field,
+                                        paragraph_name, line_number, is_literal
+                                    ) VALUES (?, ?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    mv.get("source_field"),
+                                    mv.get("destination_field"),
+                                    mv.get("paragraph"),
+                                    mv.get("line_number"),
+                                    mv.get("is_literal", 0),
+                                ))
+                        except Exception as _mv_err:
+                            console.print(f"[yellow]  MOVE extraction failed for {program_id}: {_mv_err}[/yellow]")
+
                 except Exception as e:
                     import traceback
                     console.print(f"[yellow]Warning: Error loading {program.get('program_id')}: {e}[/yellow]")
@@ -540,6 +697,53 @@ class SQLiteLoader:
             console.print(f"[yellow]Warning: FTS trigger re-creation: {e}[/yellow]")
 
         console.print(f"[green]OK - Loaded {len(programs)} programs[/green]")
+
+    @staticmethod
+    def _source_paragraph_ranges(file_path: str, paragraphs: List[Dict]) -> Dict[str, tuple]:
+        """Map paragraph names to physical source line ranges by scanning labels.
+
+        Parser line ranges can drift after COPY expansion. Anything extracted
+        directly from source should use these physical ranges for attribution.
+        """
+        import re
+        from pathlib import Path
+
+        src = Path(file_path or "")
+        if not src.exists():
+            return {}
+        try:
+            lines = src.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            return {}
+
+        names = []
+        for p in paragraphs or []:
+            name = (p.get("name") or p.get("paragraph_name") or "").upper()
+            if name:
+                names.append(name)
+        if not names:
+            return {}
+
+        def _body(raw_line: str) -> str:
+            if len(raw_line) > 6 and raw_line[6] == "*":
+                return ""
+            body = raw_line[6:] if len(raw_line) > 6 else raw_line
+            return body[:66] if len(body) > 66 else body
+
+        starts = []
+        for idx, raw_line in enumerate(lines, 1):
+            body = _body(raw_line).strip().upper()
+            for name in names:
+                if re.match(rf"^{re.escape(name)}\s*\.", body):
+                    starts.append((idx, name))
+                    break
+        starts.sort()
+
+        ranges = {}
+        for pos, (start, name) in enumerate(starts):
+            end = starts[pos + 1][0] - 1 if pos + 1 < len(starts) else len(lines)
+            ranges[name] = (start, end)
+        return ranges
 
     @staticmethod
     def _resolve_dynamic_calls_from_source(file_path: str, paragraphs: List[Dict]) -> List[Dict]:
@@ -573,8 +777,13 @@ class SQLiteLoader:
             body = _quote_pat.sub(lambda m: " " * len(m.group()), body)
             return body
 
+        source_ranges = SQLiteLoader._source_paragraph_ranges(file_path, paragraphs)
+
         def _find_paragraph(line_num):
-            for p in paragraphs:
+            for pname, (start, end) in source_ranges.items():
+                if start <= line_num <= end:
+                    return {"name": pname, "line_start": start, "line_end": end}
+            for p in paragraphs or []:
                 start = p.get("line_start", 0)
                 end = p.get("line_end", 0)
                 if start and end and start <= line_num <= end:
@@ -632,6 +841,398 @@ class SQLiteLoader:
         return results
 
     @staticmethod
+    def _extract_paragraphs_from_source(file_path: str) -> List[Dict]:
+        """Fallback paragraph parser. Detects lines that look like
+        `       PARAGRAPH-NAME.` (column 8+, ends with period, identifier-like)
+        inside the PROCEDURE DIVISION. Returns [{name, line_start, line_end}, ...]."""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        in_proc = False
+        para_pat = re.compile(r"^\s{0,7}([A-Z][A-Z0-9-]{2,30})\s*\.\s*$")
+        # COBOL keywords/sections that match the regex but aren't paragraphs
+        skip = {"PROCEDURE", "DIVISION", "SECTION", "FILE", "WORKING-STORAGE",
+                 "LINKAGE", "LOCAL-STORAGE", "INPUT-OUTPUT", "FILE-CONTROL",
+                 "I-O-CONTROL", "DATA", "ENVIRONMENT", "IDENTIFICATION",
+                 "CONFIGURATION", "SPECIAL-NAMES", "SOURCE-COMPUTER",
+                 "OBJECT-COMPUTER", "PROGRAM-ID", "AUTHOR", "DATE-WRITTEN",
+                 "DATE-COMPILED", "INSTALLATION", "SECURITY", "REMARKS"}
+
+        paras = []
+        cur_name = None
+        cur_start = 0
+        for i, raw in enumerate(lines):
+            line_num = i + 1
+            if len(raw) > 6 and raw[6] == "*":
+                continue
+            body = raw[6:] if len(raw) > 6 else raw
+            body = body[:66] if len(body) > 66 else body
+            up = body.upper()
+            if "PROCEDURE DIVISION" in up:
+                in_proc = True
+                continue
+            if not in_proc:
+                continue
+            m = para_pat.match(body)
+            if not m:
+                continue
+            name = m.group(1).upper()
+            if name in skip:
+                continue
+            # Skip if it's actually an SQL/CICS keyword being used as period statement
+            if name in ("END-EXEC", "EXIT", "STOP"):
+                continue
+
+            # Close out previous paragraph
+            if cur_name:
+                paras.append({"name": cur_name, "line_start": cur_start, "line_end": line_num - 1})
+            cur_name = name
+            cur_start = line_num
+
+        if cur_name:
+            paras.append({"name": cur_name, "line_start": cur_start, "line_end": len(lines)})
+
+        return paras
+
+    @staticmethod
+    def _extract_files_from_source(file_path: str) -> List[Dict]:
+        """Parse the FILE-CONTROL section to extract SELECT … ASSIGN TO …
+        ORGANIZATION/ACCESS clauses. Each entry maps a logical file name
+        to its DDname plus organisation and access mode."""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        # Find FILE-CONTROL block
+        in_fc = False
+        block = []
+        block_start = 0
+        for i, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            up = body.upper()
+            if "FILE-CONTROL" in up:
+                in_fc = True
+                block_start = i + 1
+                continue
+            if in_fc and (
+                "DATA DIVISION" in up or "PROCEDURE DIVISION" in up
+                or "I-O-CONTROL" in up
+            ):
+                break
+            if in_fc:
+                block.append((i + 1, body))
+        if not block:
+            return []
+
+        # Group by SELECT — each SELECT statement runs until period
+        results = []
+        select_pat = re.compile(
+            r"\bSELECT\s+(?:OPTIONAL\s+)?([A-Z][A-Z0-9-]*)\s+ASSIGN\s+TO\s+([A-Z][A-Z0-9-]*)",
+            re.IGNORECASE,
+        )
+        org_pat = re.compile(r"\bORGANIZATION\s+(?:IS\s+)?([A-Z]+)", re.IGNORECASE)
+        acc_pat = re.compile(r"\bACCESS\s+(?:MODE\s+)?(?:IS\s+)?([A-Z]+)", re.IGNORECASE)
+        rec_key_pat = re.compile(r"\bRECORD\s+KEY\s+(?:IS\s+)?([A-Z][A-Z0-9-]*)", re.IGNORECASE)
+
+        # Concatenate lines and split on period
+        joined = " ".join(b[1] for b in block)
+        line_map = []  # cumulative line numbers per chunk
+        for ln_num, b in block:
+            for _ in range(len(b) + 1):
+                line_map.append(ln_num)
+
+        # Walk through SELECT statements
+        for m in select_pat.finditer(joined):
+            file_name = m.group(1).upper()
+            ddname = m.group(2).upper()
+            # Find the matching period after this SELECT
+            start = m.end()
+            end = joined.find(".", start)
+            if end == -1:
+                end = len(joined)
+            stmt = joined[start:end]
+
+            org_m = org_pat.search(stmt)
+            acc_m = acc_pat.search(stmt)
+            rec_m = rec_key_pat.search(stmt)
+
+            organization = org_m.group(1).upper() if org_m else None
+            access_mode = acc_m.group(1).upper() if acc_m else None
+            record_key = rec_m.group(1).upper() if rec_m else None
+
+            file_type = "VSAM" if organization == "INDEXED" else (
+                "SEQUENTIAL" if organization == "SEQUENTIAL" else organization
+            )
+
+            ln = line_map[m.start()] if m.start() < len(line_map) else None
+            results.append({
+                "file_name": file_name,
+                "ddname": ddname,
+                "file_type": file_type,
+                "organization": organization,
+                "access_mode": access_mode,
+                "record_key": record_key,
+                "line_number": ln,
+            })
+        return results
+
+    @staticmethod
+    def _extract_data_items_from_lines(lines: List[str], start_line: int = 1):
+        """Generic COBOL data-item parser. Reads lines starting at start_line,
+        returns a list of dicts: {field_name, level, picture, usage, value, parent,
+        line_number, occurs, redefines}.
+
+        Works on copybook .cpy files OR a slice of a .cbl file (e.g. an FD block).
+        """
+        import re
+
+        # COBOL data declaration: <level> <name> [PIC ...] [USAGE ...] [VALUE ...]
+        # Levels: 01-49, 66, 77, 88
+        decl_pat = re.compile(
+            r"^\s*(\d{2})\s+([A-Z][A-Z0-9-]*)\b(.*?)(?:\.\s*$|$)",
+            re.IGNORECASE,
+        )
+        pic_pat = re.compile(r"\bPIC(?:TURE)?\s+(?:IS\s+)?(\S+)", re.IGNORECASE)
+        usage_pat = re.compile(r"\b(?:USAGE\s+(?:IS\s+)?)?(COMP|COMP-3|COMP-4|COMP-5|BINARY|PACKED-DECIMAL|DISPLAY)\b", re.IGNORECASE)
+        value_pat = re.compile(r"\bVALUE\s+(?:IS\s+)?([^.]+)", re.IGNORECASE)
+        occurs_pat = re.compile(r"\bOCCURS\s+(\d+)", re.IGNORECASE)
+        redef_pat = re.compile(r"\bREDEFINES\s+([A-Z][A-Z0-9-]*)", re.IGNORECASE)
+
+        items = []
+        # Stack of (level_number, field_name) for parent tracking
+        parent_stack = []
+        # We sometimes need to join continuation lines (statement runs until period)
+        buf = ""
+        buf_line_num = 0
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        for idx, raw in enumerate(lines):
+            line_num = start_line + idx
+            body = _strip_seq(raw)
+            if not body.strip():
+                continue
+            if not buf:
+                buf = body
+                buf_line_num = line_num
+            else:
+                buf += " " + body
+            # If buffer doesn't end with period yet, keep accumulating
+            if "." not in buf:
+                continue
+            # Process complete statements (split on period, keep last incomplete part as buf)
+            parts = buf.split(".")
+            buf = parts[-1]
+            for part in parts[:-1]:
+                m = decl_pat.match(part)
+                if not m:
+                    continue
+                lvl = int(m.group(1))
+                name = m.group(2).upper()
+                if name in ("FILLER",):
+                    continue
+                # Skip non-data items
+                if name in ("FD", "SD", "WORKING-STORAGE", "LINKAGE", "FILE",
+                             "PROCEDURE", "DIVISION", "SECTION", "COPY"):
+                    continue
+                clauses = m.group(3) or ""
+                pic = (pic_pat.search(clauses) or [None, None])[1] if pic_pat.search(clauses) else None
+                use_m = usage_pat.search(clauses)
+                usage = use_m.group(1).upper() if use_m else None
+                val_m = value_pat.search(clauses)
+                value = val_m.group(1).strip().rstrip(".") if val_m else None
+                occ_m = occurs_pat.search(clauses)
+                occurs = int(occ_m.group(1)) if occ_m else None
+                redef_m = redef_pat.search(clauses)
+                redefines = redef_m.group(1).upper() if redef_m else None
+
+                # Maintain parent stack by level
+                while parent_stack and parent_stack[-1][0] >= lvl:
+                    parent_stack.pop()
+                parent = parent_stack[-1][1] if parent_stack else None
+
+                items.append({
+                    "field_name": name,
+                    "level": lvl,
+                    "picture": pic,
+                    "usage": usage,
+                    "value": value,
+                    "parent": parent,
+                    "line_number": buf_line_num,
+                    "occurs": occurs,
+                    "redefines": redefines,
+                })
+
+                if pic is None and lvl < 50:
+                    parent_stack.append((lvl, name))
+
+            buf_line_num = line_num
+        return items
+
+    @staticmethod
+    def _extract_copybook_fields_from_source(file_path: str) -> List[Dict]:
+        """Parse a .cpy file and return field-level dictionary entries."""
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        return SQLiteLoader._extract_data_items_from_lines(content.split("\n"))
+
+    @staticmethod
+    def _extract_file_records_from_source(file_path: str) -> List[Dict]:
+        """Find each `FD <file-name>` block in a COBOL program and return
+        the data items that follow until the next FD or section break."""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        fd_pat = re.compile(r"^\s*FD\s+([A-Z][A-Z0-9-]*)\b", re.IGNORECASE)
+        section_break_pat = re.compile(
+            r"^\s*(WORKING-STORAGE|LINKAGE|PROCEDURE|LOCAL-STORAGE)\s+SECTION", re.IGNORECASE)
+
+        results = []
+        i = 0
+        while i < len(lines):
+            body = _strip_seq(lines[i])
+            m = fd_pat.match(body)
+            if not m:
+                i += 1
+                continue
+            fd_name = m.group(1).upper()
+            block_start = i + 1
+            j = block_start
+            # Walk forward until next FD/SD or section break
+            while j < len(lines):
+                b = _strip_seq(lines[j])
+                if fd_pat.match(b) or section_break_pat.match(b):
+                    break
+                j += 1
+            block_lines = lines[block_start:j]
+            items = SQLiteLoader._extract_data_items_from_lines(block_lines, start_line=block_start + 1)
+            # Identify the 01-level "record" that anchors this FD
+            record_name = None
+            for it in items:
+                if it["level"] == 1:
+                    record_name = it["field_name"]
+                    break
+            for it in items:
+                results.append({
+                    "file_name": fd_name,
+                    "record_name": record_name,
+                    "field_name": it["field_name"],
+                    "level_number": it["level"],
+                    "picture": it["picture"],
+                    "usage": it["usage"],
+                    "parent_name": it["parent"],
+                    "line_number": it["line_number"],
+                })
+            i = j
+        return results
+
+    @staticmethod
+    def _extract_movements_from_source(file_path: str, paragraphs: List[Dict]) -> List[Dict]:
+        """Extract MOVE statements: source -> destination pairs.
+        Only captures simple cases: MOVE <src> TO <dst>[, <dst2>, ...].
+        Skips arithmetic / reference modifications."""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        # MOVE <src> TO <dst1> [<dst2>...]   src can be 'literal', "literal", number, or identifier
+        move_pat = re.compile(
+            r"\bMOVE\s+("
+            r"'[^']*'|\"[^\"]*\"|[+-]?\d+(?:\.\d+)?|[A-Z][A-Z0-9-]*(?:\([^)]+\))?"
+            r")\s+TO\s+([A-Z][A-Z0-9-]*(?:\s*,?\s*[A-Z][A-Z0-9-]*)*)",
+            re.IGNORECASE,
+        )
+
+        results = []
+        for idx, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            if "MOVE" not in body.upper():
+                continue
+            for m in move_pat.finditer(body):
+                src_field = m.group(1).strip()
+                dst_block = m.group(2).strip()
+                is_literal = 1 if (src_field.startswith(("'", '"')) or src_field.lstrip("+-").replace(".", "").isdigit()) else 0
+                # Split multiple destinations
+                for dst in re.split(r"[,\s]+", dst_block):
+                    dst = dst.strip().rstrip(",")
+                    if not dst:
+                        continue
+                    results.append({
+                        "source_field": src_field.strip("'\""),
+                        "destination_field": dst.upper(),
+                        "paragraph": _find_paragraph(idx + 1),
+                        "line_number": idx + 1,
+                        "is_literal": is_literal,
+                    })
+        return results
+
+    @staticmethod
     def _extract_sql_from_source(file_path: str, paragraphs: List[Dict]) -> List[Dict]:
         """Extract EXEC SQL (DB2) statements directly from COBOL source.
         Returns list of {command, table_name, cursor_name, paragraph, line_number, sql_text}."""
@@ -648,12 +1249,17 @@ class SQLiteLoader:
 
         lines = content.split("\n")
 
+        source_ranges = SQLiteLoader._source_paragraph_ranges(file_path, paragraphs)
+
         def _find_paragraph(line_num):
-            for p in paragraphs:
+            for pname, (start, end) in source_ranges.items():
+                if start <= line_num <= end:
+                    return pname
+            for p in paragraphs or []:
                 start = p.get("line_start", 0)
                 end = p.get("line_end", 0)
                 if start and end and start <= line_num <= end:
-                    return p.get("name")
+                    return p.get("name") or p.get("paragraph_name")
             return None
 
         results = []
@@ -748,13 +1354,17 @@ class SQLiteLoader:
 
         lines = content.split("\n")
 
-        # Build paragraph line-range lookup
+        source_ranges = SQLiteLoader._source_paragraph_ranges(file_path, paragraphs)
+
         def _find_paragraph(line_num):
-            for p in paragraphs:
+            for pname, (start, end) in source_ranges.items():
+                if start <= line_num <= end:
+                    return pname
+            for p in paragraphs or []:
                 start = p.get("line_start", 0)
                 end = p.get("line_end", 0)
                 if start and end and start <= line_num <= end:
-                    return p.get("name")
+                    return p.get("name") or p.get("paragraph_name")
             return None
 
         results = []
@@ -858,31 +1468,96 @@ class SQLiteLoader:
 
         lines = content.split("\n")
 
-        def _find_paragraph(line_num):
-            for p in paragraphs:
-                start = p.get("line_start", 0)
-                end = p.get("line_end", 0)
-                if start and end and start <= line_num <= end:
-                    return p.get("name")
-            return None
-
-        # Build SSA data item lookup: for items ending in -SSA, try to find
-        # the segment name from their VALUE or from sibling items.
-        ssa_segments = {}
-        if data_items:
-            for di in data_items:
-                name = (di.get("name") or "").upper()
-                if name.endswith("-SSA") or name.endswith("SSA"):
-                    val = (di.get("value") or "").strip().strip("'\"")
-                    if val and len(val) <= 16:
-                        ssa_segments[name] = val
-
         # Strip COBOL sequence area + comments
         def _trim(l):
             if len(l) > 6 and l[6] == "*":
                 return ""
             body = l[6:] if len(l) > 6 else l
             return body[:66] if len(body) > 66 else body
+
+        # Parser line numbers can drift after COPY expansion. For source-file
+        # extractors, map paragraphs by scanning real COBOL labels in the file.
+        paragraph_names = []
+        for p in paragraphs or []:
+            pname = (p.get("name") or p.get("paragraph_name") or "").upper()
+            if pname:
+                paragraph_names.append(pname)
+        paragraph_starts = []
+        for idx, raw_line in enumerate(lines, 1):
+            body = _trim(raw_line).strip().upper()
+            for pname in paragraph_names:
+                if re.match(rf"^{re.escape(pname)}\s*\.", body):
+                    paragraph_starts.append((idx, pname))
+                    break
+        paragraph_starts.sort()
+        source_ranges = []
+        for pos, (start, pname) in enumerate(paragraph_starts):
+            end = paragraph_starts[pos + 1][0] - 1 if pos + 1 < len(paragraph_starts) else len(lines)
+            source_ranges.append((start, end, pname))
+
+        def _find_paragraph(line_num):
+            for start, end, pname in source_ranges:
+                if start <= line_num <= end:
+                    return pname
+            for p in paragraphs or []:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name") or p.get("paragraph_name")
+            return None
+
+        def _extract_ssa_layouts():
+            layouts = {}
+            current = None
+            fields = []
+
+            def flush():
+                if not current:
+                    return
+                segment = None
+                key_field = None
+                rel_oper = None
+                for fname, literal in fields:
+                    lit = (literal or "").strip()
+                    if not lit or lit in ("(", ")", " "):
+                        continue
+                    if fname.endswith("SEG-NAME") or (segment is None and len(lit) >= 4):
+                        segment = lit
+                    if fname.endswith("KEY-FIELD"):
+                        key_field = lit.strip()
+                    if fname.endswith("REL-OPER"):
+                        rel_oper = lit.strip()
+                qualifier = None
+                if key_field and rel_oper:
+                    qualifier = f"{key_field} {rel_oper} QUAL-SSA-KEY-VALUE"
+                layouts[current] = {"segment": segment, "qualifier": qualifier}
+
+            for raw_line in lines:
+                body = _trim(raw_line).strip().upper()
+                if not body:
+                    continue
+                m01 = re.match(r"^01\s+([A-Z0-9-]*SSA)\s*\.", body)
+                if m01:
+                    flush()
+                    current = m01.group(1)
+                    fields = []
+                    continue
+                if current and re.match(r"^01\s+", body):
+                    flush()
+                    current = None
+                    fields = []
+                    continue
+                if current:
+                    mf = re.match(
+                        r"^\d+\s+([A-Z0-9-]+|FILLER)\b.*?\bVALUE\s+['\"]([^'\"]*)['\"]",
+                        body,
+                    )
+                    if mf:
+                        fields.append((mf.group(1), mf.group(2)))
+            flush()
+            return layouts
+
+        ssa_layouts = _extract_ssa_layouts()
 
         results = []
         i = 0
@@ -957,6 +1632,10 @@ class SQLiteLoader:
             # Resolve function code: it might be a variable name containing the
             # function code, or a literal like 'GU'. Strip quotes.
             fn_code = fn_var.strip("'\"")
+            if fn_code.startswith("FUNC-"):
+                candidate = fn_code[5:]
+                if candidate in IMS_FUNCTIONS:
+                    fn_code = candidate
 
             # Map known function codes
             fn_name = IMS_FUNCTIONS.get(fn_code)
@@ -965,9 +1644,10 @@ class SQLiteLoader:
                 # For now just record the raw name
                 fn_name = None
 
-            # Look up SSA segment name
-            ssa_seg = ssa_segments.get(ssa) if ssa else None
-            ssa_qual = None  # qualifier extraction is best-effort
+            # Look up SSA segment and qualifier from source declarations.
+            ssa_layout = ssa_layouts.get(ssa, {}) if ssa else {}
+            ssa_seg = ssa_layout.get("segment")
+            ssa_qual = ssa_layout.get("qualifier")
 
             raw = block[:200]
 
@@ -986,9 +1666,98 @@ class SQLiteLoader:
 
         return results
 
+    def load_copybook_fields(self, repo_path: str = None):
+        """Scan all .cpy / .CPY files in the repo, parse field-level dictionaries,
+        and load them into copybook_fields. Also populates copybooks.file_path
+        for any rows that don't have it set yet."""
+        from pathlib import Path
+        if not repo_path:
+            return
+        cursor = self.conn.cursor()
+
+        cpy_files = list(Path(repo_path).rglob("*.cpy")) + list(Path(repo_path).rglob("*.CPY"))
+        loaded = 0
+        for fp in cpy_files:
+            cb_name = fp.stem.upper()
+            try:
+                fields = self._extract_copybook_fields_from_source(str(fp))
+            except Exception:
+                continue
+
+            # Ensure the copybook row exists with a file_path
+            cursor.execute("INSERT OR IGNORE INTO copybooks (copybook_name, file_path) VALUES (?, ?)",
+                            (cb_name, str(fp)))
+            cursor.execute("UPDATE copybooks SET file_path = ? WHERE copybook_name = ? AND (file_path IS NULL OR file_path = '')",
+                            (str(fp), cb_name))
+
+            # Replace any existing fields for this copybook
+            cursor.execute("DELETE FROM copybook_fields WHERE copybook_name = ?", (cb_name,))
+            for f in fields:
+                cursor.execute("""
+                    INSERT INTO copybook_fields (
+                        copybook_name, field_name, level_number, picture, usage,
+                        value, parent_name, line_number, occurs_count, redefines_target
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    cb_name,
+                    f.get("field_name"),
+                    f.get("level"),
+                    f.get("picture"),
+                    f.get("usage"),
+                    f.get("value"),
+                    f.get("parent"),
+                    f.get("line_number"),
+                    f.get("occurs"),
+                    f.get("redefines"),
+                ))
+            if fields:
+                loaded += 1
+        self.conn.commit()
+        console.print(f"[green]OK - Loaded copybook field dictionaries for {loaded}/{len(cpy_files)} .cpy files[/green]")
+
+    # Convenient retrieval helpers
+    def get_copybook_fields(self, copybook_name: str) -> List[Dict]:
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT field_name, level_number, picture, usage, value, parent_name, line_number,
+                   occurs_count, redefines_target
+            FROM copybook_fields
+            WHERE copybook_name = ?
+            ORDER BY line_number, level_number
+        """, (copybook_name,))
+        return [dict(r) for r in cursor.fetchall()]
+
+    def get_program_file_records(self, program_id: str) -> List[Dict]:
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT file_name, record_name, field_name, level_number, picture, usage,
+                   parent_name, line_number
+            FROM file_records
+            WHERE program_id = ?
+            ORDER BY file_name, line_number, level_number
+        """, (program_id,))
+        return [dict(r) for r in cursor.fetchall()]
+
+    def get_program_data_movements(self, program_id: str, limit: int = 50) -> List[Dict]:
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT source_field, destination_field, paragraph_name, line_number, is_literal
+            FROM data_movements
+            WHERE program_id = ?
+            ORDER BY line_number
+            LIMIT ?
+        """, (program_id, limit))
+        return [dict(r) for r in cursor.fetchall()]
+
     def load_screens(self, screens: List[Dict]):
         """Load BMS screen definitions."""
         cursor = self.conn.cursor()
+
+        # Screen rows have no natural UNIQUE constraint in the original schema.
+        # Clear them before reloading so repeated pipeline runs stay idempotent.
+        cursor.execute("DELETE FROM screen_fields")
+        cursor.execute("DELETE FROM screens")
+
         for screen_data in screens:
             mapset = screen_data.get("mapset_name", "")
             for map_info in screen_data.get("maps", []):
@@ -1144,6 +1913,7 @@ class SQLiteLoader:
             ("statements", "SELECT * FROM statements WHERE program_id = ? ORDER BY line_number"),
             ("calls", "SELECT * FROM program_calls WHERE caller_program = ?"),
             ("called_by", "SELECT * FROM program_calls WHERE called_program = ?"),
+            ("copybooks", "SELECT * FROM copybook_usage WHERE program_id = ? ORDER BY copybook_name"),
             ("performs", "SELECT * FROM performs WHERE program_id = ?"),
             ("business_rules", "SELECT * FROM business_rules WHERE program_id = ?"),
             ("exec_cics", "SELECT * FROM exec_cics WHERE program_id = ? ORDER BY line_number"),
