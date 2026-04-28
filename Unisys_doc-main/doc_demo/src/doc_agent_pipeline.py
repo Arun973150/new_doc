@@ -55,6 +55,20 @@ def _get_llm():
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
+GROUNDING_RULES = """
+GROUNDING RULES (mandatory — violations are treated as errors):
+- Do NOT infer access technology. If SYSTEM DATA does not explicitly state the
+  program uses VSAM, DB2, IMS, or DL/I, do not claim it does.
+- Copybook names: only reference copybooks that appear verbatim in
+  "Shared Data (Copybooks)" in SYSTEM DATA. Never substitute or invent names.
+- File and dataset names: only reference names that appear in
+  "Files Accessed" or "Input/Output Datasets" in SYSTEM DATA.
+- IMS DL/I calls: only reference IMS functions (GU, GHN, ISRT, REPL, DLET) that
+  appear in the "IMS DL/I Calls" section of SYSTEM DATA. Do not infer IMS usage.
+- If a fact is missing from SYSTEM DATA, write "(not present in extracted data)"
+  rather than guessing.
+"""
+
 WRITER_SYSTEM = (
     "You are a chief software architect writing technical documentation "
     "for a legacy COBOL mainframe modernisation team. "
@@ -92,7 +106,17 @@ The document must contain these numbered sections:
 6. Critical Business Rules and Validation Logic — list specific rules with conditions and actions
 7. Migration Notes — complexity rating, modern equivalent, recommended microservice boundary. For CICS programs suggest REST API + modern UI. For batch programs suggest cloud-native batch alternatives.
 
-Write in flowing prose with clear numbered headings. Reference actual program IDs, paragraph names, copybook names, screen names, and file names throughout."""
+Write in flowing prose with clear numbered headings. Reference actual program IDs, paragraph names, copybook names, screen names, and file names throughout.
+
+CITATION REQUIREMENT (mandatory):
+For each program covered, you MUST cite at least 3 specific paragraph names from the program's
+paragraph list provided in SYSTEM DATA below. Format citations as `paragraph PARA-NAME` so the
+reader can locate the source code. Example: "Card validation runs in `1500-VALIDATE-CARD` before
+the transaction is committed by `2000-PROCESS-TRANSACTION`." Only cite paragraphs that actually
+appear in SYSTEM DATA — never invent paragraph names. If the program has fewer than 3 paragraphs,
+cite all of them.
+
+{GROUNDING_RULES}"""
 
     elif mode == "Module":
         instructions = f"""Write a comprehensive module specification document for the "{subject}" module.
@@ -108,7 +132,14 @@ The document must contain these numbered sections:
 8. External Dependencies — what other modules/programs this module depends on and what depends on it
 9. Migration Strategy — recommended service boundary, suggested modern architecture (REST APIs for CICS screens, cloud batch for JCL jobs), migration order for programs
 
-Write in flowing prose with numbered headings. Reference specific program IDs, screen names, copybook names, and file names."""
+Write in flowing prose with numbered headings. Reference specific program IDs, screen names, copybook names, and file names.
+
+CITATION REQUIREMENT (mandatory):
+For every program in the Internal Flow section, cite at least 2 paragraph names per program in
+the format `paragraph PARA-NAME`. Use only paragraph names that appear in SYSTEM DATA. Never
+invent paragraph names — fabricated citations will fail validation.
+
+{GROUNDING_RULES}"""
 
     else:  # Application
         instructions = """Write a comprehensive Application Architecture Document.
@@ -127,7 +158,9 @@ The document must contain these numbered sections:
 6. Inter-Module Data Flow — which modules depend on which, shared files/copybooks coupling modules, 3-4 critical data paths as step-by-step numbered flows
 7. Business Rule Inventory — rule categories with counts, top 5 highest-density programs and what kinds of rules they contain
 8. Migration Roadmap — for EACH module write: target microservice name, for CICS screens suggest REST API + modern UI (React/Angular), for batch JCL suggest cloud-native batch (AWS Batch/Step Functions), migration order (1=first) with justification, key technical risks, suggested tech stack. End with an overall ordered migration sequence.
-9. Risk Register — top 7 highest-risk components as a numbered list, each with: why it is high risk, concrete mitigation strategy"""
+9. Risk Register — top 7 highest-risk components as a numbered list, each with: why it is high risk, concrete mitigation strategy
+
+{GROUNDING_RULES}"""
 
     return f"""{instructions}{feedback_block}
 
@@ -145,6 +178,12 @@ def _critique_prompt(mode: str, subject: str, draft: str) -> str:
     }
     sections = ", ".join(required.get(mode, []))
 
+    citation_check = ""
+    if mode == "Program":
+        citation_check = "\n6. Does each covered program cite at least 3 specific paragraph names (using `PARA-NAME` backticks)? Flag if missing."
+    elif mode == "Module":
+        citation_check = "\n6. Does the Internal Flow section cite at least 2 paragraph names per program (using `PARA-NAME` backticks)? Flag if missing."
+
     return f"""Review this {mode}-level COBOL documentation for "{subject}".
 
 Check for ALL of the following:
@@ -152,7 +191,7 @@ Check for ALL of the following:
 2. Are there any vague, generic, or placeholder statements ("TBD", "not available", "various programs")?
 3. Are specific program IDs, module names, file names referenced throughout — not just in the data section?
 4. For Application mode: does the Migration Roadmap cover EVERY module individually? Does the Risk Register have exactly 7 entries?
-5. Is any section truncated, cut off mid-sentence, or significantly shorter than expected?
+5. Is any section truncated, cut off mid-sentence, or significantly shorter than expected?{citation_check}
 
 DOCUMENT TO REVIEW:
 {draft[:9000]}{"...[truncated for review]" if len(draft) > 9000 else ""}

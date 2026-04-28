@@ -1,7 +1,7 @@
 # CardDemo - System Overview
 
-> **Auto-generated documentation** | 2026-04-13 12:16  
-> Analyzed from 44 COBOL programs across 20 functional modules
+> **Auto-generated documentation** | 2026-04-28 20:00  
+> Analyzed from 44 COBOL programs across 19 functional modules
 
 ---
 
@@ -17,10 +17,11 @@ of CICS online screens and batch JCL jobs.
 | Metric | Count |
 |--------|-------|
 | Programs | 44 |
-| Functional Modules | 20 |
-| BMS Screens | 315 |
+| Functional Modules | 19 |
+| BMS Screens | 420 |
 | Data Items | 7383 |
 | CICS Commands | 101 |
+| SQL Statements | 28 |
 | Inter-Program Calls | 59 |
 | Business Rules | 447 |
 | Copybooks | 68 |
@@ -30,7 +31,6 @@ of CICS online screens and batch JCL jobs.
 ```mermaid
 flowchart TB
     subgraph ONLINE["Online (CICS) Programs"]
-        00220000["00220000"]
         COACCT01["COACCT01"]
         COACTUPC["COACTUPC"]
         COACTVWC["COACTVWC"]
@@ -42,6 +42,7 @@ flowchart TB
         CODATE01["CODATE01"]
         COMEN01C["COMEN01C"]
         COPAUA0C["COPAUA0C"]
+        COPAUS0C["COPAUS0C"]
     end
 
     subgraph BATCH["Batch Programs"]
@@ -149,14 +150,6 @@ Data Import/Export
 | [CBEXPORT](programs/CBEXPORT.md) | BATCH |
 | [CBIMPORT](programs/CBIMPORT.md) | BATCH |
 
-### [Module: MODULE_00](modules/MODULE_00.md)
-
-Module: MODULE_00
-
-| Programs | Type |
-|----------|------|
-| [00220000](programs/00220000.md) | ONLINE |
-
 ### [Menu Navigation](modules/NAVIGATION.md)
 
 Menu Navigation
@@ -176,7 +169,7 @@ Online Processing (Uncategorised)
 | [CODATE01](programs/CODATE01.md) | ONLINE |
 | [COPAUA0C](programs/COPAUA0C.md) | ONLINE |
 | [COPAUS0C](programs/COPAUS0C.md) | ONLINE |
-| *...3 more* | |
+| *...4 more* | |
 
 ### [Payment Processing](modules/PAYMENT_PROCESSING.md)
 
@@ -249,7 +242,6 @@ Shared Utilities
 
 Programs that are not called by others -- these are likely user-facing entry points:
 
-- [00220000](programs/00220000.md)
 - [CBACT01C](programs/CBACT01C.md)
 - [CBACT02C](programs/CBACT02C.md)
 - [CBACT03C](programs/CBACT03C.md)
@@ -285,6 +277,7 @@ Programs that are not called by others -- these are likely user-facing entry poi
 - [COTRN01C](programs/COTRN01C.md)
 - [COTRN02C](programs/COTRN02C.md)
 - [COTRTLIC](programs/COTRTLIC.md)
+- [COTRTUPC](programs/COTRTUPC.md)
 - [COUSR00C](programs/COUSR00C.md)
 - [COUSR01C](programs/COUSR01C.md)
 - [COUSR02C](programs/COUSR02C.md)

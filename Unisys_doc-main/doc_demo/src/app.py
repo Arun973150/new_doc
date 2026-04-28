@@ -344,6 +344,7 @@ def render_sidebar():
         ("Doc Generator",     "⊕"),
         ("JCL Jobs",          "≡"),
         ("CICS Commands",     "⚙"),
+        ("SQL Operations",    "▣"),
         ("Migration",         "⇢"),
         ("Rules",             "⊛"),
         ("Search",            "⌕"),
@@ -1532,6 +1533,125 @@ def page_cics():
 
 
 #
+# SQL Operations (DB2)
+#
+
+def page_sql():
+    st.header("SQL Operations (DB2)")
+    st.caption("EXEC SQL statements extracted from COBOL source — tables, cursors, and DML usage.")
+
+    db_path = os.getenv("DB_PATH", "data/cobol_knowledge.db")
+    try:
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+    except Exception as e:
+        st.error(f"Database not ready. ({e})")
+        return
+
+    table_check = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='exec_sql'"
+    ).fetchone()
+    if not table_check:
+        st.warning("No `exec_sql` table found. Run the pipeline to populate SQL data.")
+        conn.close()
+        return
+
+    total = conn.execute("SELECT COUNT(*) FROM exec_sql").fetchone()[0]
+    if total == 0:
+        st.info("No SQL statements found in the database.")
+        conn.close()
+        return
+
+    progs = conn.execute("SELECT COUNT(DISTINCT program_id) FROM exec_sql").fetchone()[0]
+    distinct_cmds = conn.execute("SELECT COUNT(DISTINCT command) FROM exec_sql").fetchone()[0]
+    distinct_tables = conn.execute("SELECT COUNT(DISTINCT table_name) FROM exec_sql WHERE table_name IS NOT NULL").fetchone()[0]
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total SQL Statements", total)
+    c2.metric("Programs Using SQL", progs)
+    c3.metric("Distinct Commands", distinct_cmds)
+    c4.metric("Distinct Tables", distinct_tables)
+
+    st.divider()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Statements by Command Type")
+        cmd_counts = [dict(r) for r in conn.execute("""
+            SELECT command, COUNT(*) as cnt
+            FROM exec_sql GROUP BY command ORDER BY cnt DESC
+        """).fetchall()]
+        if cmd_counts:
+            df = pd.DataFrame(cmd_counts)
+            st.bar_chart(df.set_index("command"))
+
+    with col2:
+        st.subheader("Top Tables by Access Count")
+        table_counts = [dict(r) for r in conn.execute("""
+            SELECT table_name, COUNT(*) as cnt
+            FROM exec_sql WHERE table_name IS NOT NULL
+            GROUP BY table_name ORDER BY cnt DESC LIMIT 15
+        """).fetchall()]
+        if table_counts:
+            st.dataframe(pd.DataFrame(table_counts),
+                         use_container_width=True, hide_index=True, height=400)
+
+    st.divider()
+
+    # Cross-program table access matrix
+    st.subheader("Table Access Matrix (Programs ↔ Tables)")
+    st.caption("Shows which programs read or write which tables — the basis for data-flow analysis.")
+    matrix_rows = [dict(r) for r in conn.execute("""
+        SELECT program_id, table_name, command, COUNT(*) as cnt
+        FROM exec_sql WHERE table_name IS NOT NULL
+        GROUP BY program_id, table_name, command
+        ORDER BY program_id, table_name
+    """).fetchall()]
+    if matrix_rows:
+        df = pd.DataFrame(matrix_rows)
+        df["op"] = df["command"].map({
+            "SELECT": "READ", "FETCH": "READ", "DECLARE": "READ",
+            "INSERT": "WRITE", "UPDATE": "WRITE", "DELETE": "WRITE", "MERGE": "WRITE",
+        }).fillna(df["command"])
+        st.dataframe(df, use_container_width=True, hide_index=True, height=350)
+
+    st.divider()
+
+    # Filter view
+    st.subheader("Browse SQL Statements")
+    fc1, fc2, fc3 = st.columns([2, 2, 1])
+    all_progs = ["(All)"] + [r["program_id"] for r in conn.execute(
+        "SELECT DISTINCT program_id FROM exec_sql ORDER BY program_id"
+    ).fetchall()]
+    sel_prog = fc1.selectbox("Filter by program", all_progs, key="sql_prog_filter")
+    all_cmds = ["(All)"] + [r["command"] for r in cmd_counts]
+    sel_cmd = fc2.selectbox("Filter by command", all_cmds, key="sql_cmd_filter")
+    limit = fc3.number_input("Limit", min_value=10, max_value=500, value=100, step=10,
+                              key="sql_limit")
+
+    where = []
+    params = []
+    if sel_prog != "(All)":
+        where.append("program_id = ?")
+        params.append(sel_prog)
+    if sel_cmd != "(All)":
+        where.append("command = ?")
+        params.append(sel_cmd)
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    rows = [dict(r) for r in conn.execute(
+        f"SELECT program_id, command, table_name, cursor_name, paragraph_name, line_number, sql_text "
+        f"FROM exec_sql {where_sql} ORDER BY program_id, line_number LIMIT {int(limit)}",
+        tuple(params)
+    ).fetchall()]
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, height=400)
+    else:
+        st.info("No SQL statements match the filters.")
+
+    conn.close()
+
+
+#
 # Tab 5: JCL Jobs
 #
 
@@ -1900,8 +2020,46 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
         files = [f.get("file_name") for f in (prog.get("files") or [])]
         if calls:     lines.append(f"- Calls: {', '.join(calls)}")
         if callers:   lines.append(f"- Called by: {', '.join(callers)}")
-        if copybooks: lines.append(f"- Shared Data (Copybooks): {', '.join(copybooks)}")
+        if copybooks:
+            lines.append(f"- Shared Data (Copybooks) — ONLY these copybooks are used by this program: {', '.join(copybooks)}")
+        else:
+            lines.append("- Shared Data (Copybooks): NONE — this program does not COPY any copybooks.")
         if files:     lines.append(f"- Files Accessed: {', '.join(files)}")
+
+        # ── Copybook Structure (top-level fields) ────────────────────────────
+        if loader and copybooks:
+            try:
+                cursor_cb = loader.conn.cursor()
+                for cb_name in copybooks[:10]:  # cap to avoid context explosion
+                    # Copybook data items may be stored with program_id = copybook_name
+                    # or duplicated under each consuming program. Try copybook name first.
+                    cursor_cb.execute("""
+                        SELECT name, level_number, picture, section
+                        FROM data_items
+                        WHERE program_id = ? AND level_number IN (1, 5)
+                        ORDER BY line_number
+                        LIMIT 15
+                    """, (cb_name,))
+                    cb_fields = [dict(r) for r in cursor_cb.fetchall()]
+                    if not cb_fields:
+                        # Fallback: search in the consuming program's data items
+                        # for items whose parent chain matches the copybook prefix
+                        cursor_cb.execute("""
+                            SELECT name, level_number, picture, section
+                            FROM data_items
+                            WHERE program_id = ? AND level_number IN (1, 5)
+                              AND name LIKE ?
+                            ORDER BY line_number
+                            LIMIT 15
+                        """, (pid, cb_name[:4] + "%"))
+                        cb_fields = [dict(r) for r in cursor_cb.fetchall()]
+                    if cb_fields:
+                        lines.append(f"  Copybook {cb_name} structure:")
+                        for f in cb_fields:
+                            pic_str = f" PIC {f['picture']}" if f.get("picture") else ""
+                            lines.append(f"    - {f['name']} (level {f['level_number']}{pic_str})")
+            except Exception:
+                pass
 
         # ── CICS Commands ────────────────────────────────────────────────────
         if loader:
@@ -1926,6 +2084,27 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                         if para:
                             entry += f" [in {para}, line {line}]"
                         lines.append(f"  * {entry}")
+            except Exception:
+                pass
+
+        # ── EXEC SQL (DB2) ───────────────────────────────────────────────────
+        if loader:
+            try:
+                cur_sql = loader.conn.cursor()
+                cur_sql.execute("""
+                    SELECT command, table_name, cursor_name, paragraph_name, line_number
+                    FROM exec_sql WHERE program_id = ? ORDER BY line_number
+                """, (pid,))
+                sql_rows = [dict(r) for r in cur_sql.fetchall()]
+                if sql_rows:
+                    lines.append(f"- SQL/DB2 Operations ({len(sql_rows)} total):")
+                    for s in sql_rows[:15]:
+                        cmd = s.get("command", "?")
+                        tbl = s.get("table_name") or s.get("cursor_name") or "-"
+                        para = s.get("paragraph_name", "")
+                        line = s.get("line_number", "")
+                        suffix = f" [in {para}, line {line}]" if para else ""
+                        lines.append(f"  * EXEC SQL {cmd} on {tbl}{suffix}")
             except Exception:
                 pass
 
@@ -1997,18 +2176,95 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                                         lines.append(f"    Output datasets: {', '.join(str(d) for d in out_ds[:5])}")
                             except Exception:
                                 pass
+                    # ── JCL SYSIN Content ─────────────────────────────────────
+                    try:
+                        import json as _json_sysin
+                        cur_sysin = loader.conn.cursor()
+                        cur_sysin.execute("""
+                            SELECT step_name, sysin_data FROM jcl_steps
+                            WHERE UPPER(program) = UPPER(?) AND sysin_data IS NOT NULL
+                            ORDER BY step_order
+                        """, (pid,))
+                        for sr in cur_sysin.fetchall():
+                            sysin_raw = sr["sysin_data"]
+                            if not sysin_raw:
+                                continue
+                            try:
+                                sysin_lines = _json_sysin.loads(sysin_raw)
+                                if isinstance(sysin_lines, list) and sysin_lines:
+                                    lines.append(f"  * SYSIN content for step {sr['step_name']}:")
+                                    for sl in sysin_lines[:20]:
+                                        lines.append(f"    {sl}")
+                            except Exception:
+                                # sysin_data might be plain text
+                                if sysin_raw.strip():
+                                    lines.append(f"  * SYSIN content for step {sr['step_name']}:")
+                                    for sl in sysin_raw.strip().split('\n')[:20]:
+                                        lines.append(f"    {sl}")
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
-        # Paragraph narratives
+        # ── IMS DL/I Calls ────────────────────────────────────────────────────
+        if loader:
+            try:
+                cur_ims = loader.conn.cursor()
+                cur_ims.execute("""
+                    SELECT function_code, function_name, pcb_name, segment_area,
+                           ssa_name, ssa_segment, paragraph_name, line_number
+                    FROM ims_calls WHERE program_id = ? ORDER BY line_number
+                """, (pid,))
+                ims_rows = [dict(r) for r in cur_ims.fetchall()]
+                if ims_rows:
+                    lines.append(f"- IMS DL/I Calls ({len(ims_rows)} total):")
+                    for im in ims_rows[:20]:
+                        fn = im.get("function_code", "?")
+                        fn_name = im.get("function_name", "")
+                        pcb = im.get("pcb_name", "")
+                        area = im.get("segment_area", "")
+                        ssa = im.get("ssa_name", "")
+                        seg = im.get("ssa_segment", "")
+                        para = im.get("paragraph_name", "")
+                        lno = im.get("line_number", "")
+                        entry = f"CALL 'CBLTDLI' {fn}"
+                        if fn_name:
+                            entry += f" ({fn_name})"
+                        if pcb:
+                            entry += f" PCB={pcb}"
+                        if area:
+                            entry += f", Area={area}"
+                        if ssa:
+                            entry += f", SSA={ssa}"
+                        if seg:
+                            entry += f" (segment: {seg})"
+                        if para:
+                            entry += f" [in {para}, line {lno}]"
+                        lines.append(f"  * {entry}")
+            except Exception:
+                pass
+
+        # Paragraph names (always include — required for citation enforcement)
         paras = prog.get("paragraphs") or []
         if paras:
-            lines.append("- Key Functions:")
-            for p in paras[:8]:
-                bname_p = p.get("business_name") or p.get("paragraph_name", "")
+            lines.append(f"- Paragraphs ({len(paras)} total — cite by exact name):")
+            for p in paras[:25]:
+                pname = p.get("paragraph_name", "")
+                if not pname:
+                    continue
+                bname_p = p.get("business_name") or ""
                 narr = p.get("narrative") or p.get("purpose") or ""
+                line_start = p.get("line_start") or ""
+                # Always show the exact paragraph name; append narrative/business name if present
+                detail = ""
                 if narr:
-                    lines.append(f"  * {bname_p}: {narr[:200]}")
+                    detail = f" — {narr[:150]}"
+                elif bname_p and bname_p != pname:
+                    detail = f" ({bname_p})"
+                line_suffix = f" [line {line_start}]" if line_start else ""
+                lines.append(f"  * `{pname}`{line_suffix}{detail}")
+            if len(paras) > 25:
+                lines.append(f"  ... and {len(paras) - 25} more paragraphs")
 
         # Business rules
         rules = prog.get("business_rules") or []
@@ -2245,6 +2501,19 @@ def _fetch_application_subgraph(loader) -> dict:
     except Exception:
         cics_rows = []
 
+    # SQL summary per program + per table
+    try:
+        sql_cursor = loader.conn.cursor()
+        sql_cursor.execute("""
+            SELECT program_id, command, table_name, COUNT(*) as cnt
+            FROM exec_sql
+            GROUP BY program_id, command, table_name
+            ORDER BY program_id
+        """)
+        sql_rows = [dict(r) for r in sql_cursor.fetchall()]
+    except Exception:
+        sql_rows = []
+
     program_details = []
     for prog in programs:
         details = loader.get_program_details(prog["program_id"])
@@ -2262,6 +2531,7 @@ def _fetch_application_subgraph(loader) -> dict:
         "screens": screens,
         "jcl_jobs": jcl_jobs,
         "cics_rows": cics_rows,
+        "sql_rows": sql_rows,
         "stats": {
             "total_programs": len(programs),
             "total_modules": len(modules),
@@ -2271,6 +2541,9 @@ def _fetch_application_subgraph(loader) -> dict:
             "total_jcl_jobs": len(jcl_jobs),
             "total_cics_commands": sum(r.get("cnt", 0) for r in cics_rows),
             "total_cics_programs": len({r["program_id"] for r in cics_rows}),
+            "total_sql_statements": sum(r.get("cnt", 0) for r in sql_rows),
+            "total_sql_programs": len({r["program_id"] for r in sql_rows}),
+            "total_sql_tables": len({r["table_name"] for r in sql_rows if r.get("table_name")}),
         },
     }
 
@@ -2285,7 +2558,9 @@ def _build_application_llm_context(data: dict) -> str:
         f"Programs: {stats['total_programs']} | Modules: {stats['total_modules']} "
         f"| Call Relationships: {stats['total_calls']} | Business Rules: {stats['total_rules']} "
         f"| BMS Screens: {stats.get('total_screens', 0)} | JCL Jobs: {stats.get('total_jcl_jobs', 0)} "
-        f"| CICS Commands: {stats.get('total_cics_commands', 0)} across {stats.get('total_cics_programs', 0)} programs",
+        f"| CICS Commands: {stats.get('total_cics_commands', 0)} across {stats.get('total_cics_programs', 0)} programs "
+        f"| SQL Statements: {stats.get('total_sql_statements', 0)} across {stats.get('total_sql_programs', 0)} programs "
+        f"using {stats.get('total_sql_tables', 0)} tables",
         "",
     ]
 
@@ -2382,6 +2657,46 @@ def _build_application_llm_context(data: dict) -> str:
             cmds = by_program[pid]
             cmd_str = ", ".join(f"{c}({n})" for c, n in cmds)
             lines.append(f"- {pid}: {total} commands — {cmd_str}")
+
+    # ── SQL/DB2 Summary ──────────────────────────────────────────────────────
+    sql_rows = data.get("sql_rows", [])
+    if sql_rows:
+        from collections import defaultdict
+        sql_by_program = defaultdict(list)
+        for r in sql_rows:
+            sql_by_program[r["program_id"]].append((r["command"], r.get("table_name"), r["cnt"]))
+
+        sql_cmd_totals = Counter()
+        sql_table_totals = Counter()
+        for r in sql_rows:
+            sql_cmd_totals[r["command"]] += r["cnt"]
+            if r.get("table_name"):
+                sql_table_totals[r["table_name"]] += r["cnt"]
+
+        lines.append(
+            f"\n## SQL/DB2 Usage "
+            f"({stats.get('total_sql_statements', 0)} statements across "
+            f"{stats.get('total_sql_programs', 0)} programs, "
+            f"{stats.get('total_sql_tables', 0)} tables)"
+        )
+        lines.append("\n### SQL Command Mix")
+        for cmd, cnt in sql_cmd_totals.most_common():
+            lines.append(f"- {cmd}: {cnt}")
+
+        lines.append("\n### Most Accessed Tables")
+        for tbl, cnt in sql_table_totals.most_common(15):
+            lines.append(f"- {tbl}: {cnt} accesses")
+
+        lines.append("\n### Top SQL-Using Programs")
+        prog_totals = sorted(
+            ((pid, sum(cnt for _, _, cnt in ops)) for pid, ops in sql_by_program.items()),
+            key=lambda x: -x[1],
+        )
+        for pid, total in prog_totals[:10]:
+            ops = sql_by_program[pid]
+            tables_touched = sorted({t for _, t, _ in ops if t})
+            tbl_str = ", ".join(tables_touched[:4]) + (" ..." if len(tables_touched) > 4 else "")
+            lines.append(f"- {pid}: {total} statements, tables: {tbl_str or '(no FROM clause detected)'}")
 
     # Business rule category summary
     lines.append(f"\n## Business Rule Categories ({stats['total_rules']} rules)")
@@ -3307,6 +3622,7 @@ elif _page == "Explorer":          page_explorer()
 elif _page == "Doc Generator":     page_doc_generator()
 elif _page == "JCL Jobs":          page_jcl()
 elif _page == "CICS Commands":     page_cics()
+elif _page == "SQL Operations":    page_sql()
 elif _page == "Migration":         page_migration()
 elif _page == "Rules":             page_rules()
 elif _page == "Search":            page_search(repo_path)

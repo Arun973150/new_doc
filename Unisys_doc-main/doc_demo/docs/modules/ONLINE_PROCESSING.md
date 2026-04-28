@@ -1,7 +1,7 @@
 # Module: Online Processing (Uncategorised)
 
 > **Module ID:** `ONLINE_PROCESSING`  
-> **Programs:** 8
+> **Programs:** 9
 
 ---
 
@@ -21,6 +21,7 @@ Online Processing (Uncategorised)
 | [COPAUS1C](../programs/COPAUS1C.md) | ONLINE | 605 |  |
 | [COPAUS2C](../programs/COPAUS2C.md) | ONLINE | 245 |  |
 | [COTRTLIC](../programs/COTRTLIC.md) | ONLINE | 2099 |  |
+| [COTRTUPC](../programs/COTRTUPC.md) | ONLINE | 1703 |  |
 
 ## Internal Call Flow
 
@@ -76,8 +77,14 @@ flowchart LR
 | [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
 | [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
 | [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
+| [CTRTUPA](../screens/CTRTUPA.md) | CTRTUPA | COTRTUP | [COTRTUPC](../programs/COTRTUPC.md) |
 
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*

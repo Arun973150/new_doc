@@ -43,11 +43,14 @@ class ValidationReport:
     structural_warnings: List[str] = field(default_factory=list)
     factual_errors: List[str] = field(default_factory=list)
     coverage_gaps: List[str] = field(default_factory=list)
+    citation_errors: List[str] = field(default_factory=list)
+    citation_warnings: List[str] = field(default_factory=list)
     stats: Dict[str, int] = field(default_factory=dict)
 
     @property
     def passed(self) -> bool:
-        return not (self.structural_errors or self.factual_errors or self.coverage_gaps)
+        return not (self.structural_errors or self.factual_errors
+                    or self.coverage_gaps or self.citation_errors)
 
     def to_dict(self) -> Dict:
         return {
@@ -57,6 +60,8 @@ class ValidationReport:
             "structural_warnings": self.structural_warnings,
             "factual_errors": self.factual_errors,
             "coverage_gaps": self.coverage_gaps,
+            "citation_errors": self.citation_errors,
+            "citation_warnings": self.citation_warnings,
         }
 
 
@@ -144,14 +149,19 @@ def _load_expected_relations(db_path: str) -> Dict[str, Dict[str, Set[str]]]:
 
     relations: Dict[str, Dict[str, Set[str]]] = {}
 
-    cur.execute("SELECT program_id FROM programs")
+    cur.execute("SELECT program_id, file_path FROM programs")
+    program_paths = {}
     for r in cur.fetchall():
         relations[r["program_id"]] = {
             "calls": set(),
             "copybooks": set(),
             "cics_xctl": set(),
             "jcl_jobs": set(),
+            "source_copybooks": set(),
+            "ims_functions": set(),
         }
+        if r["file_path"]:
+            program_paths[r["program_id"]] = r["file_path"]
 
     cur.execute("SELECT caller_program, called_program FROM program_calls")
     for r in cur.fetchall():
@@ -186,6 +196,40 @@ def _load_expected_relations(db_path: str) -> Dict[str, Dict[str, Set[str]]]:
                 relations[r["program"]]["jcl_jobs"].add(r["job_name"])
     except Exception:
         pass
+
+    # Read source files to extract expected COPY and IMS references
+    import re
+    copy_pat = re.compile(r"COPY\s+([A-Z0-9_-]+)", re.IGNORECASE)
+    ims_pat = re.compile(r"CALL\s+['\"]CBLTDLI['\"]\s+USING\s+['\"]?([A-Z0-9]+)['\"]?", re.IGNORECASE)
+    
+    for pid, fpath in program_paths.items():
+        src = Path(fpath)
+        if not src.exists():
+            continue
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+            # Strip sequence areas
+            lines = content.split("\n")
+            cleaned_lines = []
+            for l in lines:
+                if len(l) > 6 and l[6] == "*":
+                    continue
+                body = l[6:] if len(l) > 6 else l
+                cleaned_lines.append(body[:66] if len(body) > 66 else body)
+            cleaned_content = " ".join(cleaned_lines)
+            
+            # Find standalone COPY words followed by something
+            for m in re.finditer(r"\bCOPY\s+([A-Z0-9_-]+)", cleaned_content, re.IGNORECASE):
+                cb_name = m.group(1).upper()
+                if cb_name not in ("REPLACING", "PERFORM", "MOVE", "ADD", "COMPUTE"):
+                    relations[pid]["source_copybooks"].add(cb_name)
+                
+            for m in ims_pat.finditer(cleaned_content):
+                fn_code = m.group(1).upper()
+                if fn_code not in ("BY", "REFERENCE", "CONTENT", "VALUE"):
+                    relations[pid]["ims_functions"].add(fn_code)
+        except Exception:
+            pass
 
     conn.close()
     return relations
@@ -356,6 +400,125 @@ def _check_coverage(relations: Dict[str, Dict[str, Set[str]]], docs_dir: Path,
 
 
 # ───────────────────────────────────────────────────────────────────────────────
+# Check 4: Paragraph citation check (LLM-generated docs only)
+# ───────────────────────────────────────────────────────────────────────────────
+
+# Match `PARAGRAPH-NAME` style: backticks, uppercase + digits + dash, 5-40 chars,
+# must contain at least one dash so we don't match plain words.
+PARA_CITE_PAT = re.compile(r"`([A-Z][A-Z0-9]{2,}-[A-Z0-9-]{2,30})`")
+
+MIN_CITATIONS = {"Program": 3, "Module": 2, "Application": 0}
+
+
+def _check_citations(db_path: str, report: ValidationReport) -> None:
+    """For LLM-generated docs in generated_docs table:
+       (a) every cited paragraph must exist in the paragraphs table for the relevant program;
+       (b) Program-mode docs must cite >= 3 paragraphs from the subject program."""
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    # Skip if the cache table doesn't exist yet (no agentic docs generated)
+    try:
+        cur.execute("SELECT mode, subject, document_text FROM generated_docs")
+        rows = cur.fetchall()
+    except Exception:
+        report.stats["citations_docs_checked"] = 0
+        report.stats["citations_invalid"] = 0
+        report.stats["citations_below_min"] = 0
+        conn.close()
+        return
+
+    if not rows:
+        report.stats["citations_docs_checked"] = 0
+        report.stats["citations_invalid"] = 0
+        report.stats["citations_below_min"] = 0
+        conn.close()
+        return
+
+    # Pull paragraphs grouped by program for fast lookup
+    cur.execute("SELECT program_id, paragraph_name FROM paragraphs")
+    paras_by_program: Dict[str, Set[str]] = {}
+    for r in cur.fetchall():
+        paras_by_program.setdefault(r["program_id"], set()).add(r["paragraph_name"])
+    all_paragraphs: Set[str] = {p for ps in paras_by_program.values() for p in ps}
+
+    # Pull module → programs for Module-mode lookups
+    cur.execute("SELECT id, module_name FROM modules")
+    mod_id_by_name = {r["module_name"]: r["id"] for r in cur.fetchall()}
+    cur.execute("SELECT id, business_name FROM modules")
+    mod_id_by_business = {r["business_name"]: r["id"] for r in cur.fetchall() if r["business_name"]}
+    cur.execute("SELECT module_id, program_id FROM module_programs")
+    progs_by_module_id: Dict[int, Set[str]] = {}
+    for r in cur.fetchall():
+        progs_by_module_id.setdefault(r["module_id"], set()).add(r["program_id"])
+
+    invalid = 0
+    below_min = 0
+    docs_checked = 0
+
+    for row in rows:
+        mode = row["mode"]
+        subject = row["subject"]
+        text = row["document_text"] or ""
+        if mode not in ("Program", "Module", "Application"):
+            continue
+        docs_checked += 1
+
+        cites = set(PARA_CITE_PAT.findall(text))
+        if not cites and mode == "Application":
+            continue  # Application mode doesn't require citations
+
+        # Build the set of valid paragraphs for this subject's scope
+        if mode == "Program":
+            scope = paras_by_program.get(subject, set())
+        elif mode == "Module":
+            mod_id = mod_id_by_business.get(subject) or mod_id_by_name.get(subject)
+            scope = set()
+            if mod_id is not None:
+                for pid in progs_by_module_id.get(mod_id, set()):
+                    scope |= paras_by_program.get(pid, set())
+        else:
+            scope = all_paragraphs
+
+        # (a) Hallucinated citations — cited paragraph not in scope
+        bad = cites - scope - all_paragraphs  # not in this scope AND not in any program
+        # We forgive citations that match any real paragraph (LLM might cite a related program's
+        # paragraph). Hard error only when the name doesn't exist anywhere in the codebase.
+        truly_bad = cites - all_paragraphs
+        if truly_bad:
+            invalid += len(truly_bad)
+            report.citation_errors.append(
+                f"{mode}/{subject}: {len(truly_bad)} hallucinated paragraph(s): "
+                + ", ".join(sorted(truly_bad)[:5])
+                + (" ..." if len(truly_bad) > 5 else "")
+            )
+        elif bad:
+            # In-scope check is a softer warning
+            report.citation_warnings.append(
+                f"{mode}/{subject}: cited paragraphs not in subject scope: "
+                + ", ".join(sorted(bad)[:5])
+            )
+
+        # (b) Minimum count check
+        in_scope_cites = cites & scope
+        min_required = MIN_CITATIONS.get(mode, 0)
+        if mode == "Program":
+            available = len(paras_by_program.get(subject, set()))
+            min_required = min(min_required, max(1, available))
+        if mode in ("Program", "Module") and len(in_scope_cites) < min_required:
+            below_min += 1
+            report.citation_warnings.append(
+                f"{mode}/{subject}: only {len(in_scope_cites)} paragraph citation(s); expected >= {min_required}"
+            )
+
+    report.stats["citations_docs_checked"] = docs_checked
+    report.stats["citations_invalid"] = invalid
+    report.stats["citations_below_min"] = below_min
+    conn.close()
+
+
+# ───────────────────────────────────────────────────────────────────────────────
 # Public API
 # ───────────────────────────────────────────────────────────────────────────────
 
@@ -376,6 +539,9 @@ def validate_docs(db_path: str, docs_dir: str) -> ValidationReport:
 
     console.print("[cyan]Running factual cross-check...[/cyan]")
     _check_factual(facts, docs_path, report)
+
+    console.print("[cyan]Running paragraph-citation check (LLM docs)...[/cyan]")
+    _check_citations(db_path, report)
 
     console.print("[cyan]Running coverage check...[/cyan]")
     _check_coverage(relations, docs_path, report)
@@ -417,6 +583,27 @@ def print_report(report: ValidationReport) -> None:
         f"{expected - missing}/{expected} references covered ({pct:.1f}%)",
     )
 
+    cit_checked = report.stats.get("citations_docs_checked", 0)
+    cit_invalid = report.stats.get("citations_invalid", 0)
+    cit_low = report.stats.get("citations_below_min", 0)
+    if cit_checked == 0:
+        cit_status = "SKIP"
+        cit_color = "yellow"
+        cit_detail = "no LLM-generated docs in cache yet"
+    elif cit_invalid > 0:
+        cit_status = "FAIL"
+        cit_color = "red"
+        cit_detail = f"{cit_checked} docs · {cit_invalid} hallucinated paragraph(s) · {cit_low} below-min"
+    else:
+        cit_status = "PASS"
+        cit_color = "green"
+        cit_detail = f"{cit_checked} docs · 0 hallucinated · {cit_low} below-min"
+    table.add_row(
+        "Citations",
+        f"[{cit_color}]{cit_status}[/{cit_color}]",
+        cit_detail,
+    )
+
     console.print(table)
 
     # Show first 10 issues per category
@@ -436,6 +623,14 @@ def print_report(report: ValidationReport) -> None:
         console.print(f"\n[yellow]Coverage Gaps ({len(report.coverage_gaps)}):[/yellow]")
         for g in report.coverage_gaps[:10]:
             console.print(f"  - {g}")
+    if report.citation_errors:
+        console.print(f"\n[red]Citation Errors ({len(report.citation_errors)}):[/red]")
+        for e in report.citation_errors[:10]:
+            console.print(f"  - {e}")
+    if report.citation_warnings:
+        console.print(f"\n[yellow]Citation Warnings ({len(report.citation_warnings)}):[/yellow]")
+        for w in report.citation_warnings[:10]:
+            console.print(f"  - {w}")
 
 
 def write_report(report: ValidationReport, output_path: str) -> None:

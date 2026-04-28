@@ -387,6 +387,49 @@ CREATE INDEX IF NOT EXISTS idx_exec_cics_program ON exec_cics(program_id);
 CREATE INDEX IF NOT EXISTS idx_exec_cics_command ON exec_cics(command);
 
 -- ============================================
+-- Table: exec_sql
+-- EXEC SQL (DB2) statements found in programs
+-- ============================================
+CREATE TABLE IF NOT EXISTS exec_sql (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    command TEXT NOT NULL,           -- SELECT, INSERT, UPDATE, DELETE, DECLARE, OPEN, FETCH, CLOSE, INCLUDE
+    table_name TEXT,                 -- primary table referenced (best effort)
+    cursor_name TEXT,                -- for DECLARE/OPEN/FETCH/CLOSE
+    paragraph_name TEXT,
+    line_number INTEGER,
+    sql_text TEXT,                   -- compact form of the SQL block
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exec_sql_program ON exec_sql(program_id);
+CREATE INDEX IF NOT EXISTS idx_exec_sql_command ON exec_sql(command);
+CREATE INDEX IF NOT EXISTS idx_exec_sql_table   ON exec_sql(table_name);
+
+-- ============================================
+-- Table: ims_calls
+-- IMS DL/I CALL 'CBLTDLI' statements found in programs
+-- ============================================
+CREATE TABLE IF NOT EXISTS ims_calls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    function_code TEXT NOT NULL,      -- GU, GHN, GNP, GN, ISRT, REPL, DLET, CHKP, etc.
+    function_name TEXT,               -- "Get Unique", "Get Hold Next", etc.
+    pcb_name TEXT,                    -- PCB variable name
+    segment_area TEXT,                -- I/O area variable
+    ssa_name TEXT,                    -- SSA variable name (if any)
+    ssa_segment TEXT,                 -- Segment name from SSA layout (if extractable)
+    ssa_qualifier TEXT,               -- Qualified SSA field (if any)
+    paragraph_name TEXT,
+    line_number INTEGER,
+    raw_text TEXT,                    -- Compact form of the CALL statement
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ims_calls_program ON ims_calls(program_id);
+CREATE INDEX IF NOT EXISTS idx_ims_calls_function ON ims_calls(function_code);
+
+-- ============================================
 -- Full-Text Search Tables (FTS5)
 -- ============================================
 CREATE VIRTUAL TABLE IF NOT EXISTS programs_fts USING fts5(

@@ -4,7 +4,7 @@
 |-----------|-------|
 | Map Name | `CTRTUPA` |
 | Mapset | `COTRTUP` |
-
+| Program | [COTRTUPC](../programs/COTRTUPC.md) |
 ## Screen Layout
 
 The following fields are defined in this BMS map:
@@ -64,4 +64,4 @@ Row 24: ENTER=Process F3=Exit  F4=Delete  F5=Save  F6=Add  F12=Cancel
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*

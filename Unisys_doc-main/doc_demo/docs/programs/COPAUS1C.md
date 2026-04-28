@@ -40,14 +40,14 @@
 |----------|-------------|------------|
 | `CIPAUDTY` | CBPAUP0C, COPAUA0C, COPAUS0C, COPAUS2C, DBUNLDGS (+2 more) | 7 |
 | `CIPAUSMY` | CBPAUP0C, COPAUA0C, COPAUS0C, DBUNLDGS, PAUDBLOD (+1 more) | 6 |
-| `COCOM01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
+| `COCOM01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
 | `COPAU01` |  | 0 |
-| `COTTL01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSDAT01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSMSG01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSMSG02Y` | 00220000, COACTUPC, COACTVWC, COCRDSLC, COCRDUPC (+1 more) | 6 |
-| `DFHAID` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `DFHBMSCA` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
+| `COTTL01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSDAT01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSMSG01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSMSG02Y` | COACTUPC, COACTVWC, COCRDSLC, COCRDUPC, COPAUS0C (+1 more) | 6 |
+| `DFHAID` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `DFHBMSCA` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
 
 
 ---
@@ -75,44 +75,44 @@ flowchart TD
     CB_CIPAUSMY -.- COPAUS0C
     CB_COCOM01Y{{"COCOM01Y"}}:::copybook
     COPAUS1C -.- CB_COCOM01Y
-    00220000["00220000"]:::coupled
-    CB_COCOM01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_COCOM01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_COCOM01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_COCOM01Y -.- COADM01C
     CB_COTTL01Y{{"COTTL01Y"}}:::copybook
     COPAUS1C -.- CB_COTTL01Y
-    00220000["00220000"]:::coupled
-    CB_COTTL01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_COTTL01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_COTTL01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_COTTL01Y -.- COADM01C
     CB_CSDAT01Y{{"CSDAT01Y"}}:::copybook
     COPAUS1C -.- CB_CSDAT01Y
-    00220000["00220000"]:::coupled
-    CB_CSDAT01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSDAT01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSDAT01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_CSDAT01Y -.- COADM01C
     CB_CSMSG01Y{{"CSMSG01Y"}}:::copybook
     COPAUS1C -.- CB_CSMSG01Y
-    00220000["00220000"]:::coupled
-    CB_CSMSG01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSMSG01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSMSG01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_CSMSG01Y -.- COADM01C
     CB_CSMSG02Y{{"CSMSG02Y"}}:::copybook
     COPAUS1C -.- CB_CSMSG02Y
-    00220000["00220000"]:::coupled
-    CB_CSMSG02Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSMSG02Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSMSG02Y -.- COACTVWC
+    COCRDSLC["COCRDSLC"]:::coupled
+    CB_CSMSG02Y -.- COCRDSLC
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -141,7 +141,6 @@ flowchart TD
 
 
 **Programs affected via shared copybooks:**
-- `00220000`
 - `CBPAUP0C`
 - `COACTUPC`
 - `COACTVWC`
@@ -160,6 +159,7 @@ flowchart TD
 - `COTRN01C`
 - `COTRN02C`
 - `COTRTLIC`
+- `COTRTUPC`
 - `COUSR00C`
 - `COUSR01C`
 - `COUSR02C`
@@ -362,6 +362,7 @@ flowchart TD
 
 
 
+
 ## Business Rules
 
 *No business rules extracted yet. Run LLM enrichment to extract rules from IF/EVALUATE logic.*
@@ -372,4 +373,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*

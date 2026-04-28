@@ -138,6 +138,19 @@ flowchart TD
 
 
 
+## Database Operations (EXEC SQL / DB2)
+
+This program uses the following SQL statements:
+
+| Command | Table / Cursor | Paragraph | Line |
+|---------|----------------|-----------|------|
+| `INCLUDE` | None | None | 65 |
+| `INCLUDE` | None | None | 68 |
+| `INSERT` | CARDDEMO.AUTHFRDS | None | 141 |
+| `UPDATE` | CARDDEMO.AUTHFRDS | MAIN-PARA | 222 |
+
+**Summary:** 4 SQL statement(s) — INCLUDE (2), INSERT (1), UPDATE (1)
+
 ## CICS Commands
 
 This program uses the following EXEC CICS commands:
@@ -208,4 +221,4 @@ This program uses the following EXEC CICS commands:
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*
