@@ -204,6 +204,21 @@ def run_pipeline(
     console.print()
 
     # ========================================
+    # Step 4b: Validate Generated Documentation
+    # ========================================
+    console.print(Panel("[bold]Step 4b: Validating Documentation[/bold]", style="blue"))
+    try:
+        from doc_validator import validate_docs, print_report, write_report
+        report = validate_docs(db_path, output_dir)
+        print_report(report)
+        write_report(report, str(Path(output_dir) / "validation_report.json"))
+        if not report.passed:
+            console.print("[yellow]Documentation validation found issues — see report above.[/yellow]")
+    except Exception as e:
+        console.print(f"[yellow]Validation skipped: {e}[/yellow]")
+    console.print()
+
+    # ========================================
     # Step 5: Neo4j Export (Optional)
     # ========================================
     if not skip_neo4j:
