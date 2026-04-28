@@ -440,6 +440,7 @@ Produce a fo... |
 
 
 
+
 ## Business Rules
 
 - **Invalid Date Range** `BR-272`  
@@ -582,4 +583,4 @@ Produce a fo... |
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*

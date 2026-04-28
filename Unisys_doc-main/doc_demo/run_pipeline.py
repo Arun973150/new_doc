@@ -27,10 +27,10 @@ result = run_pipeline(
     output_dir="docs",
     db_path="data/cobol_knowledge.db",
     schema_path="schemas/cobol_knowledge.sql",
-    skip_parse=True,       # Already parsed — using existing parsed_output/
-    skip_jcl=True,         # Already parsed — cached jcl_jobs.json will be loaded
+    skip_parse=False,      # Re-parse COBOL/BMS/CPY with ProLeap (needs Java)
+    skip_jcl=False,        # Re-parse JCL files
     skip_enrich=True,      # Already enriched — using existing enriched_output/
-    skip_neo4j=False,      # Export to remote Neo4j
+    skip_neo4j=True,       # Skip Neo4j for now (slow; can re-enable later)
     cobol_format="FIXED",
     groq_model="gemini-2.0-flash",   # Vertex AI model
 )

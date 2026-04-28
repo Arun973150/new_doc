@@ -38,14 +38,14 @@
 
 | Copybook | Also Used By | # Co-Users |
 |----------|-------------|------------|
-| `COCOM01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
+| `COCOM01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
 | `COSGN00` |  | 0 |
-| `COTTL01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSDAT01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSMSG01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSUSR01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COCRDLIC (+8 more) | 13 |
-| `DFHAID` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `DFHBMSCA` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
+| `COTTL01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSDAT01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSMSG01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSUSR01Y` | COACTUPC, COACTVWC, COADM01C, COCRDLIC, COCRDSLC (+8 more) | 13 |
+| `DFHAID` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `DFHBMSCA` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
 
 
 ---
@@ -57,60 +57,60 @@ flowchart TD
     COSGN00C["⬤ COSGN00C"]:::target
     CB_COCOM01Y{{"COCOM01Y"}}:::copybook
     COSGN00C -.- CB_COCOM01Y
-    00220000["00220000"]:::coupled
-    CB_COCOM01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_COCOM01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_COCOM01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_COCOM01Y -.- COADM01C
     CB_COTTL01Y{{"COTTL01Y"}}:::copybook
     COSGN00C -.- CB_COTTL01Y
-    00220000["00220000"]:::coupled
-    CB_COTTL01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_COTTL01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_COTTL01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_COTTL01Y -.- COADM01C
     CB_CSDAT01Y{{"CSDAT01Y"}}:::copybook
     COSGN00C -.- CB_CSDAT01Y
-    00220000["00220000"]:::coupled
-    CB_CSDAT01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSDAT01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSDAT01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_CSDAT01Y -.- COADM01C
     CB_CSMSG01Y{{"CSMSG01Y"}}:::copybook
     COSGN00C -.- CB_CSMSG01Y
-    00220000["00220000"]:::coupled
-    CB_CSMSG01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSMSG01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSMSG01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_CSMSG01Y -.- COADM01C
     CB_CSUSR01Y{{"CSUSR01Y"}}:::copybook
     COSGN00C -.- CB_CSUSR01Y
-    00220000["00220000"]:::coupled
-    CB_CSUSR01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSUSR01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSUSR01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_CSUSR01Y -.- COADM01C
     CB_DFHAID{{"DFHAID"}}:::copybook
     COSGN00C -.- CB_DFHAID
-    00220000["00220000"]:::coupled
-    CB_DFHAID -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_DFHAID -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHAID -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_DFHAID -.- COADM01C
     CB_DFHBMSCA{{"DFHBMSCA"}}:::copybook
     COSGN00C -.- CB_DFHBMSCA
-    00220000["00220000"]:::coupled
-    CB_DFHBMSCA -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_DFHBMSCA -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_DFHBMSCA -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_DFHBMSCA -.- COADM01C
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -139,7 +139,6 @@ flowchart TD
 
 
 **Programs affected via shared copybooks:**
-- `00220000`
 - `COACTUPC`
 - `COACTVWC`
 - `COADM01C`
@@ -155,6 +154,7 @@ flowchart TD
 - `COTRN01C`
 - `COTRN02C`
 - `COTRTLIC`
+- `COTRTUPC`
 - `COUSR00C`
 - `COUSR01C`
 - `COUSR02C`
@@ -247,6 +247,7 @@ flowchart TD
 | **Paragraph** | `READ-USER-SEC-FILE` |
 | **Lines** | 620 - 668 |
 | **View Code** | [Jump to Line 620](../carddemo/COSGN00C.cbl#L620) |
+
 
 
 
@@ -350,4 +351,4 @@ This program uses the following EXEC CICS commands:
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*

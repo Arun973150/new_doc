@@ -80,6 +80,7 @@ of CICS online screens and batch JCL jobs.
 | BMS Screens | {{ total_screens }} |
 | Data Items | {{ total_data_items }} |
 | CICS Commands | {{ total_cics_commands }} |
+| SQL Statements | {{ total_sql_statements }} |
 | Inter-Program Calls | {{ total_calls }} |
 | Business Rules | {{ total_rules }} |
 | Copybooks | {{ total_copybooks }} |
@@ -508,6 +509,29 @@ This program is run by the following batch JCL jobs:
 {% for j in jcl_jobs %}
 | [{{ j.job_name }}](../jcl/{{ j.job_name }}.md) | `{{ j.step_name }}` | {{ j.step_comments | default("-") | truncate(80) }} |
 {% endfor %}
+
+{% endif %}
+
+{% if exec_sql %}
+## Database Operations (EXEC SQL / DB2)
+
+This program uses the following SQL statements:
+
+| Command | Table / Cursor | Paragraph | Line |
+|---------|----------------|-----------|------|
+{% for s in exec_sql %}
+| `{{ s.command }}` | {{ s.table_name | default(s.cursor_name | default("-")) }} | {{ s.paragraph_name | default("-") }} | {{ s.line_number | default("-") }} |
+{% endfor %}
+
+{% set sql_summary = {} %}
+{% for s in exec_sql %}
+{% if s.command in sql_summary %}
+{% set _ = sql_summary.update({s.command: sql_summary[s.command] + 1}) %}
+{% else %}
+{% set _ = sql_summary.update({s.command: 1}) %}
+{% endif %}
+{% endfor %}
+**Summary:** {{ exec_sql | length }} SQL statement(s) — {% for cmd, cnt in sql_summary.items() %}{{ cmd }} ({{ cnt }}){% if not loop.last %}, {% endif %}{% endfor %}
 
 {% endif %}
 
@@ -1162,6 +1186,11 @@ class DocGenerator:
         total_data_items = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM exec_cics")
         total_cics_commands = cursor.fetchone()[0]
+        try:
+            cursor.execute("SELECT COUNT(*) FROM exec_sql")
+            total_sql_statements = cursor.fetchone()[0]
+        except Exception:
+            total_sql_statements = 0
 
         online = [p for p in programs if (p.get("program_type") or "").upper() == "ONLINE"]
         batch = [p for p in programs if (p.get("program_type") or "").upper() != "ONLINE"]
@@ -1179,6 +1208,7 @@ class DocGenerator:
             total_screens=len(screens),
             total_data_items=total_data_items,
             total_cics_commands=total_cics_commands,
+            total_sql_statements=total_sql_statements,
             total_calls=len(call_graph),
             total_rules=len(rules),
             total_copybooks=len(copybooks),

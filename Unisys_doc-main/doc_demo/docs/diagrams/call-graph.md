@@ -51,7 +51,6 @@ graph LR
 
 Programs not called by any other program (likely top-level entry points or CICS transaction starters):
 
-- [00220000](../programs/00220000.md)
 - [CBACT01C](../programs/CBACT01C.md)
 - [CBACT02C](../programs/CBACT02C.md)
 - [CBACT03C](../programs/CBACT03C.md)
@@ -87,6 +86,7 @@ Programs not called by any other program (likely top-level entry points or CICS 
 - [COTRN01C](../programs/COTRN01C.md)
 - [COTRN02C](../programs/COTRN02C.md)
 - [COTRTLIC](../programs/COTRTLIC.md)
+- [COTRTUPC](../programs/COTRTUPC.md)
 - [COUSR00C](../programs/COUSR00C.md)
 - [COUSR01C](../programs/COUSR01C.md)
 - [COUSR02C](../programs/COUSR02C.md)
@@ -100,7 +100,6 @@ Programs not called by any other program (likely top-level entry points or CICS 
 
 Programs that don't call any other program (utility or terminal logic):
 
-- [00220000](../programs/00220000.md)
 - [CBPAUP0C](../programs/CBPAUP0C.md)
 - [CBSTM03B](../programs/CBSTM03B.md)
 - [COACTUPC](../programs/COACTUPC.md)
@@ -121,6 +120,7 @@ Programs that don't call any other program (utility or terminal logic):
 - [COTRN00C](../programs/COTRN00C.md)
 - [COTRN01C](../programs/COTRN01C.md)
 - [COTRTLIC](../programs/COTRTLIC.md)
+- [COTRTUPC](../programs/COTRTUPC.md)
 - [COUSR00C](../programs/COUSR00C.md)
 - [COUSR01C](../programs/COUSR01C.md)
 - [COUSR02C](../programs/COUSR02C.md)
@@ -128,4 +128,4 @@ Programs that don't call any other program (utility or terminal logic):
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*

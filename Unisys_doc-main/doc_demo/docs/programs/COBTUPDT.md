@@ -202,6 +202,19 @@ flowchart TD
 
 
 
+## Database Operations (EXEC SQL / DB2)
+
+This program uses the following SQL statements:
+
+| Command | Table / Cursor | Paragraph | Line |
+|---------|----------------|-----------|------|
+| `INCLUDE` | None | None | 50 |
+| `INCLUDE` | WS | None | 54 |
+| `UPDATE` | CARDDEMO.TRANSACTION_TYPE | 10032-UPDATE-DB | 171 |
+| `DELETE` | CARDDEMO.TRANSACTION_TYPE | 10033-DELETE-DB | 201 |
+
+**Summary:** 4 SQL statement(s) — INCLUDE (2), UPDATE (1), DELETE (1)
+
 
 ## Business Rules
 
@@ -262,4 +275,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*

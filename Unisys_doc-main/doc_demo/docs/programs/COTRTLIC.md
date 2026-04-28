@@ -38,16 +38,16 @@
 
 | Copybook | Also Used By | # Co-Users |
 |----------|-------------|------------|
-| `COCOM01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
+| `COCOM01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
 | `COTRTLI` |  | 0 |
-| `COTTL01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSDAT01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSMSG01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `CSUSR01Y` | 00220000, COACTUPC, COACTVWC, COADM01C, COCRDLIC (+8 more) | 13 |
+| `COTTL01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSDAT01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSMSG01Y` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `CSUSR01Y` | COACTUPC, COACTVWC, COADM01C, COCRDLIC, COCRDSLC (+8 more) | 13 |
 | `CVACT02Y` | CBACT02C, CBEXPORT, CBIMPORT, CBTRN01C, COACTVWC (+4 more) | 9 |
-| `CVCRD01Y` | 00220000, COACTUPC, COACTVWC, COCRDLIC, COCRDSLC (+1 more) | 6 |
-| `DFHAID` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
-| `DFHBMSCA` | 00220000, COACTUPC, COACTVWC, COADM01C, COBIL00C (+15 more) | 20 |
+| `CVCRD01Y` | COACTUPC, COACTVWC, COCRDLIC, COCRDSLC, COCRDUPC (+1 more) | 6 |
+| `DFHAID` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+| `DFHBMSCA` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
 
 
 ---
@@ -59,44 +59,44 @@ flowchart TD
     COTRTLIC["⬤ COTRTLIC"]:::target
     CB_COCOM01Y{{"COCOM01Y"}}:::copybook
     COTRTLIC -.- CB_COCOM01Y
-    00220000["00220000"]:::coupled
-    CB_COCOM01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_COCOM01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_COCOM01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_COCOM01Y -.- COADM01C
     CB_COTTL01Y{{"COTTL01Y"}}:::copybook
     COTRTLIC -.- CB_COTTL01Y
-    00220000["00220000"]:::coupled
-    CB_COTTL01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_COTTL01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_COTTL01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_COTTL01Y -.- COADM01C
     CB_CSDAT01Y{{"CSDAT01Y"}}:::copybook
     COTRTLIC -.- CB_CSDAT01Y
-    00220000["00220000"]:::coupled
-    CB_CSDAT01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSDAT01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSDAT01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_CSDAT01Y -.- COADM01C
     CB_CSMSG01Y{{"CSMSG01Y"}}:::copybook
     COTRTLIC -.- CB_CSMSG01Y
-    00220000["00220000"]:::coupled
-    CB_CSMSG01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSMSG01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSMSG01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_CSMSG01Y -.- COADM01C
     CB_CSUSR01Y{{"CSUSR01Y"}}:::copybook
     COTRTLIC -.- CB_CSUSR01Y
-    00220000["00220000"]:::coupled
-    CB_CSUSR01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CSUSR01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CSUSR01Y -.- COACTVWC
+    COADM01C["COADM01C"]:::coupled
+    CB_CSUSR01Y -.- COADM01C
     CB_CVACT02Y{{"CVACT02Y"}}:::copybook
     COTRTLIC -.- CB_CVACT02Y
     CBACT02C["CBACT02C"]:::coupled
@@ -107,12 +107,12 @@ flowchart TD
     CB_CVACT02Y -.- CBIMPORT
     CB_CVCRD01Y{{"CVCRD01Y"}}:::copybook
     COTRTLIC -.- CB_CVCRD01Y
-    00220000["00220000"]:::coupled
-    CB_CVCRD01Y -.- 00220000
     COACTUPC["COACTUPC"]:::coupled
     CB_CVCRD01Y -.- COACTUPC
     COACTVWC["COACTVWC"]:::coupled
     CB_CVCRD01Y -.- COACTVWC
+    COCRDLIC["COCRDLIC"]:::coupled
+    CB_CVCRD01Y -.- COCRDLIC
     classDef target fill:#f85149,stroke:#da3633,color:#fff,stroke-width:3px
     classDef caller fill:#58a6ff,stroke:#1f6feb,color:#fff
     classDef callee fill:#3fb950,stroke:#238636,color:#fff
@@ -141,7 +141,6 @@ flowchart TD
 
 
 **Programs affected via shared copybooks:**
-- `00220000`
 - `CBACT02C`
 - `CBEXPORT`
 - `CBIMPORT`
@@ -161,6 +160,7 @@ flowchart TD
 - `COTRN00C`
 - `COTRN01C`
 - `COTRN02C`
+- `COTRTUPC`
 - `COUSR00C`
 - `COUSR01C`
 - `COUSR02C`
@@ -190,6 +190,29 @@ flowchart TD
 
 
 
+## Database Operations (EXEC SQL / DB2)
+
+This program uses the following SQL statements:
+
+| Command | Table / Cursor | Paragraph | Line |
+|---------|----------------|-----------|------|
+| `INCLUDE` | None | None | 304 |
+| `INCLUDE` | CARDDEMO.TRANSACTION_TYPE | None | 333 |
+| `DECLARE` | CARDDEMO.TRANSACTION_TYPE | None | 354 |
+| `FETCH` | None | None | 1626 |
+| `FETCH` | None | None | 1661 |
+| `FETCH` | None | None | 1753 |
+| `SELECT` | CARDDEMO.TRANSACTION_TYPE | None | 1803 |
+| `UPDATE` | CARDDEMO.TRANSACTION_TYPE | None | 1846 |
+| `DELETE` | CARDDEMO.TRANSACTION_TYPE | None | 1900 |
+| `OPEN` | None | None | 1943 |
+| `CLOSE` | None | None | 1971 |
+| `OPEN` | None | None | 1998 |
+| `CLOSE` | None | None | 2027 |
+| `INCLUDE` | None | None | 2055 |
+
+**Summary:** 14 SQL statement(s) — INCLUDE (3), DECLARE (1), FETCH (3), SELECT (1), UPDATE (1), DELETE (1), OPEN (2), CLOSE (2)
+
 
 ## Business Rules
 
@@ -201,4 +224,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-04-13 12:16*
+*Generated 2026-04-28 20:00*

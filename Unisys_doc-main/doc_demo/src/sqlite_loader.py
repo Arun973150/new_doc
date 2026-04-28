@@ -93,6 +93,52 @@ class SQLiteLoader:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_exec_cics_program ON exec_cics(program_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_exec_cics_command ON exec_cics(command)")
+
+        # Create exec_sql table (EXEC SQL DB2 statements per program)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS exec_sql (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                command TEXT NOT NULL,
+                table_name TEXT,
+                cursor_name TEXT,
+                paragraph_name TEXT,
+                line_number INTEGER,
+                sql_text TEXT,
+                FOREIGN KEY (program_id) REFERENCES programs(program_id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_exec_sql_program ON exec_sql(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_exec_sql_command ON exec_sql(command)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_exec_sql_table   ON exec_sql(table_name)")
+
+        # Create ims_calls table (IMS DL/I CALL 'CBLTDLI' statements per program)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ims_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                function_code TEXT NOT NULL,
+                function_name TEXT,
+                pcb_name TEXT,
+                segment_area TEXT,
+                ssa_name TEXT,
+                ssa_segment TEXT,
+                ssa_qualifier TEXT,
+                paragraph_name TEXT,
+                line_number INTEGER,
+                raw_text TEXT,
+                FOREIGN KEY (program_id) REFERENCES programs(program_id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ims_calls_program ON ims_calls(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ims_calls_function ON ims_calls(function_code)")
+
+        # Add resolved_target column to program_calls (dynamic CALL resolution)
+        try:
+            cursor.execute("ALTER TABLE program_calls ADD COLUMN resolved_target TEXT")
+        except Exception:
+            pass
+
         self.conn.commit()
 
     def close(self):
@@ -246,7 +292,8 @@ class SQLiteLoader:
 
                     # Clear old data for this program
                     for table in ["paragraphs", "data_items", "files", "statements",
-                                  "performs", "copybook_usage", "exec_cics"]:
+                                  "performs", "copybook_usage", "exec_cics", "exec_sql",
+                                  "ims_calls"]:
                         cursor.execute(f"DELETE FROM {table} WHERE program_id = ?", (program_id,))
                     # program_calls uses caller_program, not program_id
                     cursor.execute("DELETE FROM program_calls WHERE caller_program = ?", (program_id,))
@@ -384,6 +431,87 @@ class SQLiteLoader:
                             json.dumps(details) if details else None
                         ))
 
+                    # Insert EXEC SQL (DB2) commands — extracted from source
+                    if program.get("file_path"):
+                        sql_list = self._extract_sql_from_source(
+                            program["file_path"], program.get("paragraphs", [])
+                        )
+                        for s in sql_list:
+                            cursor.execute("""
+                                INSERT INTO exec_sql (
+                                    program_id, command, table_name, cursor_name,
+                                    paragraph_name, line_number, sql_text
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                program_id,
+                                s.get("command", "UNKNOWN"),
+                                s.get("table_name"),
+                                s.get("cursor_name"),
+                                s.get("paragraph"),
+                                s.get("line_number"),
+                                s.get("sql_text"),
+                            ))
+
+                    # Resolve dynamic CALLs by reading source. Insert resolved
+                    # calls as NEW program_calls rows — we can't trust ProLeap's
+                    # line numbers (parsed JSON may be stale relative to source).
+                    if program.get("file_path"):
+                        try:
+                            resolutions = self._resolve_dynamic_calls_from_source(
+                                program["file_path"], program.get("paragraphs", [])
+                            )
+                            for res in resolutions:
+                                # Skip if a row already exists for the same caller+target
+                                cursor.execute("""
+                                    SELECT 1 FROM program_calls
+                                    WHERE caller_program = ?
+                                      AND (called_program = ? OR resolved_target = ?)
+                                """, (program_id, res["resolved_target"], res["resolved_target"]))
+                                if cursor.fetchone():
+                                    continue
+                                cursor.execute("""
+                                    INSERT INTO program_calls (
+                                        caller_program, called_program,
+                                        call_location, line_number,
+                                        resolved_target
+                                    ) VALUES (?, 'UNKNOWN', ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    res.get("paragraph"),
+                                    res.get("line_number"),
+                                    res["resolved_target"],
+                                ))
+                        except Exception:
+                            pass
+
+                    # Insert IMS DL/I calls — extracted from source
+                    if program.get("file_path"):
+                        ims_list = self._extract_ims_from_source(
+                            program["file_path"], program.get("paragraphs", []),
+                            program.get("data_items", [])
+                        )
+                        for im in ims_list:
+                            cursor.execute("""
+                                INSERT INTO ims_calls (
+                                    program_id, function_code, function_name,
+                                    pcb_name, segment_area, ssa_name,
+                                    ssa_segment, ssa_qualifier,
+                                    paragraph_name, line_number, raw_text
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                program_id,
+                                im.get("function_code", "UNKNOWN"),
+                                im.get("function_name"),
+                                im.get("pcb_name"),
+                                im.get("segment_area"),
+                                im.get("ssa_name"),
+                                im.get("ssa_segment"),
+                                im.get("ssa_qualifier"),
+                                im.get("paragraph"),
+                                im.get("line_number"),
+                                im.get("raw_text"),
+                            ))
+
                 except Exception as e:
                     import traceback
                     console.print(f"[yellow]Warning: Error loading {program.get('program_id')}: {e}[/yellow]")
@@ -412,6 +540,196 @@ class SQLiteLoader:
             console.print(f"[yellow]Warning: FTS trigger re-creation: {e}[/yellow]")
 
         console.print(f"[green]OK - Loaded {len(programs)} programs[/green]")
+
+    @staticmethod
+    def _resolve_dynamic_calls_from_source(file_path: str, paragraphs: List[Dict]) -> List[Dict]:
+        """For each `CALL <variable>` in the source, scan backward in the same paragraph
+        for the most recent `MOVE 'LITERAL' TO <variable>` and resolve the call target.
+        Returns: [{line_number, paragraph, variable, resolved_target}, ...]"""
+        import re
+        from pathlib import Path
+
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        # Strip column 1-6 sequence area + comment lines.
+        # Also strip quoted string literals so we don't match "CALL" inside DISPLAY text.
+        _quote_pat = re.compile(r"'[^']*'|\"[^\"]*\"")
+        def _stripped(idx):
+            line = lines[idx]
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            # Also strip the trailing column-73-80 sequence area if present
+            if len(body) > 66:
+                body = body[:66]
+            # Replace any quoted literal with whitespace so it can't match keywords
+            body = _quote_pat.sub(lambda m: " " * len(m.group()), body)
+            return body
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p
+            return None
+
+        # Match `CALL <bare-identifier>` (no quotes) — that's a dynamic call.
+        call_var_pat = re.compile(r"\bCALL\s+([A-Z][A-Z0-9-]*)\b(?!\s*['\"])", re.IGNORECASE)
+        # Match `MOVE 'literal' TO <identifier>` or `MOVE "literal" TO <identifier>`
+        move_lit_pat = re.compile(
+            r"\bMOVE\s+['\"]([A-Z0-9_-]+)['\"]\s+TO\s+([A-Z][A-Z0-9-]*)\b",
+            re.IGNORECASE,
+        )
+
+        results = []
+        for idx in range(len(lines)):
+            line_num = idx + 1
+            text = _stripped(idx)
+            if not text or "CALL" not in text.upper():
+                continue
+            m = call_var_pat.search(text)
+            if not m:
+                continue
+            var_name = m.group(1).upper()
+            # Skip COBOL keywords that look like identifiers
+            if var_name in ("USING", "GIVING", "RETURNING", "BY"):
+                continue
+
+            para = _find_paragraph(line_num)
+            if not para:
+                continue
+            para_start = para.get("line_start", 1)
+
+            # Walk backward inside the same paragraph for the latest MOVE literal TO var
+            resolved = None
+            for back_idx in range(idx - 1, max(para_start - 2, -1), -1):
+                back_text = _stripped(back_idx)
+                if not back_text:
+                    continue
+                for mm in move_lit_pat.finditer(back_text):
+                    if mm.group(2).upper() == var_name:
+                        resolved = mm.group(1).upper()
+                        break
+                if resolved:
+                    break
+
+            if resolved:
+                results.append({
+                    "line_number": line_num,
+                    "paragraph": para.get("name"),
+                    "variable": var_name,
+                    "resolved_target": resolved,
+                })
+
+        return results
+
+    @staticmethod
+    def _extract_sql_from_source(file_path: str, paragraphs: List[Dict]) -> List[Dict]:
+        """Extract EXEC SQL (DB2) statements directly from COBOL source.
+        Returns list of {command, table_name, cursor_name, paragraph, line_number, sql_text}."""
+        import re
+        from pathlib import Path
+
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+
+        lines = content.split("\n")
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        results = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            line_num = i + 1
+            if len(line) > 6 and line[6] == "*":
+                i += 1
+                continue
+            upper = line.upper()
+            if "EXEC SQL" not in upper:
+                i += 1
+                continue
+
+            # Collect block until END-EXEC
+            block_lines = [line]
+            j = i + 1
+            while j < len(lines):
+                block_lines.append(lines[j])
+                if "END-EXEC" in lines[j].upper():
+                    break
+                j += 1
+            i = j + 1
+
+            # Strip column 1-6 sequence area AND trailing column-73-80 area.
+            def _trim(l):
+                body = l[6:] if len(l) > 6 else l
+                return body[:66] if len(body) > 66 else body
+            block = " ".join(_trim(l) for l in block_lines)
+            block = re.sub(r"\s+", " ", block).strip()
+            block_no_end = re.sub(r"END-EXEC\.?\s*$", "", block, flags=re.IGNORECASE).strip()
+
+            # Identify the SQL command (first keyword after EXEC SQL)
+            m = re.search(r"EXEC\s+SQL\s+(\w+)", block_no_end, re.IGNORECASE)
+            cmd = m.group(1).upper() if m else "UNKNOWN"
+
+            # Special case: DECLARE <cursor> CURSOR FOR <query>
+            cursor_name = None
+            table_name = None
+            if cmd == "DECLARE":
+                cm = re.search(r"DECLARE\s+(\S+)\s+CURSOR\s+FOR", block_no_end, re.IGNORECASE)
+                if cm:
+                    cursor_name = cm.group(1)
+                # also find FROM <table> inside the declared SELECT
+                fm = re.search(r"\bFROM\s+([A-Z0-9_.$]+)", block_no_end, re.IGNORECASE)
+                if fm:
+                    table_name = fm.group(1)
+            elif cmd in ("OPEN", "FETCH", "CLOSE"):
+                cm = re.search(rf"{cmd}\s+(\S+)", block_no_end, re.IGNORECASE)
+                if cm:
+                    cursor_name = cm.group(1).strip(",;")
+            else:
+                # SELECT/INSERT/UPDATE/DELETE — find the table
+                tm = (
+                    re.search(r"\bFROM\s+([A-Z0-9_.$]+)", block_no_end, re.IGNORECASE)
+                    or re.search(r"\bINTO\s+([A-Z0-9_.$]+)", block_no_end, re.IGNORECASE)
+                    or re.search(r"\bUPDATE\s+([A-Z0-9_.$]+)", block_no_end, re.IGNORECASE)
+                )
+                if tm:
+                    table_name = tm.group(1)
+
+            # Trim sql_text for storage
+            sql_text = block_no_end[:300]
+
+            para_name = _find_paragraph(line_num)
+            results.append({
+                "command": cmd,
+                "table_name": table_name,
+                "cursor_name": cursor_name,
+                "paragraph": para_name,
+                "line_number": line_num,
+                "sql_text": sql_text,
+            })
+
+        return results
 
     @staticmethod
     def _extract_cics_from_source(file_path: str, paragraphs: List[Dict]) -> List[Dict]:
@@ -467,7 +785,11 @@ class SQLiteLoader:
             i = j + 1
 
             # Join and extract command + parameters
-            block = " ".join(l[6:] if len(l) > 6 else l for l in block_lines)
+            # Strip column 1-6 sequence area AND trailing column-73-80 area.
+            def _trim_cics(l):
+                body = l[6:] if len(l) > 6 else l
+                return body[:66] if len(body) > 66 else body
+            block = " ".join(_trim_cics(l) for l in block_lines)
             block = re.sub(r"\s+", " ", block).strip()
 
             m = re.search(r"EXEC\s+CICS\s+(\w+)", block, re.IGNORECASE)
@@ -487,6 +809,179 @@ class SQLiteLoader:
                 "line_number": line_num,
                 "paragraph": para_name,
                 "details": details,
+            })
+
+        return results
+
+    @staticmethod
+    def _extract_ims_from_source(file_path: str, paragraphs: List[Dict],
+                                  data_items: List[Dict] = None) -> List[Dict]:
+        """Extract IMS DL/I CALL 'CBLTDLI' statements from COBOL source.
+        Pattern: CALL 'CBLTDLI' USING <fn>, <PCB-name>, <area>, <SSA-name>
+        Also detects ENTRY 'DLITCBL' as an IMS batch program marker.
+        Returns list of {function_code, function_name, pcb_name, segment_area,
+                         ssa_name, ssa_segment, ssa_qualifier, paragraph, line_number, raw_text}.
+        """
+        import re
+        from pathlib import Path
+
+        # IMS function code → human-readable name
+        IMS_FUNCTIONS = {
+            "GU":   "Get Unique",
+            "GHU":  "Get Hold Unique",
+            "GN":   "Get Next",
+            "GHN":  "Get Hold Next",
+            "GNP":  "Get Next in Parent",
+            "GHNP": "Get Hold Next in Parent",
+            "ISRT": "Insert",
+            "REPL": "Replace",
+            "DLET": "Delete",
+            "CHKP": "Checkpoint",
+            "XRST": "Extended Restart",
+            "ROLB": "Rollback",
+            "ROLL": "Roll",
+            "PCB":  "PCB Call",
+            "STAT": "Statistics",
+            "LOG":  "Log",
+            "DEQ":  "Dequeue",
+            "POS":  "Position",
+            "FLD":  "Field Call",
+        }
+
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+
+        lines = content.split("\n")
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        # Build SSA data item lookup: for items ending in -SSA, try to find
+        # the segment name from their VALUE or from sibling items.
+        ssa_segments = {}
+        if data_items:
+            for di in data_items:
+                name = (di.get("name") or "").upper()
+                if name.endswith("-SSA") or name.endswith("SSA"):
+                    val = (di.get("value") or "").strip().strip("'\"")
+                    if val and len(val) <= 16:
+                        ssa_segments[name] = val
+
+        # Strip COBOL sequence area + comments
+        def _trim(l):
+            if len(l) > 6 and l[6] == "*":
+                return ""
+            body = l[6:] if len(l) > 6 else l
+            return body[:66] if len(body) > 66 else body
+
+        results = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            line_num = i + 1
+            body = _trim(line).upper()
+
+            if not body:
+                i += 1
+                continue
+
+            # Detect ENTRY 'DLITCBL' — IMS batch program marker
+            if "ENTRY" in body and "DLITCBL" in body:
+                results.append({
+                    "function_code": "ENTRY",
+                    "function_name": "IMS Batch Entry Point (DLITCBL)",
+                    "pcb_name": None,
+                    "segment_area": None,
+                    "ssa_name": None,
+                    "ssa_segment": None,
+                    "ssa_qualifier": None,
+                    "paragraph": _find_paragraph(line_num),
+                    "line_number": line_num,
+                    "raw_text": _trim(line).strip(),
+                })
+                i += 1
+                continue
+
+            # Detect CALL 'CBLTDLI' USING ...
+            if "CBLTDLI" not in body:
+                i += 1
+                continue
+
+            # Collect the full statement (may span multiple lines until period or next statement)
+            block_parts = [_trim(line)]
+            j = i + 1
+            while j < len(lines):
+                next_body = _trim(lines[j])
+                if not next_body:
+                    j += 1
+                    continue
+                # Stop at period, next paragraph, or next statement keyword
+                block_parts.append(next_body)
+                if "." in next_body:
+                    break
+                j += 1
+            i = j + 1
+
+            block = " ".join(block_parts)
+            block = re.sub(r"\s+", " ", block).strip()
+
+            # Parse: CALL 'CBLTDLI' USING <fn>, <PCB>, <area> [, <SSA1> [, <SSA2> ...]]
+            # Arguments may be separated by commas or spaces
+            m = re.search(
+                r"CALL\s+['\"]CBLTDLI['\"]\s+USING\s+(.*?)(?:\.|$)",
+                block, re.IGNORECASE
+            )
+            if not m:
+                continue
+
+            args_str = m.group(1).strip().rstrip(".")
+            # Split on commas or whitespace, filtering out empty and COBOL keywords
+            args = [a.strip().rstrip(",") for a in re.split(r"[,\s]+", args_str)
+                    if a.strip() and a.strip().upper() not in ("BY", "REFERENCE", "CONTENT", "VALUE")]
+
+            fn_var = args[0].upper() if len(args) > 0 else "UNKNOWN"
+            pcb = args[1].upper() if len(args) > 1 else None
+            area = args[2].upper() if len(args) > 2 else None
+            ssa = args[3].upper() if len(args) > 3 else None
+
+            # Resolve function code: it might be a variable name containing the
+            # function code, or a literal like 'GU'. Strip quotes.
+            fn_code = fn_var.strip("'\"")
+
+            # Map known function codes
+            fn_name = IMS_FUNCTIONS.get(fn_code)
+            if not fn_name:
+                # It might be a variable — check if there's a MOVE 'GU' TO <var> somewhere
+                # For now just record the raw name
+                fn_name = None
+
+            # Look up SSA segment name
+            ssa_seg = ssa_segments.get(ssa) if ssa else None
+            ssa_qual = None  # qualifier extraction is best-effort
+
+            raw = block[:200]
+
+            results.append({
+                "function_code": fn_code,
+                "function_name": fn_name,
+                "pcb_name": pcb,
+                "segment_area": area,
+                "ssa_name": ssa,
+                "ssa_segment": ssa_seg,
+                "ssa_qualifier": ssa_qual,
+                "paragraph": _find_paragraph(line_num),
+                "line_number": line_num,
+                "raw_text": raw,
             })
 
         return results
@@ -652,6 +1147,8 @@ class SQLiteLoader:
             ("performs", "SELECT * FROM performs WHERE program_id = ?"),
             ("business_rules", "SELECT * FROM business_rules WHERE program_id = ?"),
             ("exec_cics", "SELECT * FROM exec_cics WHERE program_id = ? ORDER BY line_number"),
+            ("exec_sql",  "SELECT * FROM exec_sql  WHERE program_id = ? ORDER BY line_number"),
+            ("ims_calls", "SELECT * FROM ims_calls WHERE program_id = ? ORDER BY line_number"),
         ]:
             cursor.execute(query, (program_id,))
             result[key] = [dict(row) for row in cursor.fetchall()]
@@ -659,13 +1156,29 @@ class SQLiteLoader:
         return result
 
     def get_call_graph(self) -> List[Dict]:
+        """Return call edges. If called_program == 'UNKNOWN' but resolved_target is set,
+        substitute the resolved target so downstream consumers see a real program ID."""
         cursor = self.conn.cursor()
+        # COALESCE picks resolved_target when called_program is UNKNOWN
         cursor.execute("""
-            SELECT pc.caller_program, p1.business_name as caller_name,
-                   pc.called_program, p2.business_name as called_name, pc.line_number
+            SELECT pc.caller_program,
+                   p1.business_name as caller_name,
+                   CASE
+                     WHEN pc.called_program = 'UNKNOWN' AND pc.resolved_target IS NOT NULL
+                     THEN pc.resolved_target
+                     ELSE pc.called_program
+                   END as called_program,
+                   p2.business_name as called_name,
+                   pc.line_number,
+                   pc.resolved_target,
+                   pc.called_program as raw_target
             FROM program_calls pc
             LEFT JOIN programs p1 ON pc.caller_program = p1.program_id
-            LEFT JOIN programs p2 ON pc.called_program = p2.program_id
+            LEFT JOIN programs p2 ON
+                (CASE
+                   WHEN pc.called_program = 'UNKNOWN' AND pc.resolved_target IS NOT NULL
+                   THEN pc.resolved_target ELSE pc.called_program END
+                ) = p2.program_id
             ORDER BY pc.caller_program
         """)
         return [dict(row) for row in cursor.fetchall()]

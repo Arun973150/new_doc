@@ -81,6 +81,7 @@ class Neo4jExporter:
             "CREATE CONSTRAINT IF NOT EXISTS FOR (m:Module) REQUIRE m.id IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (cb:Copybook) REQUIRE cb.name IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (j:JclJob) REQUIRE j.name IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (t:DbTable) REQUIRE t.name IS UNIQUE",
         ]
         
         with self.driver.session() as session:
@@ -127,6 +128,9 @@ class Neo4jExporter:
 
         # Export CICS commands
         self._export_cics_commands(db_loader)
+
+        # Export EXEC SQL statements + DB tables
+        self._export_sql_operations(db_loader)
 
         # Export relationships (calls + performs)
         self._export_relationships(db_loader)
@@ -495,6 +499,55 @@ class Neo4jExporter:
                             "cmd": cmd,
                             "line": c.get("line_number"),
                         })
+
+    def _export_sql_operations(self, db_loader):
+        """Export DB2 tables as :DbTable nodes and READS_TABLE / WRITES_TABLE edges."""
+        cursor = db_loader.conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT program_id, command, table_name, COUNT(*) as cnt
+                FROM exec_sql
+                WHERE table_name IS NOT NULL
+                GROUP BY program_id, command, table_name
+            """)
+            sql_rows = [dict(row) for row in cursor.fetchall()]
+        except Exception:
+            sql_rows = []
+
+        if not sql_rows:
+            console.print("  No SQL operations to export")
+            return
+
+        console.print(f"  Exporting {len(sql_rows)} SQL access edges...")
+
+        WRITE_CMDS = {"INSERT", "UPDATE", "DELETE", "MERGE"}
+        with self.driver.session() as session:
+            tables_done = set()
+            for r in sql_rows:
+                tbl = r["table_name"]
+                if tbl not in tables_done:
+                    session.run(
+                        "MERGE (t:DbTable {name: $name}) "
+                        "SET t.label = 'DB2 Table'",
+                        {"name": tbl},
+                    )
+                    tables_done.add(tbl)
+
+                rel = "WRITES_TABLE" if r["command"] in WRITE_CMDS else "READS_TABLE"
+                session.run(
+                    f"""
+                    MATCH (p:Program {{id: $programId}})
+                    MATCH (t:DbTable {{name: $tableName}})
+                    MERGE (p)-[edge:{rel} {{command: $cmd}}]->(t)
+                    SET edge.statementCount = coalesce(edge.statementCount, 0) + $cnt
+                    """,
+                    {
+                        "programId": r["program_id"],
+                        "tableName": tbl,
+                        "cmd": r["command"],
+                        "cnt": r["cnt"],
+                    },
+                )
 
     def _export_relationships(self, db_loader):
         """Export CALLS and PERFORMS relationships."""

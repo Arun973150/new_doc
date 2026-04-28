@@ -751,18 +751,56 @@ class ProLeapWrapper:
         content = file_path.read_text(encoding="utf-8", errors="ignore")
         lines = content.split("\n")
 
+        # Strip column 1-6 sequence area + column 73-80 sequence area, then
+        # search for PROGRAM-ID. The COBOL name may be on the same line OR
+        # on the next non-blank, non-comment line.
+        def _strip_columns(line: str) -> str:
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        def _is_comment(line: str) -> bool:
+            return len(line) > 6 and line[6] == "*"
+
+        # Acceptable COBOL program-id pattern (must contain at least one letter)
+        valid_id_pat = re.compile(r"^[A-Z][A-Z0-9-]{0,29}$")
+
+        def _try_extract_id(text: str) -> Optional[str]:
+            """Pull the first identifier-like token; reject all-digits."""
+            text = text.strip().strip(".").strip(",").strip()
+            if not text:
+                return None
+            tok = text.split()[0].strip(".,")
+            tok_upper = tok.upper()
+            if valid_id_pat.match(tok_upper):
+                return tok_upper
+            return None
+
         prog_id = file_path.stem.upper()
-        for line in lines:
-            if "PROGRAM-ID" in line.upper():
-                parts = line.split(".")
-                for part in parts:
-                    if "PROGRAM-ID" in part.upper():
+        for idx, raw_line in enumerate(lines):
+            if _is_comment(raw_line):
+                continue
+            body = _strip_columns(raw_line)
+            if "PROGRAM-ID" not in body.upper():
+                continue
+            # Split on the FIRST period after PROGRAM-ID
+            after = re.split(r"PROGRAM-ID\s*\.\s*", body, maxsplit=1, flags=re.IGNORECASE)
+            tail = after[1] if len(after) > 1 else ""
+            candidate = _try_extract_id(tail)
+            # If empty / sequence-number / nothing on this line, walk forward
+            # until we find a real identifier line.
+            if not candidate:
+                for j in range(idx + 1, min(idx + 6, len(lines))):
+                    if _is_comment(lines[j]):
                         continue
-                    clean = part.strip()
-                    if clean:
-                        prog_id = clean.split()[0].replace(",", "").strip()
+                    next_body = _strip_columns(lines[j])
+                    if not next_body.strip():
+                        continue
+                    candidate = _try_extract_id(next_body)
+                    if candidate:
                         break
-                break
+            if candidate:
+                prog_id = candidate
+            break
 
         ptype = "BATCH"
         if any("EXEC CICS" in l.upper() for l in lines):
