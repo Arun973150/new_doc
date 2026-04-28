@@ -16,6 +16,7 @@ Plus:
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -205,7 +206,7 @@ flowchart LR
 {% for call in valid_mod_calls %}
 {% set key = call.caller_program ~ "->" ~ call.called_program %}
 {% if key not in seen_mod_calls %}
-| [{{ call.caller_program }}](../programs/{{ call.caller_program }}.md) | [{{ call.called_program }}](../programs/{{ call.called_program }}.md) | {{ call.line_number | default("-") }} |
+| [{{ call.caller_program }}](../programs/{{ call.caller_program }}.md) | {{ call.called_program | program_link("../programs/") }} | {{ call.line_number | default("-") }} |
 {% set _ = seen_mod_calls.update({key: true}) %}
 {% endif %}
 {% endfor %}
@@ -258,14 +259,36 @@ TEMPLATES["program.md.j2"] = '''\
 
 > **View Source:** {{ file_path | code_link(1, "Open " ~ (file_path | basename)) }}
 
-{% if business_purpose %}
+{% if source_literals or source_statuses %}
+## Source Grounding Facts
+
+{% if source_literals %}
+| Data Item | Literal Value |
+|-----------|---------------|
+{% for item in source_literals %}
+| `{{ item.name }}` | `{{ item.value }}` |
+{% endfor %}
+{% endif %}
+{% if source_statuses %}
+
+Status conditions found in source:
+{% for condition in source_statuses %}
+- `{{ condition }}`
+{% endfor %}
+{% endif %}
+
+{% endif %}
+
 ## Business Purpose
 
+{% if business_purpose %}
 {{ business_purpose }}
+{% else %}
+*Business purpose is not present in the extracted data. Run LLM enrichment to populate this section.*
+{% endif %}
 
 {% if user_role %}**Used By:** {{ user_role }}{% endif %}
 {% if business_process %}  |  **Process:** {{ business_process }}{% endif %}
-{% endif %}
 
 {% if migration_complexity %}
 ## Migration Summary
@@ -330,7 +353,7 @@ The following programs should be migrated before this one:
 | Called Program | Type | Line | Why |
 |----------------|------|------|-----|
 {% for c in dep_callees %}
-| [{{ c.called_program }}]({{ c.called_program }}.md) | {{ c.program_type | default("-") }} | {{ c.line_number | default("-") }} | {{ c.business_purpose | default(c.business_name | default("Called by " ~ program_id)) | truncate(80) }} |
+| {{ c.called_program | program_link }} | {{ c.program_type | default("-") }} | {{ c.line_number | default("-") }} | {{ c.business_purpose | default(c.business_name | default("Called by " ~ program_id)) | truncate(80) }} |
 {% endfor %}
 {% else %}
 *{{ program_id }} does not call any other programs (leaf program).*
@@ -358,6 +381,55 @@ The following programs should be migrated before this one:
 {% for f in shared_files %}
 | `{{ f.file_name }}` | {{ f.file_type | default("-") }} | {{ f.access_mode | default("-") }} | {{ f.co_users[:5] | map(attribute="program_id") | join(", ") }}{% if f.co_user_count > 5 %} (+{{ f.co_user_count - 5 }} more){% endif %} |
 {% endfor %}
+{% endif %}
+
+## Legacy Data Contracts
+
+> These tables are derived from FILE SECTION records and COPY-expanded data declarations. They preserve the legacy field names, COBOL storage type, inferred modern type, and status-code values needed for Java DTOs, SQL schemas, API contracts, and migration mapping.
+
+{% if data_contracts_detail.file_records %}
+### File Record Layouts
+
+{% for rec in data_contracts_detail.file_records %}
+#### `{{ rec.file_name }}`{% if rec.record_name %} / `{{ rec.record_name }}`{% endif %}
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+{% for field in rec.fields %}
+| `{{ field.name }}` | {{ field.meaning }} | `{{ field.cobol_type }}` | `{{ field.modern_type }}` | {{ field.format_note | default("-") }} |
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+
+{% if data_contracts_detail.copybooks %}
+### Copybook Segment Layouts
+
+{% for cb in data_contracts_detail.copybooks %}
+#### `{{ cb.copybook_name }}` as `{{ cb.record_name }}`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+{% for field in cb.fields %}
+| `{{ field.name }}` | {{ field.meaning }} | `{{ field.cobol_type }}` | `{{ field.modern_type }}` | {{ field.format_note | default("-") }} |
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+
+{% if data_contracts_detail.moves %}
+### Data Movement And Key Mapping
+
+| Line | Source | Target | Meaning |
+|------|--------|--------|---------|
+{% for move in data_contracts_detail.moves %}
+| {{ move.line_number }} | `{{ move.source }}` | `{{ move.target }}` | {{ move.meaning }} |
+{% endfor %}
+
+{% endif %}
+
+{% if not data_contracts_detail.file_records and not data_contracts_detail.copybooks %}
+*No concrete file or copybook record layouts were found for this program.*
 {% endif %}
 
 ---
@@ -535,6 +607,79 @@ This program uses the following SQL statements:
 
 {% endif %}
 
+{% if ims_calls %}
+## IMS DL/I Calls
+
+This program uses the following IMS DL/I calls:
+
+| Function | Meaning | PCB | Segment Area | SSA | Qualifier | Paragraph | Line |
+|----------|---------|-----|--------------|-----|-----------|-----------|------|
+{% for im in ims_calls %}
+| `{{ im.function_code }}` | {{ im.function_name | default("-") }} | {{ im.pcb_name | default("-") }} | {{ im.segment_area | default("-") }} | {{ im.ssa_name | default("-") }}{% if im.ssa_segment %} (segment: {{ im.ssa_segment }}){% endif %} | {{ im.ssa_qualifier | default("-") }} | {{ im.paragraph_name | default("-") }} | {{ im.line_number | default("-") }} |
+{% endfor %}
+
+{% endif %}
+
+{% if copybook_dictionaries %}
+## Copybook Field Dictionaries
+
+The following copybooks are included by this program. Each entry shows the actual fields
+extracted from the copybook source file (`.cpy`).
+
+{% for cb in copybook_dictionaries %}
+### Copybook `{{ cb.copybook_name }}`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+{% for f in cb.fields[:50] %}
+| `{{ "%02d" | format(f.level_number or 0) }}` | `{{ f.field_name }}` | `{{ f.picture | default("-") }}` | {{ f.usage | default("-") }} | {{ f.parent_name | default("-") }} | {% if f.occurs_count %}OCCURS {{ f.occurs_count }}{% endif %}{% if f.redefines_target %} REDEFINES {{ f.redefines_target }}{% endif %} |
+{% endfor %}
+{% if cb.fields | length > 50 %}*+ {{ cb.fields | length - 50 }} more fields*{% endif %}
+
+{% endfor %}
+{% endif %}
+
+{% if file_records %}
+## File Record Layouts (FD)
+
+This program declares the following file records (data contracts for I/O):
+
+{% set fd_groups = {} %}
+{% for r in file_records %}
+{% if r.file_name not in fd_groups %}
+{% set _ = fd_groups.update({r.file_name: []}) %}
+{% endif %}
+{% set _ = fd_groups[r.file_name].append(r) %}
+{% endfor %}
+{% for fname, items in fd_groups.items() %}
+### `FD {{ fname }}`{% if items[0].record_name %} (record `{{ items[0].record_name }}`){% endif %}
+
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+{% for it in items[:40] %}
+| `{{ "%02d" | format(it.level_number or 0) }}` | `{{ it.field_name }}` | `{{ it.picture | default("-") }}` | {{ it.usage | default("-") }} | {{ it.parent_name | default("-") }} |
+{% endfor %}
+{% if items | length > 40 %}*+ {{ items | length - 40 }} more fields*{% endif %}
+
+{% endfor %}
+{% endif %}
+
+{% if data_movements %}
+## Data Lineage (MOVE Flow)
+
+The following MOVE statements were extracted from the source. Each row is a `source → destination`
+flow that the migration team can use to trace how data is reshaped and routed.
+
+| Source | Destination | Paragraph | Line |
+|--------|-------------|-----------|------|
+{% for m in data_movements[:60] %}
+| {% if m.is_literal %}`'{{ m.source_field }}'`{% else %}`{{ m.source_field }}`{% endif %} | `{{ m.destination_field }}` | {{ m.paragraph_name | default("-") }} | {{ m.line_number | default("-") }} |
+{% endfor %}
+{% if data_movements | length > 60 %}*+ {{ data_movements | length - 60 }} more movements*{% endif %}
+
+{% endif %}
+
 {% if exec_cics %}
 ## CICS Commands
 
@@ -556,6 +701,19 @@ This program uses the following EXEC CICS commands:
 {% endif %}
 {% endfor %}
 **Summary:** {{ exec_cics | length }} CICS command(s) — {% for cmd, cnt in cics_summary.items() %}{{ cmd }} ({{ cnt }}){% if not loop.last %}, {% endif %}{% endfor %}
+
+{% endif %}
+
+{% if modernization_findings %}
+## Modernization Review Findings
+
+These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
+
+| Finding | Why It Matters |
+|---------|----------------|
+{% for finding in modernization_findings %}
+| {{ finding.title }} | {{ finding.detail }} |
+{% endfor %}
 
 {% endif %}
 
@@ -765,7 +923,7 @@ graph LR
 |--------|-------|------|
 {% for call in calls %}
 {% if call.called_program and call.called_program != "UNKNOWN" %}
-| [{{ call.caller_program }}](../programs/{{ call.caller_program }}.md) | [{{ call.called_program }}](../programs/{{ call.called_program }}.md) | {{ call.line_number | default("-") }} |
+| [{{ call.caller_program }}](../programs/{{ call.caller_program }}.md) | {{ call.called_program | program_link("../programs/") }} | {{ call.line_number | default("-") }} |
 {% endif %}
 {% endfor %}
 
@@ -993,7 +1151,7 @@ graph LR
 | Caller | Calls | Line |
 |--------|-------|------|
 {% for call in internal_calls %}
-| [{{ call.caller_program }}](../programs/{{ call.caller_program }}.md) | [{{ call.called_program }}](../programs/{{ call.called_program }}.md) | {{ call.line_number | default("-") }} |
+| [{{ call.caller_program }}](../programs/{{ call.caller_program }}.md) | {{ call.called_program | program_link("../programs/") }} | {{ call.line_number | default("-") }} |
 {% endfor %}
 {% else %}
 *No direct call relationships between these programs — they are linked exclusively through shared copybooks.*
@@ -1083,6 +1241,18 @@ class DocGenerator:
         self.env.filters["basename"] = lambda x: Path(x).name if x else ""
         self.env.filters["truncate"] = lambda x, n: (x[:n] + "...") if x and len(str(x)) > n else (x or "")
         self.env.filters["mermaid_id"] = lambda x: (x or "UNKNOWN").replace("-", "_").replace(" ", "_")
+        self.known_program_ids = {p["program_id"] for p in self.db.get_all_programs()}
+
+        def program_link(program_id, prefix=""):
+            """Link local COBOL programs; render external runtime calls as code."""
+            if not program_id:
+                return "-"
+            pid = str(program_id)
+            if pid in self.known_program_ids:
+                return f"[{pid}]({prefix}{pid}.md)"
+            return f"`{pid}`"
+
+        self.env.filters["program_link"] = program_link
 
         def mermaid_cb_node(cb_name, node_id_prefix="CB_"):
             """Generate a full Mermaid copybook node line with hexagon shape.
@@ -1129,13 +1299,427 @@ class DocGenerator:
         # Store repo_path for the filter
         self.env.globals["repo_path"] = repo_path
 
+    # ================================================================
+    # Source-level data contract helpers
+    # ================================================================
+
+    @staticmethod
+    def _cobol_source_body(text: str) -> List[str]:
+        """Return non-comment COBOL source text without sequence columns."""
+        return [row["text"] for row in DocGenerator._cobol_source_rows(text)]
+
+    @staticmethod
+    def _cobol_source_rows(text: str) -> List[Dict[str, Any]]:
+        """Return non-comment COBOL source rows with original line numbers."""
+        rows = []
+        for line_number, raw in enumerate(text.splitlines(), start=1):
+            marker = raw[6:7] if len(raw) > 6 else ""
+            if marker in ("*", "/", "D"):
+                continue
+            body = raw[6:72] if len(raw) > 6 else raw
+            body = body.rstrip()
+            if body.strip():
+                rows.append({"line_number": line_number, "text": body})
+        return rows
+
+    @staticmethod
+    def _logical_cobol_lines(lines: List[str]) -> List[str]:
+        """Join simple continued COBOL declarations into logical statements."""
+        logical = []
+        current = ""
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if re.match(r"^(01|05|10|15|20|25|30|49|66|77|88)\s+", stripped, re.IGNORECASE):
+                if current:
+                    logical.append(current.strip())
+                current = stripped
+            elif current:
+                current = f"{current} {stripped}"
+            else:
+                current = stripped
+            if stripped.endswith(".") and current:
+                logical.append(current.strip())
+                current = ""
+        if current:
+            logical.append(current.strip())
+        return logical
+
+    @staticmethod
+    def _parse_cobol_data_declarations(lines: List[str]) -> List[Dict[str, Any]]:
+        """Parse common COBOL data declarations into doc-friendly field rows."""
+        fields = []
+        last_field = None
+        for stmt in DocGenerator._logical_cobol_lines(lines):
+            m = re.match(r"^(01|05|10|15|20|25|30|49|66|77|88)\s+([A-Z0-9-]+|FILLER)\b(.*)$", stmt, re.IGNORECASE)
+            if not m:
+                continue
+
+            level, name, rest = m.group(1), m.group(2).upper(), m.group(3).strip()
+            pic_match = re.search(r"\bPIC(?:TURE)?\s+([A-Z0-9()V+\-,]+)", rest, re.IGNORECASE)
+            value_match = re.search(r"\bVALUE\s+(.+?)(?:\.|$)", rest, re.IGNORECASE)
+            occurs_match = re.search(r"\bOCCURS\s+([0-9]+)\s+TIMES", rest, re.IGNORECASE)
+            usage_match = re.search(
+                r"\b(COMP-3|COMP-5|COMP-4|COMP|BINARY|PACKED-DECIMAL|DISPLAY|INDEX)\b",
+                rest,
+                re.IGNORECASE,
+            )
+
+            value = value_match.group(1).strip() if value_match else ""
+            value = re.sub(r"\s+", " ", value).rstrip(".")
+
+            if level == "88":
+                if last_field:
+                    last_field.setdefault("status_values", []).append({
+                        "name": name,
+                        "value": value,
+                    })
+                continue
+
+            field = {
+                "level": level,
+                "name": name,
+                "picture": pic_match.group(1).upper().rstrip(".") if pic_match else "",
+                "usage": usage_match.group(1).upper() if usage_match else "",
+                "occurs": occurs_match.group(1) if occurs_match else "",
+                "value": value,
+                "meaning": DocGenerator._business_meaning(name),
+                "modern_type": "",
+                "status_values": [],
+            }
+            field["cobol_type"] = DocGenerator._format_cobol_type(field)
+            field["modern_type"] = DocGenerator._modern_type(field)
+            field["format_note"] = DocGenerator._format_note(field)
+            fields.append(field)
+            if name != "FILLER":
+                last_field = field
+        return fields
+
+    @staticmethod
+    def _format_cobol_type(field: Dict[str, Any]) -> str:
+        parts = []
+        if field.get("picture"):
+            parts.append(f"PIC {field['picture']}")
+        if field.get("usage"):
+            parts.append(field["usage"])
+        if field.get("occurs"):
+            parts.append(f"OCCURS {field['occurs']}")
+        return " ".join(parts) or "GROUP"
+
+    @staticmethod
+    def _pic_digits(pic: str) -> tuple[int, int]:
+        """Return total digits and scale for a numeric PIC."""
+        if not pic:
+            return 0, 0
+        pic = pic.upper().replace("S", "")
+
+        def count_digits(part: str) -> int:
+            total = 0
+            for token, repeat in re.findall(r"([9X])(?:\((\d+)\))?", part):
+                total += int(repeat or "1")
+            return total
+
+        if "V" in pic:
+            left, right = pic.split("V", 1)
+            scale = count_digits(right)
+            return count_digits(left) + scale, scale
+        return count_digits(pic), 0
+
+    @staticmethod
+    def _modern_type(field: Dict[str, Any]) -> str:
+        pic = (field.get("picture") or "").upper()
+        usage = (field.get("usage") or "").upper()
+        total, scale = DocGenerator._pic_digits(pic)
+        if not pic:
+            return "OBJECT"
+        if "X" in pic:
+            length = DocGenerator._pic_digits(pic.replace("X", "9"))[0]
+            return f"STRING({length})" if length else "STRING"
+        if scale:
+            return f"DECIMAL({total},{scale})"
+        if "COMP-3" in usage and total > 9:
+            return "BIGINT"
+        if "COMP" in usage or "BINARY" in usage:
+            return "INTEGER" if total <= 9 else "BIGINT"
+        if total > 9:
+            return "BIGINT"
+        return "INTEGER"
+
+    @staticmethod
+    def _format_note(field: Dict[str, Any]) -> str:
+        name = field.get("name", "")
+        pic = field.get("picture", "")
+        if re.search(r"(DATE|DT|YYDDD)", name) and re.search(r"9\(0?5\)|9\(0?6\)|X\(0?8\)|X\(10\)", pic, re.IGNORECASE):
+            return "Date-like field; verify YYDDD, YYMMDD, or ISO format before migration."
+        if field.get("occurs"):
+            return f"Repeating field, {field['occurs']} occurrences."
+        if field.get("status_values"):
+            vals = ", ".join(f"{v['name']}={v['value']}" for v in field["status_values"][:4])
+            return f"Status/code field: {vals}"
+        return ""
+
+    @staticmethod
+    def _business_meaning(name: str) -> str:
+        clean = re.sub(r"^(WS|WK|PA|CA|CDEMO|QUAL|SSA|P)-", "", name.upper())
+        special = {
+            "ACCT-ID": "Account ID",
+            "ACCNTID": "Account ID",
+            "CUST-ID": "Customer ID",
+            "AUTH-DATE-9C": "Authorization Date",
+            "AUTH-TIME-9C": "Authorization Time",
+            "AUTH-RESP-CODE": "Authorization Response Code",
+            "TRANSACTION-AMT": "Transaction Amount",
+            "APPROVED-AMT": "Approved Amount",
+            "ROOT-SEG-KEY": "Root Segment Key",
+            "CHILD-SEG-REC": "Child Segment Record",
+        }
+        if clean in special:
+            return special[clean]
+        words = []
+        dictionary = {
+            "ACCT": "Account",
+            "ACCNT": "Account",
+            "CUST": "Customer",
+            "AUTH": "Authorization",
+            "AMT": "Amount",
+            "DT": "Date",
+            "DATE": "Date",
+            "TIME": "Time",
+            "RESP": "Response",
+            "CODE": "Code",
+            "STATUS": "Status",
+            "CARD": "Card",
+            "NUM": "Number",
+            "MERCHANT": "Merchant",
+            "ID": "ID",
+            "KEY": "Key",
+            "SEG": "Segment",
+            "REC": "Record",
+            "BALANCE": "Balance",
+            "LIMIT": "Limit",
+            "CNT": "Count",
+            "FRAUD": "Fraud",
+        }
+        for token in clean.split("-"):
+            words.append(dictionary.get(token, token.title()))
+        return " ".join(words)
+
+    def _find_copybook_path(self, copybook_name: str) -> Optional[Path]:
+        roots = []
+        if self.repo_path:
+            roots.append(Path(self.repo_path))
+        roots.append(Path("."))
+        candidates = [f"{copybook_name}.cpy", f"{copybook_name}.CPY", copybook_name]
+        for root in roots:
+            if not root.exists():
+                continue
+            for candidate in candidates:
+                matches = list(root.rglob(candidate))
+                if matches:
+                    return matches[0]
+        return None
+
+    @staticmethod
+    def _copybook_contexts(lines: List[str]) -> Dict[str, Dict[str, Any]]:
+        contexts = {}
+        current_section = ""
+        current_group = ""
+        for idx, line in enumerate(lines, start=1):
+            stripped = line.strip()
+            if re.search(r"\b(FILE|WORKING-STORAGE|LINKAGE)\s+SECTION\b", stripped, re.IGNORECASE):
+                current_section = stripped.replace(".", "").title()
+            group_match = re.match(r"^01\s+([A-Z0-9-]+)\b", stripped, re.IGNORECASE)
+            if group_match:
+                current_group = group_match.group(1).upper()
+            copy_match = re.match(r"^COPY\s+([A-Z0-9-]+)", stripped, re.IGNORECASE)
+            if copy_match:
+                contexts[copy_match.group(1).upper()] = {
+                    "record_name": current_group,
+                    "section": current_section,
+                    "line_number": idx,
+                }
+        return contexts
+
+    @staticmethod
+    def _file_record_contracts(lines: List[str]) -> List[Dict[str, Any]]:
+        contracts = []
+        current_file = None
+        current_fields = []
+        for line in lines:
+            stripped = line.strip()
+            fd_match = re.match(r"^FD\s+([A-Z0-9-]+)\b", stripped, re.IGNORECASE)
+            if fd_match:
+                if current_file:
+                    contracts.append(current_file | {"fields": current_fields})
+                current_file = {
+                    "file_name": fd_match.group(1).upper(),
+                    "record_name": "",
+                }
+                current_fields = []
+                continue
+            if not current_file:
+                continue
+            if re.search(r"\b(WORKING-STORAGE|LINKAGE)\s+SECTION\b", stripped, re.IGNORECASE):
+                contracts.append(current_file | {"fields": current_fields})
+                current_file = None
+                current_fields = []
+                continue
+            if re.match(r"^01\s+", stripped, re.IGNORECASE) and not current_file.get("record_name"):
+                m = re.match(r"^01\s+([A-Z0-9-]+)\b", stripped, re.IGNORECASE)
+                if m:
+                    current_file["record_name"] = m.group(1).upper()
+            parsed = DocGenerator._parse_cobol_data_declarations([stripped])
+            current_fields.extend(parsed)
+        if current_file:
+            contracts.append(current_file | {"fields": current_fields})
+        return [c for c in contracts if c.get("fields")]
+
+    def _build_data_contracts(self, details: Dict[str, Any]) -> Dict[str, Any]:
+        source_path = Path(details.get("file_path") or "")
+        source_lines = []
+        source_rows = []
+        if source_path.exists():
+            try:
+                source_text = source_path.read_text(encoding="utf-8", errors="ignore")
+                source_rows = self._cobol_source_rows(source_text)
+                source_lines = [row["text"] for row in source_rows]
+            except Exception:
+                source_lines = []
+                source_rows = []
+
+        copy_contexts = self._copybook_contexts(source_lines)
+        copybook_contracts = []
+        for cb in details.get("copybooks", []):
+            cb_name = (cb.get("copybook_name") or "").upper()
+            cb_path = self._find_copybook_path(cb_name)
+            if not cb_path:
+                continue
+            try:
+                cb_lines = self._cobol_source_body(cb_path.read_text(encoding="utf-8", errors="ignore"))
+            except Exception:
+                continue
+            fields = self._parse_cobol_data_declarations(cb_lines)
+            if not fields:
+                continue
+            ctx = copy_contexts.get(cb_name, {})
+            embedded_group = next(
+                (field["name"] for field in fields if field.get("level") == "01" and field.get("name") != "FILLER"),
+                None,
+            )
+            copybook_contracts.append({
+                "copybook_name": cb_name,
+                "record_name": embedded_group or ctx.get("record_name") or cb_name,
+                "section": ctx.get("section") or "-",
+                "line_number": ctx.get("line_number"),
+                "fields": fields,
+            })
+
+        return {
+            "file_records": self._file_record_contracts(source_lines),
+            "copybooks": copybook_contracts,
+            "moves": self._data_contract_moves(source_rows or source_lines),
+        }
+
+    @staticmethod
+    def _data_contract_moves(lines: List[Any]) -> List[Dict[str, Any]]:
+        moves = []
+        interesting = re.compile(
+            r"(REC|RECORD|SEG|SEGMENT|KEY|SSA|FILE|AUTH|ACCT|CUST|AMT|DATE|STATUS)",
+            re.IGNORECASE,
+        )
+        for idx, line in enumerate(lines, start=1):
+            if isinstance(line, dict):
+                line_number = line.get("line_number") or idx
+                line = line.get("text") or ""
+            else:
+                line_number = idx
+            stripped = line.strip()
+            m = re.match(r"^MOVE\s+(.+?)\s+TO\s+(.+?)(?:\.|$)", stripped, re.IGNORECASE)
+            if not m:
+                continue
+            source = re.sub(r"\s+", " ", m.group(1).strip())
+            target = re.sub(r"\s+", " ", m.group(2).strip())
+            if not (interesting.search(source) or interesting.search(target)):
+                continue
+            moves.append({
+                "line_number": line_number,
+                "source": source,
+                "target": target,
+                "meaning": f"{source} populates {target}",
+            })
+        return moves[:30]
+
+    def _build_modernization_findings(
+        self,
+        details: Dict[str, Any],
+        data_contracts: Dict[str, Any],
+        source_literals: List[Dict[str, str]],
+    ) -> List[Dict[str, str]]:
+        findings = []
+        pid = details.get("program_id")
+        for lit in source_literals:
+            if lit.get("name") == "WS-PGMNAME" and lit.get("value") and lit["value"].upper() != pid:
+                findings.append({
+                    "title": "Program name literal differs from PROGRAM-ID",
+                    "detail": f"`WS-PGMNAME` is `{lit['value']}` while `PROGRAM-ID` is `{pid}`. Treat this as a migration review item; it may be copied template state or an intentional external name.",
+                })
+
+        field_names = {
+            field["name"]
+            for contract in data_contracts.get("file_records", []) + data_contracts.get("copybooks", [])
+            for field in contract.get("fields", [])
+        }
+        field_names.update((item.get("name") or "") for item in details.get("data_items", []))
+        if {"WS-CHKPT-ID", "WK-CHKPT-ID", "WS-NO-CHKP", "P-CHKP-FREQ"} & field_names:
+            ims_checkpoint_calls = [
+                im for im in details.get("ims_calls", [])
+                if (im.get("function_code") or "").upper() in {"CHKP", "XRST"}
+            ]
+            if not ims_checkpoint_calls:
+                findings.append({
+                    "title": "Checkpoint/restart fields without checkpoint calls",
+                    "detail": "Checkpoint-style fields exist, but no IMS `CHKP` or `XRST` call was extracted. Confirm whether restart logic was abandoned or still expected operationally.",
+                })
+
+        unused_candidates = sorted(
+            name for name in field_names
+            if re.search(r"(DEBUG|EXPIRY|DAY-DIFF|NO-CHKP|CHKPT)", name)
+        )
+        if unused_candidates:
+            findings.append({
+                "title": "Template/debug fields require usage review",
+                "detail": "Fields such as " + ", ".join(f"`{n}`" for n in unused_candidates[:8]) + " look like debug, checkpoint, or abandoned template state. Verify references before designing modern DTOs or database columns.",
+            })
+
+        source_path = Path(details.get("file_path") or "")
+        if source_path.exists():
+            try:
+                body = "\n".join(self._cobol_source_body(source_path.read_text(encoding="utf-8", errors="ignore")))
+                numeric_match = re.search(r"\b([A-Z0-9-]+)\s+IS\s+NUMERIC\b", body, re.IGNORECASE)
+                if numeric_match:
+                    findings.append({
+                        "title": "Numeric validation on a COBOL numeric field",
+                        "detail": f"`{numeric_match.group(1).upper()} IS NUMERIC` was found in source. If the field is packed or binary numeric, this may be corruption detection rather than normal validation.",
+                    })
+                if re.search(r"\bIF\b[\s\S]{0,500}\bIF\b[\s\S]{0,500}\.", body, re.IGNORECASE):
+                    findings.append({
+                        "title": "Nested IF blocks need compiler-accurate validation",
+                        "detail": "Nested conditional logic was detected. During migration, validate scope with the original compiler rules and explicit `END-IF`/period termination before translating to Java or SQL.",
+                    })
+            except Exception:
+                pass
+
+        return findings
+
     def generate_all(self):
         """Generate all 6 documentation layers plus supporting docs."""
         console.print("[cyan]Generating Swimm-style documentation...[/cyan]")
 
         # Create output directories
         for subdir in ["programs", "modules", "business-rules", "screens", "diagrams", "clusters", "jcl"]:
-            (self.output_dir / subdir).mkdir(parents=True, exist_ok=True)
+            dir_path = self.output_dir / subdir
+            dir_path.mkdir(parents=True, exist_ok=True)
 
         generated = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -1316,6 +1900,65 @@ class DocGenerator:
                         deps_list = []
 
                     jcl_jobs_for_prog = self.db.get_program_jcl_jobs(pid)
+                    source_literals = []
+                    source_statuses = []
+                    source_path = Path(details.get("file_path") or "")
+                    if source_path.exists():
+                        try:
+                            text = source_path.read_text(encoding="utf-8", errors="ignore")
+                            body_lines = []
+                            for raw_line in text.splitlines():
+                                if len(raw_line) > 6 and raw_line[6] == "*":
+                                    continue
+                                body = raw_line[6:] if len(raw_line) > 6 else raw_line
+                                body_lines.append(body[:66] if len(body) > 66 else body)
+                            body = "\n".join(body_lines)
+                            for name in ("WS-PGMNAME",):
+                                m = re.search(rf"\b{name}\b[\s\S]{{0,90}}?\bVALUE\s+['\"]([^'\"]+)['\"]", body, re.IGNORECASE)
+                                if m:
+                                    source_literals.append({"name": name, "value": m.group(1)})
+                            for condition, pattern in [
+                                ("PAUT-PCB-STATUS = SPACES", r"\bPAUT-PCB-STATUS\s*=\s*SPACES\b"),
+                                ("PAUT-PCB-STATUS = 'II'", r"\bPAUT-PCB-STATUS\s*=\s*['\"]II['\"]"),
+                                ("WS-INFIL1-STATUS", r"\bWS-INFIL1-STATUS\b"),
+                                ("WS-INFIL2-STATUS", r"\bWS-INFIL2-STATUS\b"),
+                            ]:
+                                if re.search(pattern, body, re.IGNORECASE):
+                                    source_statuses.append(condition)
+                        except Exception:
+                            pass
+
+                    data_contracts_detail = self._build_data_contracts(details)
+                    modernization_findings = self._build_modernization_findings(
+                        details,
+                        data_contracts_detail,
+                        source_literals,
+                    )
+
+                    # Per-program copybook field dictionaries (from copybook_fields)
+                    cb_dicts = []
+                    for cb in (details.get("copybooks") or []):
+                        cb_name = cb.get("copybook_name") if isinstance(cb, dict) else cb
+                        if not cb_name:
+                            continue
+                        try:
+                            fields = self.db.get_copybook_fields(cb_name)
+                        except Exception:
+                            fields = []
+                        if fields:
+                            cb_dicts.append({"copybook_name": cb_name, "fields": fields})
+
+                    # FD record layouts for this program
+                    try:
+                        file_records = self.db.get_program_file_records(pid)
+                    except Exception:
+                        file_records = []
+
+                    # Data lineage
+                    try:
+                        movements = self.db.get_program_data_movements(pid, limit=100)
+                    except Exception:
+                        movements = []
 
                     content = template.render(
                         **details,
@@ -1327,6 +1970,13 @@ class DocGenerator:
                         impact=impact,
                         dependencies_to_migrate_first=deps_list,
                         jcl_jobs=jcl_jobs_for_prog,
+                        source_literals=source_literals,
+                        source_statuses=source_statuses,
+                        data_contracts_detail=data_contracts_detail,
+                        modernization_findings=modernization_findings,
+                        copybook_dictionaries=cb_dicts,
+                        file_records=file_records,
+                        data_movements=movements,
                         generated_date=generated_date,
                     )
                     (self.output_dir / "programs" / f"{pid}.md").write_text(content, encoding="utf-8")
@@ -1508,6 +2158,10 @@ class DocGenerator:
             details = self.db.get_jcl_job_details(job["job_name"])
             if not details:
                 continue
+            details["programs_called"] = [
+                p for p in (details.get("programs_called") or [])
+                if str(p).upper() in known_programs
+            ]
             # Mark which step programs are known COBOL programs
             for step in details.get("steps") or []:
                 step["program_is_cobol"] = (step.get("program") or "").upper() in known_programs

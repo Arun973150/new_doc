@@ -175,6 +175,12 @@ def run_pipeline(
     if jcl_jobs:
         loader.load_jcl(jcl_jobs)
 
+    # Load copybook field dictionaries from .cpy files in the repo
+    try:
+        loader.load_copybook_fields(str(repo_path))
+    except Exception as e:
+        console.print(f"[yellow]Warning: copybook field load skipped: {e}[/yellow]")
+
     # Detect modules
     modules = loader.detect_modules()
     console.print(f"[green]OK - Detected {len(modules)} functional modules[/green]")

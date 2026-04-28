@@ -407,6 +407,64 @@ CREATE INDEX IF NOT EXISTS idx_exec_sql_command ON exec_sql(command);
 CREATE INDEX IF NOT EXISTS idx_exec_sql_table   ON exec_sql(table_name);
 
 -- ============================================
+-- Table: copybook_fields
+-- Field-level dictionary for each copybook
+-- ============================================
+CREATE TABLE IF NOT EXISTS copybook_fields (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    copybook_name TEXT NOT NULL,
+    field_name TEXT NOT NULL,
+    level_number INTEGER,
+    picture TEXT,
+    usage TEXT,
+    value TEXT,
+    parent_name TEXT,
+    line_number INTEGER,
+    occurs_count INTEGER,
+    redefines_target TEXT,
+    FOREIGN KEY (copybook_name) REFERENCES copybooks(copybook_name)
+);
+CREATE INDEX IF NOT EXISTS idx_copybook_fields_name ON copybook_fields(copybook_name);
+
+-- ============================================
+-- Table: file_records
+-- FD record layouts (file descriptions) per program
+-- ============================================
+CREATE TABLE IF NOT EXISTS file_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,             -- the FD name
+    record_name TEXT,                    -- the 01-level record name
+    field_name TEXT,                     -- nested field name
+    level_number INTEGER,
+    picture TEXT,
+    usage TEXT,
+    parent_name TEXT,
+    line_number INTEGER,
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+CREATE INDEX IF NOT EXISTS idx_file_records_program ON file_records(program_id);
+CREATE INDEX IF NOT EXISTS idx_file_records_file ON file_records(file_name);
+
+-- ============================================
+-- Table: data_movements
+-- MOVE source -> destination (data lineage)
+-- ============================================
+CREATE TABLE IF NOT EXISTS data_movements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    source_field TEXT NOT NULL,
+    destination_field TEXT NOT NULL,
+    paragraph_name TEXT,
+    line_number INTEGER,
+    is_literal INTEGER DEFAULT 0,
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+CREATE INDEX IF NOT EXISTS idx_data_movements_program ON data_movements(program_id);
+CREATE INDEX IF NOT EXISTS idx_data_movements_source ON data_movements(source_field);
+CREATE INDEX IF NOT EXISTS idx_data_movements_dest ON data_movements(destination_field);
+
+-- ============================================
 -- Table: ims_calls
 -- IMS DL/I CALL 'CBLTDLI' statements found in programs
 -- ============================================

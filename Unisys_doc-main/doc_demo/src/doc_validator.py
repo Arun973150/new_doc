@@ -131,9 +131,46 @@ def _load_sqlite_facts(db_path: str) -> Dict[str, Set[str]]:
     cur.execute("SELECT DISTINCT name FROM data_items")
     facts["data_items"] = {r["name"] for r in cur.fetchall() if r["name"]}
 
+    # Add copybook field names, FD record fields, and MOVE-touched fields
+    # so the factual check doesn't flag valid extracted identifiers.
+    try:
+        cur.execute("SELECT DISTINCT field_name FROM copybook_fields")
+        for r in cur.fetchall():
+            if r["field_name"]:
+                facts["data_items"].add(r["field_name"])
+    except Exception:
+        pass
+    try:
+        cur.execute("SELECT DISTINCT field_name FROM file_records UNION SELECT DISTINCT record_name FROM file_records UNION SELECT DISTINCT file_name FROM file_records")
+        for r in cur.fetchall():
+            if r[0]:
+                facts["data_items"].add(r[0])
+    except Exception:
+        pass
+    try:
+        cur.execute("SELECT DISTINCT source_field FROM data_movements UNION SELECT DISTINCT destination_field FROM data_movements")
+        for r in cur.fetchall():
+            if r[0]:
+                facts["data_items"].add(r[0])
+    except Exception:
+        pass
+
     try:
         cur.execute("SELECT DISTINCT file_name FROM files")
         facts["files"] = {r["file_name"] for r in cur.fetchall() if r["file_name"]}
+    except Exception:
+        pass
+
+    try:
+        cur.execute("SELECT file_path FROM programs WHERE file_path IS NOT NULL")
+        for r in cur.fetchall():
+            path = Path(r["file_path"] or "")
+            if not path.exists():
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            m = re.search(r"\bWS-PGMNAME\b[\s\S]{0,90}?\bVALUE\s+['\"]([^'\"]+)['\"]", text, re.IGNORECASE)
+            if m:
+                facts["data_items"].add(m.group(1))
     except Exception:
         pass
 
@@ -226,6 +263,8 @@ def _load_expected_relations(db_path: str) -> Dict[str, Dict[str, Set[str]]]:
                 
             for m in ims_pat.finditer(cleaned_content):
                 fn_code = m.group(1).upper()
+                if fn_code.startswith("FUNC-"):
+                    fn_code = fn_code[5:]
                 if fn_code not in ("BY", "REFERENCE", "CONTENT", "VALUE"):
                     relations[pid]["ims_functions"].add(fn_code)
         except Exception:
@@ -311,13 +350,36 @@ ID_PAT = re.compile(r"`([A-Z][A-Z0-9-]{2,11})`")
 
 # Skip these common false positives — keywords that look like identifiers
 NOISE = {
-    "COBOL", "CICS", "JCL", "BMS", "VSAM", "SQL", "DB2", "ONLINE", "BATCH",
+    # COBOL keywords
+    "COBOL", "CICS", "JCL", "BMS", "VSAM", "SQL", "DB2", "IMS", "ONLINE", "BATCH",
     "MAIN", "ENTRY", "EXIT", "END", "TRUE", "FALSE", "NULL", "UNKNOWN",
     "INPUT", "OUTPUT", "READ", "WRITE", "OPEN", "CLOSE", "CALL", "PERFORM",
     "MOVE", "IF", "ELSE", "EVALUATE", "WHEN", "GOTO", "STOP", "GOBACK",
-    "SEND", "RECEIVE", "XCTL", "LINK", "RETURN", "ASKTIME", "SYNCPOINT",
-    "STARTBR", "READNEXT", "READPREV", "ENDBR", "REWRITE", "DELETE",
     "WORKING-STORAGE", "LINKAGE", "FILE",
+    # CICS commands
+    "SEND", "RECEIVE", "XCTL", "LINK", "RETURN", "ASKTIME", "SYNCPOINT",
+    "FORMATTIME", "STARTBR", "READNEXT", "READPREV", "ENDBR", "REWRITE", "DELETE",
+    "HANDLE", "ASSIGN", "INQUIRE", "WRITEQ", "READQ", "DELETEQ", "ABEND",
+    "RETRIEVE", "ENQ", "DEQ", "CONVERSE", "ISSUE", "SUSPEND", "RESUME",
+    # External MQ runtime routines used as CALL targets, not local COBOL program IDs
+    "MQOPEN", "MQGET", "MQPUT", "MQPUT1", "MQCLOSE",
+    # SQL/DB2 keywords
+    "SELECT", "INSERT", "UPDATE", "DECLARE", "FETCH", "COMMIT", "ROLLBACK",
+    "INCLUDE", "BEGIN", "EXEC", "WHENEVER", "MERGE",
+    # IMS DL/I functions
+    "GU", "GHN", "GHU", "GN", "GNP", "GHNP", "ISRT", "REPL", "DLET", "CHKP",
+    "XRST", "STAT", "TERM", "PCB", "SYNC", "LOG", "GMSG", "ICMD",
+    # Common report/util tokens
+    "XXXX", "TBD", "TODO", "FIXME",
+    # COBOL data types / report headers / SQL types
+    "BIGINT", "INTEGER", "INT", "SMALLINT", "DECIMAL", "DEC", "NUMERIC",
+    "VARCHAR", "CHAR", "DATE", "TIME", "TIMESTAMP", "FLOAT", "DOUBLE",
+    "GROUP", "ELEMENTARY", "OBJECT", "FIELD", "RECORD", "LEVEL", "PARENT",
+    "END-IF", "END-EVALUATE", "END-PERFORM", "END-READ", "END-WRITE",
+    "END-CALL", "END-SEARCH", "END-START", "END-STRING", "END-UNSTRING",
+    "END-COMPUTE", "END-ADD", "END-SUBTRACT", "END-MULTIPLY", "END-DIVIDE",
+    "PIC", "PICTURE", "USAGE", "VALUE", "OCCURS", "REDEFINES", "FILLER",
+    "JCL_JOB", "JCL_STEP", "DD", "DSN", "LRECL", "RECFM", "DISP", "SPACE", "UNIT",
 }
 
 
@@ -443,6 +505,14 @@ def _check_citations(db_path: str, report: ValidationReport) -> None:
         paras_by_program.setdefault(r["program_id"], set()).add(r["paragraph_name"])
     all_paragraphs: Set[str] = {p for ps in paras_by_program.values() for p in ps}
 
+    # Backticks are also used for data items/copybooks in generated docs. Do not
+    # misclassify those grounded identifiers as hallucinated paragraph citations.
+    cur.execute("SELECT DISTINCT name FROM data_items WHERE name IS NOT NULL")
+    all_data_items: Set[str] = {r["name"] for r in cur.fetchall()}
+    cur.execute("SELECT DISTINCT copybook_name FROM copybook_usage WHERE copybook_name IS NOT NULL")
+    all_copybook_refs: Set[str] = {r["copybook_name"] for r in cur.fetchall()}
+    non_paragraph_ids = all_data_items | all_copybook_refs
+
     # Pull module → programs for Module-mode lookups
     cur.execute("SELECT id, module_name FROM modules")
     mod_id_by_name = {r["module_name"]: r["id"] for r in cur.fetchall()}
@@ -452,6 +522,72 @@ def _check_citations(db_path: str, report: ValidationReport) -> None:
     progs_by_module_id: Dict[int, Set[str]] = {}
     for r in cur.fetchall():
         progs_by_module_id.setdefault(r["module_id"], set()).add(r["program_id"])
+
+    cur.execute("SELECT program_id, copybook_name FROM copybook_usage")
+    copybooks_by_program: Dict[str, Set[str]] = {}
+    for r in cur.fetchall():
+        copybooks_by_program.setdefault(r["program_id"], set()).add(r["copybook_name"])
+
+    ims_by_program: Dict[str, Dict[str, Set[str]]] = {}
+    ims_call_pairs_by_program: Dict[str, List[Tuple[str, str]]] = {}
+    try:
+        cur.execute("""
+            SELECT program_id, function_code, ssa_name, paragraph_name
+            FROM ims_calls
+            ORDER BY line_number
+        """)
+        for r in cur.fetchall():
+            ims = ims_by_program.setdefault(
+                r["program_id"],
+                {"functions": set(), "ssas": set(), "paragraphs": set(), "entry": set()},
+            )
+            fn = r["function_code"]
+            if fn:
+                if fn == "ENTRY":
+                    ims["entry"].add("DLITCBL")
+                else:
+                    ims["functions"].add(fn)
+            if r["ssa_name"]:
+                ims["ssas"].add(r["ssa_name"])
+            if r["paragraph_name"]:
+                ims["paragraphs"].add(r["paragraph_name"])
+            if fn and fn != "ENTRY" and r["paragraph_name"]:
+                ims_call_pairs_by_program.setdefault(r["program_id"], []).append((fn, r["paragraph_name"]))
+    except Exception:
+        pass
+
+    source_literals_by_program: Dict[str, Set[str]] = {}
+    source_status_by_program: Dict[str, Set[str]] = {}
+    try:
+        cur.execute("SELECT program_id, file_path FROM programs")
+        for r in cur.fetchall():
+            path = Path(r["file_path"] or "")
+            if not path.exists():
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            body_lines = []
+            for raw_line in text.splitlines():
+                if len(raw_line) > 6 and raw_line[6] == "*":
+                    continue
+                body = raw_line[6:] if len(raw_line) > 6 else raw_line
+                body_lines.append(body[:66] if len(body) > 66 else body)
+            body = "\n".join(body_lines)
+            m = re.search(r"\bWS-PGMNAME\b[\s\S]{0,90}?\bVALUE\s+['\"]([^'\"]+)['\"]", body, re.IGNORECASE)
+            if m:
+                source_literals_by_program.setdefault(r["program_id"], set()).add(f"WS-PGMNAME={m.group(1)}")
+            statuses = set()
+            if re.search(r"\bPAUT-PCB-STATUS\s*=\s*SPACES\b", body, re.IGNORECASE):
+                statuses.add("PAUT-PCB-STATUS = SPACES")
+            if re.search(r"\bPAUT-PCB-STATUS\s*=\s*['\"]II['\"]", body, re.IGNORECASE):
+                statuses.add("PAUT-PCB-STATUS = 'II'")
+            if re.search(r"\bWS-INFIL1-STATUS\b", body, re.IGNORECASE):
+                statuses.add("WS-INFIL1-STATUS")
+            if re.search(r"\bWS-INFIL2-STATUS\b", body, re.IGNORECASE):
+                statuses.add("WS-INFIL2-STATUS")
+            if statuses:
+                source_status_by_program[r["program_id"]] = statuses
+    except Exception:
+        pass
 
     invalid = 0
     below_min = 0
@@ -464,6 +600,7 @@ def _check_citations(db_path: str, report: ValidationReport) -> None:
         if mode not in ("Program", "Module", "Application"):
             continue
         docs_checked += 1
+        text_upper = text.upper()
 
         cites = set(PARA_CITE_PAT.findall(text))
         if not cites and mode == "Application":
@@ -482,10 +619,11 @@ def _check_citations(db_path: str, report: ValidationReport) -> None:
             scope = all_paragraphs
 
         # (a) Hallucinated citations — cited paragraph not in scope
-        bad = cites - scope - all_paragraphs  # not in this scope AND not in any program
+        paragraph_cites = cites - non_paragraph_ids
+        bad = paragraph_cites - scope - all_paragraphs  # not in this scope AND not in any program
         # We forgive citations that match any real paragraph (LLM might cite a related program's
         # paragraph). Hard error only when the name doesn't exist anywhere in the codebase.
-        truly_bad = cites - all_paragraphs
+        truly_bad = paragraph_cites - all_paragraphs
         if truly_bad:
             invalid += len(truly_bad)
             report.citation_errors.append(
@@ -501,7 +639,7 @@ def _check_citations(db_path: str, report: ValidationReport) -> None:
             )
 
         # (b) Minimum count check
-        in_scope_cites = cites & scope
+        in_scope_cites = paragraph_cites & scope
         min_required = MIN_CITATIONS.get(mode, 0)
         if mode == "Program":
             available = len(paras_by_program.get(subject, set()))
@@ -511,6 +649,83 @@ def _check_citations(db_path: str, report: ValidationReport) -> None:
             report.citation_warnings.append(
                 f"{mode}/{subject}: only {len(in_scope_cites)} paragraph citation(s); expected >= {min_required}"
             )
+
+        # (c) Source-grounding checks for cached generated Program docs.
+        if mode == "Program":
+            expected_copybooks = copybooks_by_program.get(subject, set())
+            if expected_copybooks:
+                if re.search(r"DOES\s+NOT\s+COPY\s+ANY\s+COPYBOOKS|NO\s+COPYBOOKS", text_upper):
+                    invalid += 1
+                    report.citation_errors.append(
+                        f"Program/{subject}: contradicts source by saying no copybooks; expected {', '.join(sorted(expected_copybooks))}"
+                    )
+                missing = sorted(cb for cb in expected_copybooks if cb.upper() not in text_upper)
+                if missing:
+                    invalid += len(missing)
+                    report.citation_errors.append(
+                        f"Program/{subject}: missing source COPY/copybook(s): {', '.join(missing)}"
+                    )
+
+            ims_expected = ims_by_program.get(subject, {})
+            if ims_expected.get("entry") and "DLITCBL" not in text_upper:
+                invalid += 1
+                report.citation_errors.append(
+                    f"Program/{subject}: missing IMS ENTRY 'DLITCBL' documentation"
+                )
+            for fn in sorted(ims_expected.get("functions", set())):
+                if fn.upper() not in text_upper:
+                    invalid += 1
+                    report.citation_errors.append(
+                        f"Program/{subject}: missing IMS CBLTDLI function {fn}"
+                    )
+            for ssa in sorted(ims_expected.get("ssas", set())):
+                if ssa.upper() not in text_upper:
+                    invalid += 1
+                    report.citation_errors.append(
+                        f"Program/{subject}: missing IMS SSA {ssa}"
+                    )
+            for para in sorted(ims_expected.get("paragraphs", set())):
+                if para.upper() not in text_upper:
+                    invalid += 1
+                    report.citation_errors.append(
+                        f"Program/{subject}: missing IMS call paragraph {para}"
+                    )
+            known_paras = paras_by_program.get(subject, set())
+            sentences = re.split(r"(?<=[.!?])\s+", text_upper)
+            fn_counts = {}
+            for fn, _para in ims_call_pairs_by_program.get(subject, []):
+                fn_counts[fn] = fn_counts.get(fn, 0) + 1
+            for fn, correct_para in ims_call_pairs_by_program.get(subject, []):
+                if fn_counts.get(fn, 0) != 1:
+                    continue
+                fn_upper = fn.upper()
+                correct_upper = correct_para.upper()
+                wrong_paras = [p.upper() for p in known_paras if p.upper() != correct_upper]
+                for sentence in sentences:
+                    if fn_upper not in sentence:
+                        continue
+                    for wrong_para in wrong_paras:
+                        if wrong_para in sentence and correct_upper not in sentence:
+                            invalid += 1
+                            report.citation_errors.append(
+                                f"Program/{subject}: misattributes IMS function {fn} to {wrong_para}; source shows {correct_para}"
+                            )
+                            break
+
+            for literal in sorted(source_literals_by_program.get(subject, set())):
+                name, value = literal.split("=", 1)
+                if name.upper() not in text_upper or value.upper() not in text_upper:
+                    invalid += 1
+                    report.citation_errors.append(
+                        f"Program/{subject}: missing source literal {name}='{value}'"
+                    )
+
+            for condition in sorted(source_status_by_program.get(subject, set())):
+                if condition.upper() not in text_upper:
+                    invalid += 1
+                    report.citation_errors.append(
+                        f"Program/{subject}: missing source status condition {condition}"
+                    )
 
     report.stats["citations_docs_checked"] = docs_checked
     report.stats["citations_invalid"] = invalid
@@ -593,11 +808,11 @@ def print_report(report: ValidationReport) -> None:
     elif cit_invalid > 0:
         cit_status = "FAIL"
         cit_color = "red"
-        cit_detail = f"{cit_checked} docs · {cit_invalid} hallucinated paragraph(s) · {cit_low} below-min"
+        cit_detail = f"{cit_checked} docs · {cit_invalid} citation/grounding issue(s) · {cit_low} below-min"
     else:
         cit_status = "PASS"
         cit_color = "green"
-        cit_detail = f"{cit_checked} docs · 0 hallucinated · {cit_low} below-min"
+        cit_detail = f"{cit_checked} docs · 0 citation/grounding issues · {cit_low} below-min"
     table.add_row(
         "Citations",
         f"[{cit_color}]{cit_status}[/{cit_color}]",
