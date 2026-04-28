@@ -2025,17 +2025,26 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
 
 
 def _call_vertex_for_doc(context: str, mode: str, subject: str) -> str:
-    """Send context to Gemini API and return a full English narrative document."""
+    """Send context to Vertex AI Gemini and return a full English narrative document."""
     try:
-        import google.generativeai as genai
+        from langchain_google_vertexai import ChatVertexAI
+        from langchain_core.messages import HumanMessage
 
-        api_key = os.environ.get("GEMINI_API_KEY")
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        project = os.environ.get("VERTEX_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        location = os.environ.get("VERTEX_LOCATION", "us-central1")
+        model_name = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash")
+        # gemini-2.0-flash caps max_output_tokens at 8192; 2.5-flash allows 65536.
+        max_tokens = int(os.environ.get(
+            "VERTEX_MAX_OUTPUT_TOKENS",
+            "8192" if "2.0" in model_name else "65536",
+        ))
 
-        generation_config = genai.types.GenerationConfig(
-            max_output_tokens=65536,
+        model = ChatVertexAI(
+            model_name=model_name,
+            project=project,
+            location=location,
             temperature=0.3,
+            max_output_tokens=max_tokens,
         )
 
         if mode == "Program":
@@ -2138,8 +2147,8 @@ SYSTEM DATA:
 
 Write the full Architecture Document now. Do not truncate any section:"""
 
-        response = model.generate_content(prompt, generation_config=generation_config)
-        return response.text
+        response = model.invoke([HumanMessage(content=prompt)])
+        return response.content
 
     except Exception as e:
         return f"Error generating documentation: {e}"
@@ -2418,12 +2427,18 @@ def _build_application_llm_context(data: dict) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _safe_mermaid_id(s: str) -> str:
-    """Sanitise a string for use as a Mermaid node ID."""
-    return s.replace("-", "_").replace(" ", "_").replace(".", "_").replace("/", "_")
+    """Sanitise a string for use as a Mermaid node ID — only alnum + underscore."""
+    import re as _re
+    return _re.sub(r"[^A-Za-z0-9_]", "_", s)
 
 
 def _build_program_call_diagram(loader, program_id: str, depth: int = 1) -> str:
-    """Build a simple call-graph flowchart centred on one program."""
+    """Program-centric flowchart: COBOL CALLs + CICS XCTL/LINK + JCL parents +
+    shared-copybook coupling. Falls back gracefully when CALL relationships are absent."""
+    import json as _json
+    cur = loader.conn.cursor()
+
+    # COBOL CALLs
     cg = loader.get_call_graph()
     callers = [e["caller_program"] for e in cg
                if e["called_program"] == program_id]
@@ -2431,80 +2446,230 @@ def _build_program_call_diagram(loader, program_id: str, depth: int = 1) -> str:
                if e["caller_program"] == program_id
                and e.get("called_program") not in ("UNKNOWN", None)]
 
+    # CICS XCTL/LINK transfers
+    cics_targets = []
+    try:
+        cur.execute("""
+            SELECT command, details_json FROM exec_cics
+            WHERE program_id = ? AND command IN ('XCTL','LINK')
+        """, (program_id,))
+        for r in cur.fetchall():
+            try:
+                d = _json.loads(r["details_json"] or "{}")
+                inner = d.get("details", d) or {}
+                tgt = inner.get("program")
+                if tgt:
+                    cics_targets.append((r["command"], tgt))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # JCL parent jobs
+    jcl_jobs = []
+    try:
+        cur.execute("SELECT DISTINCT job_name FROM jcl_steps WHERE program = ?", (program_id,))
+        jcl_jobs = [r["job_name"] for r in cur.fetchall()]
+    except Exception:
+        pass
+
+    # Programs sharing copybooks with this one
+    copy_partners = []
+    try:
+        cur.execute("""
+            SELECT cu2.program_id AS partner, GROUP_CONCAT(cu2.copybook_name) AS cbs
+            FROM copybook_usage cu1
+            JOIN copybook_usage cu2 ON cu1.copybook_name = cu2.copybook_name
+            WHERE cu1.program_id = ? AND cu2.program_id != ?
+            GROUP BY cu2.program_id
+            ORDER BY COUNT(*) DESC
+            LIMIT 6
+        """, (program_id, program_id))
+        copy_partners = [(r["partner"], r["cbs"]) for r in cur.fetchall()]
+    except Exception:
+        pass
+
     lines = ["flowchart LR"]
     sid = _safe_mermaid_id(program_id)
     lines.append(f'    {sid}["{program_id}"]:::focus')
 
+    # JCL parents (above)
+    for j in jcl_jobs[:8]:
+        jid = "JCL_" + _safe_mermaid_id(j)
+        lines.append(f'    {jid}[/"{j}.jcl"/]:::jcl')
+        lines.append(f"    {jid} ==> {sid}")
+
+    # COBOL callers
     for c in callers[:15]:
         cid = _safe_mermaid_id(c)
         lines.append(f'    {cid}["{c}"]:::caller')
         lines.append(f"    {cid} --> {sid}")
 
+    # COBOL callees
     for c in callees[:15]:
         cid = _safe_mermaid_id(c)
         lines.append(f'    {cid}["{c}"]:::callee')
         lines.append(f"    {sid} --> {cid}")
 
+    # CICS XCTL/LINK
+    for cmd, tgt in cics_targets[:10]:
+        tid = _safe_mermaid_id(tgt)
+        lines.append(f'    {tid}["{tgt}"]:::cics')
+        lines.append(f"    {sid} -->|CICS {cmd}| {tid}")
+
+    # Shared copybook partners (dashed, with copybook name as label)
+    for partner, cbs in copy_partners:
+        pid = _safe_mermaid_id(partner)
+        cb_label = cbs.split(",")[0] if cbs else "shared"
+        more = "" if (cbs or "").count(",") == 0 else f" +{cbs.count(',')}"
+        lines.append(f'    {pid}["{partner}"]:::partner')
+        lines.append(f'    {sid} -..->|"{cb_label}{more}"| {pid}')
+
     lines.append("    classDef focus fill:#388bfd,stroke:#58a6ff,color:#fff,stroke-width:2px")
     lines.append("    classDef caller fill:#f0883e,stroke:#db6d28,color:#fff")
     lines.append("    classDef callee fill:#2ea043,stroke:#3fb950,color:#fff")
+    lines.append("    classDef cics fill:#a371f7,stroke:#bc8cff,color:#fff")
+    lines.append("    classDef jcl fill:#d29922,stroke:#9e6a03,color:#fff")
+    lines.append("    classDef partner fill:#30363d,stroke:#6e7681,color:#c9d1d9")
     return "\n".join(lines)
 
 
 def _build_module_diagram(loader, module) -> str:
-    """Build a flowchart of programs inside a module with their call edges."""
+    """Module flowchart: COBOL CALLs + CICS XCTL/LINK + JCL parents +
+    shared-copybook coupling between module programs."""
+    import json as _json
     progs = module.get("programs", [])
     prog_ids = {p["program_id"] for p in progs}
+    if not prog_ids:
+        return "flowchart TD\n    empty[\"No programs in module\"]"
+
     cg = loader.get_call_graph()
+    cur = loader.conn.cursor()
+    placeholders = ",".join("?" * len(prog_ids))
+    prog_list = list(prog_ids)
 
     lines = ["flowchart TD"]
 
-    # Add nodes
+    # Program nodes
     for p in progs:
         pid = p["program_id"]
         sid = _safe_mermaid_id(pid)
         label = p.get("business_name") or pid
         ptype = p.get("program_type", "")
         style = "online" if ptype == "ONLINE" else "batch" if ptype == "BATCH" else "default_prog"
-        lines.append(f'    {sid}["{label}\\n({pid})"]:::{style}')
+        lines.append(f'    {sid}["{label}<br/>({pid})"]:::{style}')
 
-    # Internal call edges
     seen = set()
+
+    # 1) Direct COBOL CALL edges within the module
     for e in cg:
         src, tgt = e["caller_program"], e.get("called_program")
-        if src in prog_ids and tgt in prog_ids and f"{src}->{tgt}" not in seen:
+        if src in prog_ids and tgt in prog_ids and f"call:{src}->{tgt}" not in seen:
             lines.append(f"    {_safe_mermaid_id(src)} --> {_safe_mermaid_id(tgt)}")
-            seen.add(f"{src}->{tgt}")
+            seen.add(f"call:{src}->{tgt}")
 
-    # External call edges (show as dashed)
+    # 2) External COBOL CALLs (dashed)
     for e in cg:
         src, tgt = e["caller_program"], e.get("called_program")
         if tgt in (None, "UNKNOWN"):
             continue
-        if src in prog_ids and tgt not in prog_ids and f"{src}->{tgt}" not in seen:
+        if src in prog_ids and tgt not in prog_ids and f"call:{src}->{tgt}" not in seen:
             tid = _safe_mermaid_id(tgt)
             lines.append(f'    {tid}(["{tgt}"]):::external')
             lines.append(f"    {_safe_mermaid_id(src)} -.-> {tid}")
-            seen.add(f"{src}->{tgt}")
-        elif tgt in prog_ids and src not in prog_ids and f"{src}->{tgt}" not in seen:
+            seen.add(f"call:{src}->{tgt}")
+        elif tgt in prog_ids and src not in prog_ids and f"call:{src}->{tgt}" not in seen:
             sid = _safe_mermaid_id(src)
             lines.append(f'    {sid}(["{src}"]):::external')
             lines.append(f"    {sid} -.-> {_safe_mermaid_id(tgt)}")
-            seen.add(f"{src}->{tgt}")
+            seen.add(f"call:{src}->{tgt}")
+
+    # 3) CICS XCTL/LINK transfers from any module program
+    try:
+        cur.execute(f"""
+            SELECT program_id, command, details_json
+            FROM exec_cics
+            WHERE program_id IN ({placeholders}) AND command IN ('XCTL','LINK')
+        """, prog_list)
+        for r in cur.fetchall():
+            try:
+                d = _json.loads(r["details_json"] or "{}")
+                inner = d.get("details", d) or {}
+                tgt = inner.get("program")
+                if not tgt:
+                    continue
+                key = f"cics:{r['program_id']}->{tgt}"
+                if key in seen:
+                    continue
+                tid = _safe_mermaid_id(tgt)
+                if tgt not in prog_ids:
+                    lines.append(f'    {tid}(["{tgt}"]):::external')
+                lines.append(f"    {_safe_mermaid_id(r['program_id'])} -->|CICS {r['command']}| {tid}")
+                seen.add(key)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # 4) JCL parent jobs (above module programs)
+    try:
+        cur.execute(f"""
+            SELECT DISTINCT program, job_name FROM jcl_steps
+            WHERE program IN ({placeholders})
+        """, prog_list)
+        jcl_seen = set()
+        for r in cur.fetchall():
+            jname = r["job_name"]
+            if jname not in jcl_seen:
+                jid = "JCL_" + _safe_mermaid_id(jname)
+                lines.append(f'    {jid}[/"{jname}.jcl"/]:::jcl')
+                jcl_seen.add(jname)
+            jid = "JCL_" + _safe_mermaid_id(jname)
+            lines.append(f"    {jid} ==> {_safe_mermaid_id(r['program'])}")
+    except Exception:
+        pass
+
+    # 5) Shared-copybook coupling between module programs (dashed, label = copybook)
+    try:
+        cur.execute(f"""
+            SELECT cu1.program_id AS p1, cu2.program_id AS p2, cu1.copybook_name AS cb
+            FROM copybook_usage cu1
+            JOIN copybook_usage cu2 ON cu1.copybook_name = cu2.copybook_name
+            WHERE cu1.program_id IN ({placeholders})
+              AND cu2.program_id IN ({placeholders})
+              AND cu1.program_id < cu2.program_id
+        """, prog_list + prog_list)
+        cb_pairs = {}  # (p1,p2) -> set(copybooks)
+        for r in cur.fetchall():
+            cb_pairs.setdefault((r["p1"], r["p2"]), set()).add(r["cb"])
+        for (p1, p2), cbs in list(cb_pairs.items())[:20]:
+            cb_label = sorted(cbs)[0]
+            more = "" if len(cbs) == 1 else f" +{len(cbs)-1}"
+            lines.append(
+                f'    {_safe_mermaid_id(p1)} -..->|"{cb_label}{more}"| {_safe_mermaid_id(p2)}'
+            )
+    except Exception:
+        pass
 
     lines.append("    classDef online fill:#388bfd,stroke:#58a6ff,color:#fff")
     lines.append("    classDef batch fill:#f0883e,stroke:#db6d28,color:#fff")
     lines.append("    classDef default_prog fill:#2ea043,stroke:#3fb950,color:#fff")
     lines.append("    classDef external fill:#30363d,stroke:#8b949e,color:#8b949e,stroke-dasharray:5 5")
+    lines.append("    classDef jcl fill:#d29922,stroke:#9e6a03,color:#fff")
     return "\n".join(lines)
 
 
 def _build_application_diagram(loader) -> str:
-    """Build an application-level diagram: modules as subgraphs, inter-module call edges."""
+    """Application-level diagram: module subgraphs + inter-module COBOL CALLs +
+    inter-module CICS XCTL/LINK + cross-module copybook coupling.
+    Aggregated to module level so the diagram stays readable."""
+    import json as _json
+    from collections import defaultdict
     modules = loader.get_all_modules()
     cg = loader.get_call_graph()
+    cur = loader.conn.cursor()
 
-    # Map program → module name
+    # Map program → module business name
     prog_to_module = {}
     for m in modules:
         mname = m.get("business_name") or m.get("module_name", "Unknown")
@@ -2518,25 +2683,82 @@ def _build_application_diagram(loader) -> str:
         mname = m.get("business_name") or m.get("module_name", "Unknown")
         mid = _safe_mermaid_id(mname)
         progs = m.get("programs", [])
-        lines.append(f"    subgraph {mid}[\"{mname}\"]")
+        lines.append(f'    subgraph {mid}["{mname}"]')
         for p in progs:
             pid = p["program_id"]
             sid = _safe_mermaid_id(pid)
             lines.append(f'        {sid}["{pid}"]')
         lines.append("    end")
 
-    # Inter-module call edges only (skip intra-module to keep it clean)
-    seen = set()
+    seen_edges = set()
+
+    # 1) Inter-module COBOL CALL edges (program → program)
     for e in cg:
         src, tgt = e["caller_program"], e.get("called_program")
         if tgt in (None, "UNKNOWN"):
             continue
         src_mod = prog_to_module.get(src)
         tgt_mod = prog_to_module.get(tgt)
-        if src_mod and tgt_mod and src_mod != tgt_mod and f"{src}->{tgt}" not in seen:
-            lines.append(f"    {_safe_mermaid_id(src)} --> {_safe_mermaid_id(tgt)}")
-            seen.add(f"{src}->{tgt}")
+        if src_mod and tgt_mod and src_mod != tgt_mod:
+            key = f"call:{src}->{tgt}"
+            if key not in seen_edges:
+                lines.append(f"    {_safe_mermaid_id(src)} --> {_safe_mermaid_id(tgt)}")
+                seen_edges.add(key)
 
+    # 2) Inter-module CICS XCTL/LINK edges
+    try:
+        cur.execute("""
+            SELECT program_id, command, details_json FROM exec_cics
+            WHERE command IN ('XCTL','LINK')
+        """)
+        for r in cur.fetchall():
+            try:
+                d = _json.loads(r["details_json"] or "{}")
+                inner = d.get("details", d) or {}
+                tgt = inner.get("program")
+                if not tgt:
+                    continue
+                src = r["program_id"]
+                src_mod = prog_to_module.get(src)
+                tgt_mod = prog_to_module.get(tgt)
+                if src_mod and tgt_mod and src_mod != tgt_mod:
+                    key = f"cics:{src}->{tgt}"
+                    if key not in seen_edges:
+                        lines.append(f"    {_safe_mermaid_id(src)} -->|CICS {r['command']}| {_safe_mermaid_id(tgt)}")
+                        seen_edges.add(key)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # 3) Cross-module copybook coupling — aggregate at MODULE level so it's readable.
+    #    Pick the top N module pairs by number of shared copybooks.
+    try:
+        cur.execute("""
+            SELECT cu1.program_id AS p1, cu2.program_id AS p2, COUNT(DISTINCT cu1.copybook_name) AS shared
+            FROM copybook_usage cu1
+            JOIN copybook_usage cu2 ON cu1.copybook_name = cu2.copybook_name
+            WHERE cu1.program_id < cu2.program_id
+            GROUP BY cu1.program_id, cu2.program_id
+        """)
+        module_couplings = defaultdict(int)
+        for r in cur.fetchall():
+            m1 = prog_to_module.get(r["p1"])
+            m2 = prog_to_module.get(r["p2"])
+            if m1 and m2 and m1 != m2:
+                key = tuple(sorted((m1, m2)))
+                module_couplings[key] += r["shared"]
+        # Top 12 module pairs (dashed edge between subgraphs labelled with copybook count)
+        top = sorted(module_couplings.items(), key=lambda x: -x[1])[:12]
+        for (m1, m2), n in top:
+            lines.append(
+                f'    {_safe_mermaid_id(m1)} -..->|"{n} shared cb"| {_safe_mermaid_id(m2)}'
+            )
+    except Exception:
+        pass
+
+    # 4) Module styling
+    lines.append("    classDef external fill:#30363d,stroke:#8b949e,color:#8b949e,stroke-dasharray:5 5")
     return "\n".join(lines)
 
 

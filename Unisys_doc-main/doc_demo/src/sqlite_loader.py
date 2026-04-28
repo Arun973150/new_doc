@@ -29,7 +29,9 @@ class SQLiteLoader:
     def connect(self):
         """Connect to the database and initialize schema."""
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(self.db_path)
+        # check_same_thread=False so the loader can be cached across Streamlit reruns
+        # (Streamlit dispatches reruns on different threads).
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
 

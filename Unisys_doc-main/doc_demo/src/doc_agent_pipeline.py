@@ -11,7 +11,7 @@ import re
 import functools
 from typing import TypedDict
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_vertexai import ChatVertexAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 
@@ -37,11 +37,19 @@ class DocAgentState(TypedDict):
 # ── LLM factory ───────────────────────────────────────────────────────────────
 
 def _get_llm():
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=os.environ.get("GEMINI_API_KEY"),
+    # gemini-2.0-flash caps max_output_tokens at 8192;
+    # gemini-2.5-flash supports up to 65536. Pick a safe default per model.
+    model_name = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash")
+    max_tokens = int(os.environ.get(
+        "VERTEX_MAX_OUTPUT_TOKENS",
+        "8192" if "2.0" in model_name else "65536",
+    ))
+    return ChatVertexAI(
+        model_name=model_name,
+        project=os.environ.get("VERTEX_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT"),
+        location=os.environ.get("VERTEX_LOCATION", "us-central1"),
         temperature=0.3,
-        max_tokens=65536,
+        max_output_tokens=max_tokens,
     )
 
 

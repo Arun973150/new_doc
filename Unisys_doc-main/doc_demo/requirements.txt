@@ -11,6 +11,8 @@ langgraph>=0.0.30
 langchain>=0.1.0
 langchain-groq>=0.1.0
 groq>=0.4.0            # Direct Groq SDK for Chat CLI
+langchain-google-vertexai>=2.0.0   # Vertex AI Gemini
+google-cloud-aiplatform>=1.60.0    # Vertex AI SDK (transitive but explicit)
 
 # Database
 neo4j>=5.15.0
