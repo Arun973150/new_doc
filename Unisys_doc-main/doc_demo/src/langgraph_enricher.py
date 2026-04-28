@@ -12,7 +12,7 @@ import re
 from typing import TypedDict, List, Dict, Any, Optional
 from pathlib import Path
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_vertexai import ChatVertexAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 from pydantic import BaseModel, Field
@@ -193,16 +193,18 @@ class CobolEnricher:
     def __init__(self, groq_api_key: str = None, model: str = "gemini-2.5-flash",
                  max_programs: int = 50,
                  vertex_project: str = None, vertex_location: str = "us-central1"):
-        api_key = os.environ.get("GEMINI_API_KEY")
-        self.llm = ChatGoogleGenerativeAI(
-            model=model,
-            google_api_key=api_key,
+        project = vertex_project or os.environ.get("VERTEX_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        location = vertex_location or os.environ.get("VERTEX_LOCATION", "us-central1")
+        self.llm = ChatVertexAI(
+            model_name=model,
+            project=project,
+            location=location,
             temperature=0.1,
-            max_tokens=4096,
+            max_output_tokens=4096,
         )
         self.max_programs = max_programs
         self.graph = self._build_graph()
-        console.print(f"[green]OK - Gemini API initialized: {model}[/green]")
+        console.print(f"[green]OK - Vertex AI initialized: {model} (project={project}, location={location})[/green]")
 
     def _build_graph(self) -> StateGraph:
         workflow = StateGraph(EnrichmentState)
