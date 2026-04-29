@@ -17,7 +17,12 @@ Customer Data Processing
 
 
 
+## Data Files Used
+
+| File | Type | Access | Program |
+|------|------|--------|---------|
+| `CUSTFILE-FILE` | VSAM | SEQUENTIAL | CBCUS01C |
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:27*

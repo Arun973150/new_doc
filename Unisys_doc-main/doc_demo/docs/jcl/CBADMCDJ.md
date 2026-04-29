@@ -143,9 +143,6 @@
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [DFHCSDUP](../programs/DFHCSDUP.md)
 
 ### Input Datasets
 
@@ -154,4 +151,4 @@
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

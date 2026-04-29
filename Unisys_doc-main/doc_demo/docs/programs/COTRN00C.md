@@ -12,10 +12,27 @@
 | Lines | 700 |
 | Source | [COTRN00C.cbl](../carddemo/COTRN00C.cbl#L1) |
 | Paragraphs | 16 |
-| Statements | 63 |
+| Statements | 89 |
 | Impact Risk | **HIGH** — 26 programs affected |
 
 > **View Source:** [Open COTRN00C.cbl](../carddemo/COTRN00C.cbl#L1)
+
+## Source Grounding Facts
+
+| Data Item | Literal Value |
+|-----------|---------------|
+| `WS-VARIABLES` | `COTRN00C` |
+| `WS-TRANID` | `CT00` |
+| `WS-MESSAGE` | `TRANSACT` |
+| `WS-ERR-FLG` | `N` |
+| `WS-TRANSACT-EOF` | `N` |
+| `WS-SEND-ERASE-FLG` | `Y` |
+| `WS-TRAN-AMT` | `00/00/00` |
+
+
+## Business Purpose
+
+*Business purpose is not present in the extracted data. Run LLM enrichment to populate this section.*
 
 
 
@@ -46,6 +63,178 @@
 | `CVTRA05Y` | CBACT04C, CBEXPORT, CBIMPORT, CBTRN01C, CBTRN02C (+5 more) | 10 |
 | `DFHAID` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
 | `DFHBMSCA` | COACTUPC, COACTVWC, COADM01C, COBIL00C, COCRDLIC (+15 more) | 20 |
+
+
+## Legacy Data Contracts
+
+> These tables are derived from FILE SECTION records and COPY-expanded data declarations. They preserve the legacy field names, COBOL storage type, inferred modern type, and status-code values needed for Java DTOs, SQL schemas, API contracts, and migration mapping.
+
+
+### Copybook Segment Layouts
+
+#### `COCOM01Y` as `CARDDEMO-COMMAREA`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `CARDDEMO-COMMAREA` | Carddemo Commarea | `GROUP` | `OBJECT` |  |
+| `CDEMO-GENERAL-INFO` | General Info | `GROUP` | `OBJECT` |  |
+| `CDEMO-FROM-TRANID` | From Tranid | `PIC X(04)` | `STRING(4)` |  |
+| `CDEMO-FROM-PROGRAM` | From Program | `PIC X(08)` | `STRING(8)` |  |
+| `CDEMO-TO-TRANID` | To Tranid | `PIC X(04)` | `STRING(4)` |  |
+| `CDEMO-TO-PROGRAM` | To Program | `PIC X(08)` | `STRING(8)` |  |
+| `CDEMO-USER-ID` | User ID | `PIC X(08)` | `STRING(8)` |  |
+| `CDEMO-USER-TYPE` | User Type | `PIC X(01)` | `STRING(1)` |  |
+| `CDEMO-PGM-CONTEXT` | Pgm Context | `PIC 9(01)` | `INTEGER` |  |
+| `CDEMO-CUSTOMER-INFO` | Customer Info | `GROUP` | `OBJECT` |  |
+| `CDEMO-CUST-ID` | Customer ID | `PIC 9(09)` | `INTEGER` |  |
+| `CDEMO-CUST-FNAME` | Customer Fname | `PIC X(25)` | `STRING(25)` |  |
+| `CDEMO-CUST-MNAME` | Customer Mname | `PIC X(25)` | `STRING(25)` |  |
+| `CDEMO-CUST-LNAME` | Customer Lname | `PIC X(25)` | `STRING(25)` |  |
+| `CDEMO-ACCOUNT-INFO` | Account Info | `GROUP` | `OBJECT` |  |
+| `CDEMO-ACCT-ID` | Account ID | `PIC 9(11)` | `BIGINT` |  |
+| `CDEMO-ACCT-STATUS` | Account Status | `PIC X(01)` | `STRING(1)` |  |
+| `CDEMO-CARD-INFO` | Card Info | `GROUP` | `OBJECT` |  |
+| `CDEMO-CARD-NUM` | Card Number | `PIC 9(16)` | `BIGINT` |  |
+| `CDEMO-MORE-INFO` | More Info | `GROUP` | `OBJECT` |  |
+| `CDEMO-LAST-MAP` | Last Map | `PIC X(7)` | `STRING(7)` |  |
+| `CDEMO-LAST-MAPSET` | Last Mapset | `PIC X(7)` | `STRING(7)` |  |
+
+#### `COTRN00` as `COTRN0AI`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `COTRN0AI` | Cotrn0Ai | `GROUP` | `OBJECT` |  |
+| `COTRN0AO` | Cotrn0Ao | `GROUP` | `OBJECT` |  |
+
+#### `COTTL01Y` as `CCDA-SCREEN-TITLE`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `CCDA-SCREEN-TITLE` | Ccda Screen Title | `GROUP` | `OBJECT` |  |
+| `CCDA-TITLE01` | Ccda Title01 | `PIC X(40)` | `STRING(40)` |  |
+| `CCDA-TITLE02` | Ccda Title02 | `PIC X(40)` | `STRING(40)` |  |
+| `CCDA-THANK-YOU` | Ccda Thank You | `PIC X(40)` | `STRING(40)` |  |
+
+#### `CSDAT01Y` as `WS-DATE-TIME`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `WS-DATE-TIME` | Date Time | `GROUP` | `OBJECT` |  |
+| `WS-CURDATE-DATA` | Curdate Data | `GROUP` | `OBJECT` |  |
+| `WS-CURDATE` | Curdate | `GROUP` | `OBJECT` |  |
+| `WS-CURDATE-YEAR` | Curdate Year | `PIC 9(04)` | `INTEGER` |  |
+| `WS-CURDATE-MONTH` | Curdate Month | `PIC 9(02)` | `INTEGER` |  |
+| `WS-CURDATE-DAY` | Curdate Day | `PIC 9(02)` | `INTEGER` |  |
+| `WS-CURDATE-N` | Curdate N | `PIC 9(08)` | `INTEGER` |  |
+| `WS-CURTIME` | Curtime | `GROUP` | `OBJECT` |  |
+| `WS-CURTIME-HOURS` | Curtime Hours | `PIC 9(02)` | `INTEGER` |  |
+| `WS-CURTIME-MINUTE` | Curtime Minute | `PIC 9(02)` | `INTEGER` |  |
+| `WS-CURTIME-SECOND` | Curtime Second | `PIC 9(02)` | `INTEGER` |  |
+| `WS-CURTIME-MILSEC` | Curtime Milsec | `PIC 9(02)` | `INTEGER` |  |
+| `WS-CURTIME-N` | Curtime N | `PIC 9(08)` | `INTEGER` |  |
+| `WS-CURDATE-MM-DD-YY` | Curdate Mm Dd Yy | `GROUP` | `OBJECT` |  |
+| `WS-CURDATE-MM` | Curdate Mm | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-CURDATE-DD` | Curdate Dd | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-CURDATE-YY` | Curdate Yy | `PIC 9(02)` | `INTEGER` |  |
+| `WS-CURTIME-HH-MM-SS` | Curtime Hh Mm Ss | `GROUP` | `OBJECT` |  |
+| `WS-CURTIME-HH` | Curtime Hh | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-CURTIME-MM` | Curtime Mm | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-CURTIME-SS` | Curtime Ss | `PIC 9(02)` | `INTEGER` |  |
+| `WS-TIMESTAMP` | Timestamp | `GROUP` | `OBJECT` |  |
+| `WS-TIMESTAMP-DT-YYYY` | Timestamp Date Yyyy | `PIC 9(04)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-TIMESTAMP-DT-MM` | Timestamp Date Mm | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-TIMESTAMP-DT-DD` | Timestamp Date Dd | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-TIMESTAMP-TM-HH` | Timestamp Tm Hh | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-TIMESTAMP-TM-MM` | Timestamp Tm Mm | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-TIMESTAMP-TM-SS` | Timestamp Tm Ss | `PIC 9(02)` | `INTEGER` |  |
+| `FILLER` | Filler | `PIC X(01)` | `STRING(1)` |  |
+| `WS-TIMESTAMP-TM-MS6` | Timestamp Tm Ms6 | `PIC 9(06)` | `INTEGER` |  |
+
+#### `CSMSG01Y` as `CCDA-COMMON-MESSAGES`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `CCDA-COMMON-MESSAGES` | Ccda Common Messages | `GROUP` | `OBJECT` |  |
+| `CCDA-MSG-THANK-YOU` | Ccda Msg Thank You | `PIC X(50)` | `STRING(50)` |  |
+| `CCDA-MSG-INVALID-KEY` | Ccda Msg Invalid Key | `PIC X(50)` | `STRING(50)` |  |
+
+#### `CVTRA05Y` as `TRAN-RECORD`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `TRAN-RECORD` | Tran Record | `GROUP` | `OBJECT` |  |
+| `TRAN-ID` | Tran ID | `PIC X(16)` | `STRING(16)` |  |
+| `TRAN-TYPE-CD` | Tran Type Cd | `PIC X(02)` | `STRING(2)` |  |
+| `TRAN-CAT-CD` | Tran Cat Cd | `PIC 9(04)` | `INTEGER` |  |
+| `TRAN-SOURCE` | Tran Source | `PIC X(10)` | `STRING(10)` |  |
+| `TRAN-DESC` | Tran Desc | `PIC X(100)` | `STRING(100)` |  |
+| `TRAN-AMT` | Tran Amount | `PIC S9(09)V99` | `DECIMAL(11,2)` |  |
+| `TRAN-MERCHANT-ID` | Tran Merchant ID | `PIC 9(09)` | `INTEGER` |  |
+| `TRAN-MERCHANT-NAME` | Tran Merchant Name | `PIC X(50)` | `STRING(50)` |  |
+| `TRAN-MERCHANT-CITY` | Tran Merchant City | `PIC X(50)` | `STRING(50)` |  |
+| `TRAN-MERCHANT-ZIP` | Tran Merchant Zip | `PIC X(10)` | `STRING(10)` |  |
+| `TRAN-CARD-NUM` | Tran Card Number | `PIC X(16)` | `STRING(16)` |  |
+| `TRAN-ORIG-TS` | Tran Orig Ts | `PIC X(26)` | `STRING(26)` |  |
+| `TRAN-PROC-TS` | Tran Proc Ts | `PIC X(26)` | `STRING(26)` |  |
+| `FILLER` | Filler | `PIC X(20)` | `STRING(20)` |  |
+
+#### `DFHAID` as `DFHAID`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `DFHAID` | Dfhaid | `GROUP` | `OBJECT` |  |
+
+#### `DFHBMSCA` as `DFHBMSCA`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `DFHBMSCA` | Dfhbmsca | `GROUP` | `OBJECT` |  |
+
+
+### Data Movement And Key Mapping
+
+| Line | Source | Target | Meaning |
+|------|--------|--------|---------|
+| 102 | `SPACES` | `WS-MESSAGE` | SPACES populates WS-MESSAGE |
+| 132 | `CCDA-MSG-INVALID-KEY` | `WS-MESSAGE` | CCDA-MSG-INVALID-KEY populates WS-MESSAGE |
+| 383 | `TRAN-AMT` | `WS-TRAN-AMT` | TRAN-AMT populates WS-TRAN-AMT |
+| 385 | `WS-TIMESTAMP-DT-YYYY(3:2)` | `WS-CURDATE-YY` | WS-TIMESTAMP-DT-YYYY(3:2) populates WS-CURDATE-YY |
+| 386 | `WS-TIMESTAMP-DT-MM` | `WS-CURDATE-MM` | WS-TIMESTAMP-DT-MM populates WS-CURDATE-MM |
+| 387 | `WS-TIMESTAMP-DT-DD` | `WS-CURDATE-DD` | WS-TIMESTAMP-DT-DD populates WS-CURDATE-DD |
+| 388 | `WS-CURDATE-MM-DD-YY` | `WS-TRAN-DATE` | WS-CURDATE-MM-DD-YY populates WS-TRAN-DATE |
+| 394 | `WS-TRAN-DATE` | `TDATE01I OF COTRN0AI` | WS-TRAN-DATE populates TDATE01I OF COTRN0AI |
+| 396 | `WS-TRAN-AMT` | `TAMT001I OF COTRN0AI` | WS-TRAN-AMT populates TAMT001I OF COTRN0AI |
+| 399 | `WS-TRAN-DATE` | `TDATE02I OF COTRN0AI` | WS-TRAN-DATE populates TDATE02I OF COTRN0AI |
+| 401 | `WS-TRAN-AMT` | `TAMT002I OF COTRN0AI` | WS-TRAN-AMT populates TAMT002I OF COTRN0AI |
+| 404 | `WS-TRAN-DATE` | `TDATE03I OF COTRN0AI` | WS-TRAN-DATE populates TDATE03I OF COTRN0AI |
+| 406 | `WS-TRAN-AMT` | `TAMT003I OF COTRN0AI` | WS-TRAN-AMT populates TAMT003I OF COTRN0AI |
+| 409 | `WS-TRAN-DATE` | `TDATE04I OF COTRN0AI` | WS-TRAN-DATE populates TDATE04I OF COTRN0AI |
+| 411 | `WS-TRAN-AMT` | `TAMT004I OF COTRN0AI` | WS-TRAN-AMT populates TAMT004I OF COTRN0AI |
+| 414 | `WS-TRAN-DATE` | `TDATE05I OF COTRN0AI` | WS-TRAN-DATE populates TDATE05I OF COTRN0AI |
+| 416 | `WS-TRAN-AMT` | `TAMT005I OF COTRN0AI` | WS-TRAN-AMT populates TAMT005I OF COTRN0AI |
+| 419 | `WS-TRAN-DATE` | `TDATE06I OF COTRN0AI` | WS-TRAN-DATE populates TDATE06I OF COTRN0AI |
+| 421 | `WS-TRAN-AMT` | `TAMT006I OF COTRN0AI` | WS-TRAN-AMT populates TAMT006I OF COTRN0AI |
+| 424 | `WS-TRAN-DATE` | `TDATE07I OF COTRN0AI` | WS-TRAN-DATE populates TDATE07I OF COTRN0AI |
+| 426 | `WS-TRAN-AMT` | `TAMT007I OF COTRN0AI` | WS-TRAN-AMT populates TAMT007I OF COTRN0AI |
+| 429 | `WS-TRAN-DATE` | `TDATE08I OF COTRN0AI` | WS-TRAN-DATE populates TDATE08I OF COTRN0AI |
+| 431 | `WS-TRAN-AMT` | `TAMT008I OF COTRN0AI` | WS-TRAN-AMT populates TAMT008I OF COTRN0AI |
+| 434 | `WS-TRAN-DATE` | `TDATE09I OF COTRN0AI` | WS-TRAN-DATE populates TDATE09I OF COTRN0AI |
+| 436 | `WS-TRAN-AMT` | `TAMT009I OF COTRN0AI` | WS-TRAN-AMT populates TAMT009I OF COTRN0AI |
+| 440 | `WS-TRAN-DATE` | `TDATE10I OF COTRN0AI` | WS-TRAN-DATE populates TDATE10I OF COTRN0AI |
+| 442 | `WS-TRAN-AMT` | `TAMT010I OF COTRN0AI` | WS-TRAN-AMT populates TAMT010I OF COTRN0AI |
+| 455 | `SPACES` | `TDATE01I OF COTRN0AI` | SPACES populates TDATE01I OF COTRN0AI |
+| 457 | `SPACES` | `TAMT001I OF COTRN0AI` | SPACES populates TAMT001I OF COTRN0AI |
+| 460 | `SPACES` | `TDATE02I OF COTRN0AI` | SPACES populates TDATE02I OF COTRN0AI |
+
 
 
 ---
@@ -172,8 +361,8 @@ flowchart TD
 
 | Statement Type | Count |
 |---------------|-------|
+| IF | 38 |
 | MOVE | 29 |
-| IF | 12 |
 | EXEC_CICS | 7 |
 | EVALUATE | 6 |
 | SET | 5 |
@@ -213,8 +402,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `MAIN-PARA` |
-| **Lines** | 1077 - 1123 |
-| **View Code** | [Jump to Line 1077](../carddemo/COTRN00C.cbl#L1077) |
+| **Lines** | 95 - 145 |
+| **View Code** | [Jump to Line 95](../carddemo/COTRN00C.cbl#L95) |
 
 
 
@@ -223,8 +412,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `PROCESS-ENTER-KEY` |
-| **Lines** | 1128 - 1211 |
-| **View Code** | [Jump to Line 1128](../carddemo/COTRN00C.cbl#L1128) |
+| **Lines** | 146 - 233 |
+| **View Code** | [Jump to Line 146](../carddemo/COTRN00C.cbl#L146) |
 
 
 
@@ -233,8 +422,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `PROCESS-PF7-KEY` |
-| **Lines** | 1216 - 1234 |
-| **View Code** | [Jump to Line 1216](../carddemo/COTRN00C.cbl#L1216) |
+| **Lines** | 234 - 256 |
+| **View Code** | [Jump to Line 234](../carddemo/COTRN00C.cbl#L234) |
 
 
 
@@ -243,8 +432,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `PROCESS-PF8-KEY` |
-| **Lines** | 1239 - 1256 |
-| **View Code** | [Jump to Line 1239](../carddemo/COTRN00C.cbl#L1239) |
+| **Lines** | 257 - 278 |
+| **View Code** | [Jump to Line 257](../carddemo/COTRN00C.cbl#L257) |
 
 
 
@@ -253,8 +442,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `PROCESS-PAGE-FORWARD` |
-| **Lines** | 1261 - 1310 |
-| **View Code** | [Jump to Line 1261](../carddemo/COTRN00C.cbl#L1261) |
+| **Lines** | 279 - 332 |
+| **View Code** | [Jump to Line 279](../carddemo/COTRN00C.cbl#L279) |
 
 
 
@@ -263,8 +452,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `PROCESS-PAGE-BACKWARD` |
-| **Lines** | 1315 - 1358 |
-| **View Code** | [Jump to Line 1315](../carddemo/COTRN00C.cbl#L1315) |
+| **Lines** | 333 - 380 |
+| **View Code** | [Jump to Line 333](../carddemo/COTRN00C.cbl#L333) |
 
 
 
@@ -273,8 +462,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `POPULATE-TRAN-DATA` |
-| **Lines** | 1363 - 1427 |
-| **View Code** | [Jump to Line 1363](../carddemo/COTRN00C.cbl#L1363) |
+| **Lines** | 381 - 449 |
+| **View Code** | [Jump to Line 381](../carddemo/COTRN00C.cbl#L381) |
 
 
 
@@ -283,8 +472,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `INITIALIZE-TRAN-DATA` |
-| **Lines** | 1432 - 1487 |
-| **View Code** | [Jump to Line 1432](../carddemo/COTRN00C.cbl#L1432) |
+| **Lines** | 450 - 509 |
+| **View Code** | [Jump to Line 450](../carddemo/COTRN00C.cbl#L450) |
 
 
 
@@ -293,8 +482,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `RETURN-TO-PREV-SCREEN` |
-| **Lines** | 1492 - 1503 |
-| **View Code** | [Jump to Line 1492](../carddemo/COTRN00C.cbl#L1492) |
+| **Lines** | 510 - 526 |
+| **View Code** | [Jump to Line 510](../carddemo/COTRN00C.cbl#L510) |
 
 
 
@@ -303,8 +492,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `SEND-TRNLST-SCREEN` |
-| **Lines** | 1509 - 1531 |
-| **View Code** | [Jump to Line 1509](../carddemo/COTRN00C.cbl#L1509) |
+| **Lines** | 527 - 553 |
+| **View Code** | [Jump to Line 527](../carddemo/COTRN00C.cbl#L527) |
 
 
 
@@ -313,8 +502,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `RECEIVE-TRNLST-SCREEN` |
-| **Lines** | 1536 - 1544 |
-| **View Code** | [Jump to Line 1536](../carddemo/COTRN00C.cbl#L1536) |
+| **Lines** | 554 - 566 |
+| **View Code** | [Jump to Line 554](../carddemo/COTRN00C.cbl#L554) |
 
 
 
@@ -323,8 +512,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `POPULATE-HEADER-INFO` |
-| **Lines** | 1549 - 1568 |
-| **View Code** | [Jump to Line 1549](../carddemo/COTRN00C.cbl#L1549) |
+| **Lines** | 567 - 590 |
+| **View Code** | [Jump to Line 567](../carddemo/COTRN00C.cbl#L567) |
 
 
 
@@ -333,8 +522,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `STARTBR-TRANSACT-FILE` |
-| **Lines** | 1573 - 1601 |
-| **View Code** | [Jump to Line 1573](../carddemo/COTRN00C.cbl#L1573) |
+| **Lines** | 591 - 623 |
+| **View Code** | [Jump to Line 591](../carddemo/COTRN00C.cbl#L591) |
 
 
 
@@ -343,8 +532,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `READNEXT-TRANSACT-FILE` |
-| **Lines** | 1606 - 1635 |
-| **View Code** | [Jump to Line 1606](../carddemo/COTRN00C.cbl#L1606) |
+| **Lines** | 624 - 657 |
+| **View Code** | [Jump to Line 624](../carddemo/COTRN00C.cbl#L624) |
 
 
 
@@ -353,8 +542,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `READPREV-TRANSACT-FILE` |
-| **Lines** | 1640 - 1669 |
-| **View Code** | [Jump to Line 1640](../carddemo/COTRN00C.cbl#L1640) |
+| **Lines** | 658 - 691 |
+| **View Code** | [Jump to Line 658](../carddemo/COTRN00C.cbl#L658) |
 
 
 
@@ -363,10 +552,491 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `ENDBR-TRANSACT-FILE` |
-| **Lines** | 1674 - 1678 |
-| **View Code** | [Jump to Line 1674](../carddemo/COTRN00C.cbl#L1674) |
+| **Lines** | 692 - 699 |
+| **View Code** | [Jump to Line 692](../carddemo/COTRN00C.cbl#L692) |
 
 
+
+
+
+
+
+## Copybook Field Dictionaries
+
+The following copybooks are included by this program. Each entry shows the actual fields
+extracted from the copybook source file (`.cpy`).
+
+### Copybook `COCOM01Y`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `CARDDEMO-COMMAREA` | `None` | None | None |  |
+| `05` | `CDEMO-GENERAL-INFO` | `None` | None | CARDDEMO-COMMAREA |  |
+| `10` | `CDEMO-FROM-TRANID` | `X(04)` | None | CDEMO-GENERAL-INFO |  |
+| `10` | `CDEMO-FROM-PROGRAM` | `X(08)` | None | CDEMO-GENERAL-INFO |  |
+| `10` | `CDEMO-TO-TRANID` | `X(04)` | None | CDEMO-GENERAL-INFO |  |
+| `10` | `CDEMO-TO-PROGRAM` | `X(08)` | None | CDEMO-GENERAL-INFO |  |
+| `10` | `CDEMO-USER-ID` | `X(08)` | None | CDEMO-GENERAL-INFO |  |
+| `10` | `CDEMO-USER-TYPE` | `X(01)` | None | CDEMO-GENERAL-INFO |  |
+| `88` | `CDEMO-USRTYP-ADMIN` | `None` | None | CDEMO-GENERAL-INFO |  |
+| `88` | `CDEMO-USRTYP-USER` | `None` | None | CDEMO-GENERAL-INFO |  |
+| `10` | `CDEMO-PGM-CONTEXT` | `9(01)` | None | CDEMO-GENERAL-INFO |  |
+| `88` | `CDEMO-PGM-ENTER` | `None` | None | CDEMO-GENERAL-INFO |  |
+| `88` | `CDEMO-PGM-REENTER` | `None` | None | CDEMO-GENERAL-INFO |  |
+| `05` | `CDEMO-CUSTOMER-INFO` | `None` | None | CARDDEMO-COMMAREA |  |
+| `10` | `CDEMO-CUST-ID` | `9(09)` | None | CDEMO-CUSTOMER-INFO |  |
+| `10` | `CDEMO-CUST-FNAME` | `X(25)` | None | CDEMO-CUSTOMER-INFO |  |
+| `10` | `CDEMO-CUST-MNAME` | `X(25)` | None | CDEMO-CUSTOMER-INFO |  |
+| `10` | `CDEMO-CUST-LNAME` | `X(25)` | None | CDEMO-CUSTOMER-INFO |  |
+| `05` | `CDEMO-ACCOUNT-INFO` | `None` | None | CARDDEMO-COMMAREA |  |
+| `10` | `CDEMO-ACCT-ID` | `9(11)` | None | CDEMO-ACCOUNT-INFO |  |
+| `10` | `CDEMO-ACCT-STATUS` | `X(01)` | None | CDEMO-ACCOUNT-INFO |  |
+| `05` | `CDEMO-CARD-INFO` | `None` | None | CARDDEMO-COMMAREA |  |
+| `10` | `CDEMO-CARD-NUM` | `9(16)` | None | CDEMO-CARD-INFO |  |
+| `05` | `CDEMO-MORE-INFO` | `None` | None | CARDDEMO-COMMAREA |  |
+| `10` | `CDEMO-LAST-MAP` | `X(7)` | None | CDEMO-MORE-INFO |  |
+| `10` | `CDEMO-LAST-MAPSET` | `X(7)` | None | CDEMO-MORE-INFO |  |
+
+### Copybook `COTRN00`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `COTRN0AI` | `None` | None | None |  |
+| `02` | `TRNNAMEL` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `TRNNAMEF` | `X` | None | COTRN0AI |  |
+| `03` | `TRNNAMEA` | `X` | None | COTRN0AI |  |
+| `02` | `TRNNAMEI` | `X(4)` | None | COTRN0AI |  |
+| `02` | `TITLE01L` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `TITLE01F` | `X` | None | COTRN0AI |  |
+| `03` | `TITLE01A` | `X` | None | COTRN0AI |  |
+| `02` | `TITLE01I` | `X(40)` | None | COTRN0AI |  |
+| `02` | `CURDATEL` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `CURDATEF` | `X` | None | COTRN0AI |  |
+| `03` | `CURDATEA` | `X` | None | COTRN0AI |  |
+| `02` | `CURDATEI` | `X(8)` | None | COTRN0AI |  |
+| `02` | `PGMNAMEL` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `PGMNAMEF` | `X` | None | COTRN0AI |  |
+| `03` | `PGMNAMEA` | `X` | None | COTRN0AI |  |
+| `02` | `PGMNAMEI` | `X(8)` | None | COTRN0AI |  |
+| `02` | `TITLE02L` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `TITLE02F` | `X` | None | COTRN0AI |  |
+| `03` | `TITLE02A` | `X` | None | COTRN0AI |  |
+| `02` | `TITLE02I` | `X(40)` | None | COTRN0AI |  |
+| `02` | `CURTIMEL` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `CURTIMEF` | `X` | None | COTRN0AI |  |
+| `03` | `CURTIMEA` | `X` | None | COTRN0AI |  |
+| `02` | `CURTIMEI` | `X(8)` | None | COTRN0AI |  |
+| `02` | `PAGENUML` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `PAGENUMF` | `X` | None | COTRN0AI |  |
+| `03` | `PAGENUMA` | `X` | None | COTRN0AI |  |
+| `02` | `PAGENUMI` | `X(8)` | None | COTRN0AI |  |
+| `02` | `TRNIDINL` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `TRNIDINF` | `X` | None | COTRN0AI |  |
+| `03` | `TRNIDINA` | `X` | None | COTRN0AI |  |
+| `02` | `TRNIDINI` | `X(16)` | None | COTRN0AI |  |
+| `02` | `SEL0001L` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `SEL0001F` | `X` | None | COTRN0AI |  |
+| `03` | `SEL0001A` | `X` | None | COTRN0AI |  |
+| `02` | `SEL0001I` | `X(1)` | None | COTRN0AI |  |
+| `02` | `TRNID01L` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `TRNID01F` | `X` | None | COTRN0AI |  |
+| `03` | `TRNID01A` | `X` | None | COTRN0AI |  |
+| `02` | `TRNID01I` | `X(16)` | None | COTRN0AI |  |
+| `02` | `TDATE01L` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `TDATE01F` | `X` | None | COTRN0AI |  |
+| `03` | `TDATE01A` | `X` | None | COTRN0AI |  |
+| `02` | `TDATE01I` | `X(8)` | None | COTRN0AI |  |
+| `02` | `TDESC01L` | `S9(4)` | COMP | COTRN0AI |  |
+| `02` | `TDESC01F` | `X` | None | COTRN0AI |  |
+| `03` | `TDESC01A` | `X` | None | COTRN0AI |  |
+| `02` | `TDESC01I` | `X(26)` | None | COTRN0AI |  |
+| `02` | `TAMT001L` | `S9(4)` | COMP | COTRN0AI |  |
+*+ 483 more fields*
+### Copybook `COTTL01Y`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `CCDA-SCREEN-TITLE` | `None` | None | None |  |
+| `05` | `CCDA-TITLE01` | `X(40)` | None | CCDA-SCREEN-TITLE |  |
+| `05` | `CCDA-TITLE02` | `X(40)` | None | CCDA-SCREEN-TITLE |  |
+| `05` | `CCDA-THANK-YOU` | `X(40)` | None | CCDA-SCREEN-TITLE |  |
+
+### Copybook `CSDAT01Y`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `WS-DATE-TIME` | `None` | None | None |  |
+| `05` | `WS-CURDATE-DATA` | `None` | None | WS-DATE-TIME |  |
+| `10` | `WS-CURDATE` | `None` | None | WS-CURDATE-DATA |  |
+| `15` | `WS-CURDATE-YEAR` | `9(04)` | None | WS-CURDATE |  |
+| `15` | `WS-CURDATE-MONTH` | `9(02)` | None | WS-CURDATE |  |
+| `15` | `WS-CURDATE-DAY` | `9(02)` | None | WS-CURDATE |  |
+| `10` | `WS-CURDATE-N` | `9(08)` | None | WS-CURDATE-DATA |  REDEFINES WS-CURDATE |
+| `10` | `WS-CURTIME` | `None` | None | WS-CURDATE-DATA |  |
+| `15` | `WS-CURTIME-HOURS` | `9(02)` | None | WS-CURTIME |  |
+| `15` | `WS-CURTIME-MINUTE` | `9(02)` | None | WS-CURTIME |  |
+| `15` | `WS-CURTIME-SECOND` | `9(02)` | None | WS-CURTIME |  |
+| `15` | `WS-CURTIME-MILSEC` | `9(02)` | None | WS-CURTIME |  |
+| `10` | `WS-CURTIME-N` | `9(08)` | None | WS-CURDATE-DATA |  REDEFINES WS-CURTIME |
+| `05` | `WS-CURDATE-MM-DD-YY` | `None` | None | WS-DATE-TIME |  |
+| `10` | `WS-CURDATE-MM` | `9(02)` | None | WS-CURDATE-MM-DD-YY |  |
+| `10` | `WS-CURDATE-DD` | `9(02)` | None | WS-CURDATE-MM-DD-YY |  |
+| `10` | `WS-CURDATE-YY` | `9(02)` | None | WS-CURDATE-MM-DD-YY |  |
+| `05` | `WS-CURTIME-HH-MM-SS` | `None` | None | WS-DATE-TIME |  |
+| `10` | `WS-CURTIME-HH` | `9(02)` | None | WS-CURTIME-HH-MM-SS |  |
+| `10` | `WS-CURTIME-MM` | `9(02)` | None | WS-CURTIME-HH-MM-SS |  |
+| `10` | `WS-CURTIME-SS` | `9(02)` | None | WS-CURTIME-HH-MM-SS |  |
+| `05` | `WS-TIMESTAMP` | `None` | None | WS-DATE-TIME |  |
+| `10` | `WS-TIMESTAMP-DT-YYYY` | `9(04)` | None | WS-TIMESTAMP |  |
+| `10` | `WS-TIMESTAMP-DT-MM` | `9(02)` | None | WS-TIMESTAMP |  |
+| `10` | `WS-TIMESTAMP-DT-DD` | `9(02)` | None | WS-TIMESTAMP |  |
+| `10` | `WS-TIMESTAMP-TM-HH` | `9(02)` | None | WS-TIMESTAMP |  |
+| `10` | `WS-TIMESTAMP-TM-MM` | `9(02)` | None | WS-TIMESTAMP |  |
+| `10` | `WS-TIMESTAMP-TM-SS` | `9(02)` | None | WS-TIMESTAMP |  |
+| `10` | `WS-TIMESTAMP-TM-MS6` | `9(06)` | None | WS-TIMESTAMP |  |
+
+### Copybook `CSMSG01Y`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `CCDA-COMMON-MESSAGES` | `None` | None | None |  |
+| `05` | `CCDA-MSG-THANK-YOU` | `X(50)` | None | CCDA-COMMON-MESSAGES |  |
+| `05` | `CCDA-MSG-INVALID-KEY` | `X(50)` | None | CCDA-COMMON-MESSAGES |  |
+
+### Copybook `CVTRA05Y`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `TRAN-RECORD` | `None` | None | None |  |
+| `05` | `TRAN-ID` | `X(16)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-TYPE-CD` | `X(02)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-CAT-CD` | `9(04)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-SOURCE` | `X(10)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-DESC` | `X(100)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-AMT` | `S9(09)V99` | None | TRAN-RECORD |  |
+| `05` | `TRAN-MERCHANT-ID` | `9(09)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-MERCHANT-NAME` | `X(50)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-MERCHANT-CITY` | `X(50)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-MERCHANT-ZIP` | `X(10)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-CARD-NUM` | `X(16)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-ORIG-TS` | `X(26)` | None | TRAN-RECORD |  |
+| `05` | `TRAN-PROC-TS` | `X(26)` | None | TRAN-RECORD |  |
+
+### Copybook `DFHAID`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `DFHAID` | `None` | None | None |  |
+| `02` | `DFHENTER` | `X` | None | DFHAID |  |
+| `02` | `DFHCLEAR` | `X` | None | DFHAID |  |
+| `02` | `DFHCLRP` | `X` | None | DFHAID |  |
+| `02` | `DFHPA1` | `X` | None | DFHAID |  |
+| `02` | `DFHPA2` | `X` | None | DFHAID |  |
+| `02` | `DFHPA3` | `X` | None | DFHAID |  |
+| `02` | `DFHPF1` | `X` | None | DFHAID |  |
+| `02` | `DFHPF2` | `X` | None | DFHAID |  |
+| `02` | `DFHPF3` | `X` | None | DFHAID |  |
+| `02` | `DFHPF4` | `X` | None | DFHAID |  |
+| `02` | `DFHPF5` | `X` | None | DFHAID |  |
+| `02` | `DFHPF6` | `X` | None | DFHAID |  |
+| `02` | `DFHPF7` | `X` | None | DFHAID |  |
+| `02` | `DFHPF8` | `X` | None | DFHAID |  |
+| `02` | `DFHPF9` | `X` | None | DFHAID |  |
+| `02` | `DFHPF10` | `X` | None | DFHAID |  |
+| `02` | `DFHPF11` | `X` | None | DFHAID |  |
+| `02` | `DFHPF12` | `X` | None | DFHAID |  |
+| `02` | `DFHPF13` | `X` | None | DFHAID |  |
+| `02` | `DFHPF14` | `X` | None | DFHAID |  |
+| `02` | `DFHPF15` | `X` | None | DFHAID |  |
+| `02` | `DFHPF16` | `X` | None | DFHAID |  |
+| `02` | `DFHPF17` | `X` | None | DFHAID |  |
+| `02` | `DFHPF18` | `X` | None | DFHAID |  |
+| `02` | `DFHPF19` | `X` | None | DFHAID |  |
+| `02` | `DFHPF20` | `X` | None | DFHAID |  |
+| `02` | `DFHPF21` | `X` | None | DFHAID |  |
+| `02` | `DFHPF22` | `X` | None | DFHAID |  |
+| `02` | `DFHPF23` | `X` | None | DFHAID |  |
+| `02` | `DFHPF24` | `X` | None | DFHAID |  |
+| `02` | `DFHPEN` | `X` | None | DFHAID |  |
+| `02` | `DFHOPID` | `X` | None | DFHAID |  |
+| `02` | `DFHMSRE` | `X` | None | DFHAID |  |
+| `02` | `DFHSTRF` | `X` | None | DFHAID |  |
+| `02` | `DFHTRIG` | `X` | None | DFHAID |  |
+
+### Copybook `DFHBMSCA`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `DFHBMSCA` | `None` | None | None |  |
+| `02` | `DFHBMPEM` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMPNL` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMASK` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMUNP` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMUNN` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMPRO` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMBRY` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMDAR` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMFSE` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMPRF` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMASF` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMASB` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMEOF` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBMEC` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHSA` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHCOLOR` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHPS` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHHLT` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHVAL` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHOUTLN` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBKTRN` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHALL` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHERROR` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHDFT` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHDFCOL` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHBLUE` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHRED` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHPINK` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHGREEN` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHTURQ` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHYELLO` | `X` | None | DFHBMSCA |  |
+| `02` | `DFHWHTE` | `X` | None | DFHBMSCA |  |
+| `02` | `CATTR-H-UNPROT` | `X` | None | DFHBMSCA |  |
+| `02` | `CATTR-H-UNPROT-FSET` | `X` | None | DFHBMSCA |  |
+| `02` | `CATTR-H-UNPROT-NUM` | `X` | None | DFHBMSCA |  |
+| `02` | `CATTR-H-ASKIP` | `X` | None | DFHBMSCA |  |
+
+
+
+## Data Lineage (MOVE Flow)
+
+The following MOVE statements were extracted from the source. Each row is a `source → destination`
+flow that the migration team can use to trace how data is reshaped and routed.
+
+| Source | Destination | Paragraph | Line |
+|--------|-------------|-----------|------|
+| `SPACES` | `WS-MESSAGE` | MAIN-PARA | 102 |
+| `'-1'` | `TRNIDINL` | MAIN-PARA | 105 |
+| `'-1'` | `OF` | MAIN-PARA | 105 |
+| `'-1'` | `COTRN0AI` | MAIN-PARA | 105 |
+| `'COSGN00C'` | `CDEMO-TO-PROGRAM` | MAIN-PARA | 108 |
+| `DFHCOMMAREA(1:EIBCALEN)` | `CARDDEMO-COMMAREA` | MAIN-PARA | 111 |
+| `LOW-VALUES` | `COTRN0AO` | MAIN-PARA | 114 |
+| `'COMEN01C'` | `CDEMO-TO-PROGRAM` | MAIN-PARA | 123 |
+| `'Y'` | `WS-ERR-FLG` | MAIN-PARA | 130 |
+| `'-1'` | `TRNIDINL` | MAIN-PARA | 131 |
+| `'-1'` | `OF` | MAIN-PARA | 131 |
+| `'-1'` | `COTRN0AI` | MAIN-PARA | 131 |
+| `CCDA-MSG-INVALID-KEY` | `WS-MESSAGE` | MAIN-PARA | 132 |
+| `SPACES` | `CDEMO-CT00-TRN-SEL-FLG` | PROCESS-ENTER-KEY | 180 |
+| `SPACES` | `CDEMO-CT00-TRN-SELECTED` | PROCESS-ENTER-KEY | 181 |
+| `'COTRN01C'` | `CDEMO-TO-PROGRAM` | PROCESS-ENTER-KEY | 188 |
+| `WS-TRANID` | `CDEMO-FROM-TRANID` | PROCESS-ENTER-KEY | 189 |
+| `WS-PGMNAME` | `CDEMO-FROM-PROGRAM` | PROCESS-ENTER-KEY | 190 |
+| `'0'` | `CDEMO-PGM-CONTEXT` | PROCESS-ENTER-KEY | 191 |
+| `'-1'` | `TRNIDINL` | PROCESS-ENTER-KEY | 201 |
+| `'-1'` | `OF` | PROCESS-ENTER-KEY | 201 |
+| `'-1'` | `COTRN0AI` | PROCESS-ENTER-KEY | 201 |
+| `LOW-VALUES` | `TRAN-ID` | PROCESS-ENTER-KEY | 207 |
+| `'Y'` | `WS-ERR-FLG` | PROCESS-ENTER-KEY | 212 |
+| `'-1'` | `TRNIDINL` | PROCESS-ENTER-KEY | 216 |
+| `'-1'` | `OF` | PROCESS-ENTER-KEY | 216 |
+| `'-1'` | `COTRN0AI` | PROCESS-ENTER-KEY | 216 |
+| `'-1'` | `TRNIDINL` | PROCESS-ENTER-KEY | 221 |
+| `'-1'` | `OF` | PROCESS-ENTER-KEY | 221 |
+| `'-1'` | `COTRN0AI` | PROCESS-ENTER-KEY | 221 |
+| `'0'` | `CDEMO-CT00-PAGE-NUM` | PROCESS-ENTER-KEY | 224 |
+| `SPACE` | `TRNIDINO` | PROCESS-ENTER-KEY | 228 |
+| `SPACE` | `OF` | PROCESS-ENTER-KEY | 228 |
+| `SPACE` | `COTRN0AO` | PROCESS-ENTER-KEY | 228 |
+| `LOW-VALUES` | `TRAN-ID` | PROCESS-PF7-KEY | 237 |
+| `CDEMO-CT00-TRNID-FIRST` | `TRAN-ID` | PROCESS-PF7-KEY | 239 |
+| `'-1'` | `TRNIDINL` | PROCESS-PF7-KEY | 243 |
+| `'-1'` | `OF` | PROCESS-PF7-KEY | 243 |
+| `'-1'` | `COTRN0AI` | PROCESS-PF7-KEY | 243 |
+| `HIGH-VALUES` | `TRAN-ID` | PROCESS-PF8-KEY | 260 |
+| `CDEMO-CT00-TRNID-LAST` | `TRAN-ID` | PROCESS-PF8-KEY | 262 |
+| `'-1'` | `TRNIDINL` | PROCESS-PF8-KEY | 265 |
+| `'-1'` | `OF` | PROCESS-PF8-KEY | 265 |
+| `'-1'` | `COTRN0AI` | PROCESS-PF8-KEY | 265 |
+| `'1'` | `WS-IDX` | PROCESS-PAGE-FORWARD | 295 |
+| `CDEMO-CT00-PAGE-NUM` | `PAGENUMI` | PROCESS-PAGE-FORWARD | 324 |
+| `CDEMO-CT00-PAGE-NUM` | `OF` | PROCESS-PAGE-FORWARD | 324 |
+| `CDEMO-CT00-PAGE-NUM` | `COTRN0AI` | PROCESS-PAGE-FORWARD | 324 |
+| `SPACE` | `TRNIDINO` | PROCESS-PAGE-FORWARD | 325 |
+| `SPACE` | `OF` | PROCESS-PAGE-FORWARD | 325 |
+| `SPACE` | `COTRN0AO` | PROCESS-PAGE-FORWARD | 325 |
+| `'10'` | `WS-IDX` | PROCESS-PAGE-BACKWARD | 349 |
+| `'1'` | `CDEMO-CT00-PAGE-NUM` | PROCESS-PAGE-BACKWARD | 366 |
+| `CDEMO-CT00-PAGE-NUM` | `PAGENUMI` | PROCESS-PAGE-BACKWARD | 373 |
+| `CDEMO-CT00-PAGE-NUM` | `OF` | PROCESS-PAGE-BACKWARD | 373 |
+| `CDEMO-CT00-PAGE-NUM` | `COTRN0AI` | PROCESS-PAGE-BACKWARD | 373 |
+| `TRAN-AMT` | `WS-TRAN-AMT` | POPULATE-TRAN-DATA | 383 |
+| `TRAN-ORIG-TS` | `WS-TIMESTAMP` | POPULATE-TRAN-DATA | 384 |
+| `WS-TIMESTAMP-DT-YYYY(3:2)` | `WS-CURDATE-YY` | POPULATE-TRAN-DATA | 385 |
+| `WS-TIMESTAMP-DT-MM` | `WS-CURDATE-MM` | POPULATE-TRAN-DATA | 386 |
+*+ 40 more movements*
+
+## Known Issues & Code Anomalies
+
+Static analysis flagged the following items in this program. Migration teams should
+review each one before re-implementing in a modern stack.
+
+| Severity | Category | Title | Paragraph | Line |
+|----------|----------|-------|-----------|------|
+| **NOTICE** | DEAD_CODE | Variable `WS-TRANSACT-EOF` is declared but never referenced | None | 43 |
+| **NOTICE** | DEAD_CODE | Variable `WS-SEND-ERASE-FLG` is declared but never referenced | None | 46 |
+| **NOTICE** | DEAD_CODE | Variable `WS-REC-COUNT` is declared but never referenced | None | 52 |
+| **NOTICE** | DEAD_CODE | Variable `WS-PAGE-NUM` is declared but never referenced | None | 54 |
+| **NOTICE** | DEAD_CODE | Variable `LK-COMMAREA` is declared but never referenced | None | 88 |
+
+### NOTICE — Variable `WS-TRANSACT-EOF` is declared but never referenced
+
+`WS-TRANSACT-EOF` is declared at line 43 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 43):
+```cobol
+05 WS-TRANSACT-EOF            PIC X(01) VALUE 'N'.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `WS-SEND-ERASE-FLG` is declared but never referenced
+
+`WS-SEND-ERASE-FLG` is declared at line 46 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 46):
+```cobol
+05 WS-SEND-ERASE-FLG          PIC X(01) VALUE 'Y'.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `WS-REC-COUNT` is declared but never referenced
+
+`WS-REC-COUNT` is declared at line 52 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 52):
+```cobol
+05 WS-REC-COUNT               PIC S9(04) COMP VALUE ZEROS.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `WS-PAGE-NUM` is declared but never referenced
+
+`WS-PAGE-NUM` is declared at line 54 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 54):
+```cobol
+05 WS-PAGE-NUM                PIC S9(04) COMP VALUE ZEROS.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `LK-COMMAREA` is declared but never referenced
+
+`LK-COMMAREA` is declared at line 88 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 88):
+```cobol
+05  LK-COMMAREA                           PIC X(01)
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+
+
+
+
+## Decision Tables (EVALUATE / WHEN)
+
+Captured from the source. Each EVALUATE block is a structured decision the
+migration team should turn into either a switch / pattern-match or a rules table.
+
+### EVALUATE `EIBAID` — paragraph `MAIN-PARA` (line 129)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | MOVE 'Y'                       TO WS-ERR-FLG |
+| `DFHENTER` | PERFORM PROCESS-ENTER-KEY |
+| `DFHPF3` | MOVE 'COMEN01C' TO CDEMO-TO-PROGRAM |
+| `DFHPF7` | PERFORM PROCESS-PF7-KEY |
+| `DFHPF8` | PERFORM PROCESS-PF8-KEY |
+
+### EVALUATE `TRUE` — paragraph `PROCESS-ENTER-KEY` (line 179)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | MOVE SPACES   TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0001I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0001I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0002I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0002I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0003I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0003I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0004I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0004I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0005I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0005I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0006I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0006I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0007I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0007I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0008I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0008I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0009I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0009I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+| `SEL0010I OF COTRN0AI NOT = SPACES AND LOW-VALUES` | MOVE SEL0010I OF COTRN0AI TO CDEMO-CT00-TRN-SEL-FLG |
+
+### EVALUATE `CDEMO-CT00-TRN-SEL-FLG` — paragraph `PROCESS-ENTER-KEY` (line 196)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | MOVE |
+| `'S'` |  |
+| `'s'` | MOVE 'COTRN01C'   TO CDEMO-TO-PROGRAM |
+
+### EVALUATE `WS-IDX` — paragraph `POPULATE-TRAN-DATA` (line 443)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | CONTINUE |
+| `1` | MOVE TRAN-ID    TO TRNID01I OF COTRN0AI |
+| `2` | MOVE TRAN-ID    TO TRNID02I OF COTRN0AI |
+| `3` | MOVE TRAN-ID    TO TRNID03I OF COTRN0AI |
+| `4` | MOVE TRAN-ID    TO TRNID04I OF COTRN0AI |
+| `5` | MOVE TRAN-ID    TO TRNID05I OF COTRN0AI |
+| `6` | MOVE TRAN-ID    TO TRNID06I OF COTRN0AI |
+| `7` | MOVE TRAN-ID    TO TRNID07I OF COTRN0AI |
+| `8` | MOVE TRAN-ID    TO TRNID08I OF COTRN0AI |
+| `9` | MOVE TRAN-ID    TO TRNID09I OF COTRN0AI |
+| `10` | MOVE TRAN-ID    TO TRNID10I OF COTRN0AI |
+
+### EVALUATE `WS-IDX` — paragraph `INITIALIZE-TRAN-DATA` (line 503)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | CONTINUE |
+| `1` | MOVE SPACES TO TRNID01I OF COTRN0AI |
+| `2` | MOVE SPACES TO TRNID02I OF COTRN0AI |
+| `3` | MOVE SPACES TO TRNID03I OF COTRN0AI |
+| `4` | MOVE SPACES TO TRNID04I OF COTRN0AI |
+| `5` | MOVE SPACES TO TRNID05I OF COTRN0AI |
+| `6` | MOVE SPACES TO TRNID06I OF COTRN0AI |
+| `7` | MOVE SPACES TO TRNID07I OF COTRN0AI |
+| `8` | MOVE SPACES TO TRNID08I OF COTRN0AI |
+| `9` | MOVE SPACES TO TRNID09I OF COTRN0AI |
+| `10` | MOVE SPACES TO TRNID10I OF COTRN0AI |
+
+### EVALUATE `WS-RESP-CD` — paragraph `STARTBR-TRANSACT-FILE` (line 612)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | DISPLAY 'RESP:' WS-RESP-CD 'REAS:' WS-REAS-CD |
+| `DFHRESP(NORMAL)` | CONTINUE |
+| `DFHRESP(NOTFND)` | CONTINUE |
+
+### EVALUATE `WS-RESP-CD` — paragraph `READNEXT-TRANSACT-FILE` (line 646)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | DISPLAY 'RESP:' WS-RESP-CD 'REAS:' WS-REAS-CD |
+| `DFHRESP(NORMAL)` | CONTINUE |
+| `DFHRESP(ENDFILE)` | CONTINUE |
+
+### EVALUATE `WS-RESP-CD` — paragraph `READPREV-TRANSACT-FILE` (line 680)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | DISPLAY 'RESP:' WS-RESP-CD 'REAS:' WS-REAS-CD |
+| `DFHRESP(NORMAL)` | CONTINUE |
+| `DFHRESP(ENDFILE)` | CONTINUE |
 
 
 
@@ -377,18 +1047,28 @@ This program uses the following EXEC CICS commands:
 
 | Command | Paragraph | Line | Details |
 |---------|-----------|------|---------|
-| `RETURN` | None | 138 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
-| `XCTL` | None | 192 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
-| `XCTL` | None | 518 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
-| `SEND` | None | 534 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "from": "COTRN0AO"}} |
-| `SEND` | None | 542 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "from": "COTRN0AO"}} |
-| `RECEIVE` | None | 556 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "into": "COTRN0AI", "resp": ... |
-| `STARTBR` | None | 593 | {"details": {"dataset": "WS-TRANSACT-FILE", "length": "LENGTH OF TRAN-ID", "ridf... |
-| `READNEXT` | None | 626 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
-| `READPREV` | None | 660 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
-| `ENDBR` | None | 694 | {"details": {"dataset": "WS-TRANSACT-FILE"}} |
+| `RETURN` | MAIN-PARA | 138 | {"details": {"transid": "WS-TRANID", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | PROCESS-ENTER-KEY | 192 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `XCTL` | RETURN-TO-PREV-SCREEN | 518 | {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}} |
+| `SEND` | SEND-TRNLST-SCREEN | 534 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "from": "COTRN0AO"}} |
+| `SEND` | SEND-TRNLST-SCREEN | 542 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "from": "COTRN0AO"}} |
+| `RECEIVE` | RECEIVE-TRNLST-SCREEN | 556 | {"details": {"map": "COTRN0A", "mapset": "COTRN00", "into": "COTRN0AI", "resp": ... |
+| `STARTBR` | STARTBR-TRANSACT-FILE | 593 | {"details": {"dataset": "WS-TRANSACT-FILE", "length": "LENGTH OF TRAN-ID", "ridf... |
+| `READNEXT` | READNEXT-TRANSACT-FILE | 626 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
+| `READPREV` | READPREV-TRANSACT-FILE | 660 | {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LE... |
+| `ENDBR` | ENDBR-TRANSACT-FILE | 694 | {"details": {"dataset": "WS-TRANSACT-FILE"}} |
 
 **Summary:** 10 CICS command(s) — RETURN (1), XCTL (2), SEND (2), RECEIVE (1), STARTBR (1), READNEXT (1), READPREV (1), ENDBR (1)
+
+## Modernization Review Findings
+
+These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
+
+| Finding | Why It Matters |
+|---------|----------------|
+| Numeric validation on a COBOL numeric field | `COTRN0AI IS NUMERIC` was found in source. If the field is packed or binary numeric, this may be corruption detection rather than normal validation. |
+| Nested IF blocks need compiler-accurate validation | Nested conditional logic was detected. During migration, validate scope with the original compiler rules and explicit `END-IF`/period termination before translating to Java or SQL. |
+
 
 ## Business Rules
 
@@ -496,4 +1176,4 @@ This program uses the following EXEC CICS commands:
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

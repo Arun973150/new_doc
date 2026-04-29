@@ -463,7 +463,16 @@ class JclParser:
     def parse_repository(self, repo_path: str) -> List[JclJob]:
         """Scan a directory tree for JCL files and parse them all."""
         root = Path(repo_path)
-        jcl_files = list(root.rglob("*.jcl")) + list(root.rglob("*.JCL"))
+        # On Windows rglob is case-insensitive — dedupe by resolved path.
+        _all = list(root.rglob("*.jcl")) + list(root.rglob("*.JCL"))
+        _seen = set()
+        jcl_files = []
+        for _p in _all:
+            _key = str(_p.resolve()).lower()
+            if _key in _seen:
+                continue
+            _seen.add(_key)
+            jcl_files.append(_p)
 
         console.print(f"[cyan]Found {len(jcl_files)} JCL files[/cyan]")
         jobs = []

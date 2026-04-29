@@ -17,6 +17,17 @@
 
 > **View Source:** [Open CSUTLDTC.cbl](../carddemo/CSUTLDTC.cbl#L1)
 
+## Source Grounding Facts
+
+| Data Item | Literal Value |
+|-----------|---------------|
+| `WS-SEVERITY-N` | `Mesg Code:` |
+
+
+## Business Purpose
+
+*Business purpose is not present in the extracted data. Run LLM enrichment to populate this section.*
+
 
 
 ## Dependency Context
@@ -32,12 +43,33 @@
 
 | Called Program | Type | Line | Why |
 |----------------|------|------|-----|
-| [UNKNOWN](UNKNOWN.md) | None | 116 |  |
+| `UNKNOWN` | None | 116 |  |
 
 ### Shared Data (Copybooks & Files)
 
 *No shared copybooks.*
 
+
+## Legacy Data Contracts
+
+> These tables are derived from FILE SECTION records and COPY-expanded data declarations. They preserve the legacy field names, COBOL storage type, inferred modern type, and status-code values needed for Java DTOs, SQL schemas, API contracts, and migration mapping.
+
+
+
+### Data Movement And Key Mapping
+
+| Line | Source | Target | Meaning |
+|------|--------|--------|---------|
+| 91 | `SPACES` | `WS-DATE` | SPACES populates WS-DATE |
+| 97 | `WS-MESSAGE` | `LS-RESULT` | WS-MESSAGE populates LS-RESULT |
+| 107 | `LS-DATE` | `VSTRING-TEXT OF WS-DATE-TO-TEST` | LS-DATE populates VSTRING-TEXT OF WS-DATE-TO-TEST |
+| 122 | `WS-DATE-TO-TEST` | `WS-DATE` | WS-DATE-TO-TEST populates WS-DATE |
+| 130 | `'Date is valid'` | `WS-RESULT` | 'Date is valid' populates WS-RESULT |
+| 134 | `'Datevalue error'` | `WS-RESULT` | 'Datevalue error' populates WS-RESULT |
+| 148 | `'Date is invalid'` | `WS-RESULT` | 'Date is invalid' populates WS-RESULT |
+
+
+*No concrete file or copybook record layouts were found for this program.*
 
 ---
 
@@ -114,9 +146,79 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `A000-MAIN-EXIT` |
-| **Lines** | 152 - 154 |
+| **Lines** | 152 - 157 |
 | **View Code** | [Jump to Line 152](../carddemo/CSUTLDTC.cbl#L152) |
 
+
+
+
+
+
+
+
+
+## Data Lineage (MOVE Flow)
+
+The following MOVE statements were extracted from the source. Each row is a `source → destination`
+flow that the migration team can use to trace how data is reshaped and routed.
+
+| Source | Destination | Paragraph | Line |
+|--------|-------------|-----------|------|
+| `SPACES` | `WS-DATE` | None | 91 |
+| `WS-MESSAGE` | `LS-RESULT` | None | 97 |
+| `WS-SEVERITY-N` | `RETURN-CODE` | None | 98 |
+| `LS-DATE` | `VSTRING-TEXT` | A000-MAIN | 107 |
+| `LS-DATE` | `OF` | A000-MAIN | 107 |
+| `LS-DATE` | `WS-DATE-TO-TEST` | A000-MAIN | 107 |
+| `'0'` | `OUTPUT-LILLIAN` | A000-MAIN | 114 |
+| `WS-DATE-TO-TEST` | `WS-DATE` | A000-MAIN | 122 |
+| `'Date is valid'` | `WS-RESULT` | A000-MAIN | 130 |
+| `'Insufficient'` | `WS-RESULT` | A000-MAIN | 132 |
+| `'Datevalue error'` | `WS-RESULT` | A000-MAIN | 134 |
+| `'Invalid Era    '` | `WS-RESULT` | A000-MAIN | 136 |
+| `'Unsupp. Range  '` | `WS-RESULT` | A000-MAIN | 138 |
+| `'Invalid month  '` | `WS-RESULT` | A000-MAIN | 140 |
+| `'Bad Pic String '` | `WS-RESULT` | A000-MAIN | 142 |
+| `'Nonnumeric data'` | `WS-RESULT` | A000-MAIN | 144 |
+| `'YearInEra is 0 '` | `WS-RESULT` | A000-MAIN | 146 |
+| `'Date is invalid'` | `WS-RESULT` | A000-MAIN | 148 |
+
+
+
+## External Runtime Parameters
+
+This program receives the following parameters at runtime (via `PROCEDURE DIVISION USING`
+or `ENTRY USING`). Each parameter must be supplied by the caller — typically a JCL job
+step (`PARM=`), CICS COMMAREA, or the IMS region controller. The migration target needs
+an equivalent input wiring.
+
+| # | Parameter | Source | Declared at line |
+|---|-----------|--------|------------------|
+| 0 | `LS-DATE` | PROCEDURE DIVISION USING | 88 |
+| 1 | `LS-DATE-FORMAT` | PROCEDURE DIVISION USING | 88 |
+| 2 | `LS-RESULT` | PROCEDURE DIVISION USING | 88 |
+
+
+
+## Decision Tables (EVALUATE / WHEN)
+
+Captured from the source. Each EVALUATE block is a structured decision the
+migration team should turn into either a switch / pattern-match or a rules table.
+
+### EVALUATE `TRUE` — paragraph `A000-MAIN` (line 147)
+
+| WHEN | Action |
+|------|--------|
+| **WHEN OTHER** | MOVE 'Date is invalid'    TO WS-RESULT |
+| `FC-INVALID-DATE` | MOVE 'Date is valid'      TO WS-RESULT |
+| `FC-INSUFFICIENT-DATA` | MOVE 'Insufficient'       TO WS-RESULT |
+| `FC-BAD-DATE-VALUE` | MOVE 'Datevalue error'    TO WS-RESULT |
+| `FC-INVALID-ERA` | MOVE 'Invalid Era    '    TO WS-RESULT |
+| `FC-UNSUPP-RANGE` | MOVE 'Unsupp. Range  '    TO WS-RESULT |
+| `FC-INVALID-MONTH` | MOVE 'Invalid month  '    TO WS-RESULT |
+| `FC-BAD-PIC-STRING` | MOVE 'Bad Pic String '    TO WS-RESULT |
+| `FC-NON-NUMERIC-DATA` | MOVE 'Nonnumeric data'    TO WS-RESULT |
+| `FC-YEAR-IN-ERA-ZERO` | MOVE 'YearInEra is 0 '    TO WS-RESULT |
 
 
 
@@ -184,4 +286,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

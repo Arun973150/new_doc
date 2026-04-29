@@ -105,7 +105,7 @@ class DependencyAnalyzer:
         lines = [
             "# Program Call Hierarchy",
             "",
-            "> Complete inter-program call relationships across the **CardDemo** application.",
+            "> Complete inter-program call relationships across the application.",
             "",
             "## System Statistics",
             "",
@@ -303,7 +303,7 @@ class DependencyAnalyzer:
         lines = [
             "# Dependency Matrix",
             "",
-            "> Complete dependency overview for every program in CardDemo.",
+            "> Complete dependency overview for every program in the system.",
             "> Shows calls, copybooks, files, screens, and internal control flow complexity.",
             "",
             "## Program Dependency Summary",
@@ -671,7 +671,7 @@ class DependencyAnalyzer:
         lines = [
             "# Data Flow Analysis",
             "",
-            "> How data flows through the CardDemo system — VSAM files, sequential files, and I/O patterns.",
+            "> How data flows through the system — VSAM files, sequential files, DB2 tables, and I/O patterns.",
             "",
             f"> **Total Files:** {len(by_file)}  ",
             f"> **Total File Usages:** {len(file_usages)}  ",

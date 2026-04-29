@@ -12,10 +12,28 @@
 | Lines | 431 |
 | Source | [CBACT01C.cbl](../carddemo/CBACT01C.cbl#L1) |
 | Paragraphs | 16 |
-| Statements | 96 |
+| Statements | 127 |
 | Impact Risk | **HIGH** — 13 programs affected |
 
 > **View Source:** [Open CBACT01C.cbl](../carddemo/CBACT01C.cbl#L1)
+
+## Source Grounding Facts
+
+
+Status conditions found in source:
+- `ACCTFILE-STATUS = '00'`
+- `ACCTFILE-STATUS = '10'`
+- `OUTFILE-STATUS NOT = '00'`
+- `ARRYFILE-STATUS NOT = '00'`
+- `VBRCFILE-STATUS NOT = '00'`
+- `OUTFILE-STATUS = '00'`
+- `ARRYFILE-STATUS = '00'`
+- `VBRCFILE-STATUS = '00'`
+
+
+## Business Purpose
+
+*Business purpose is not present in the extracted data. Run LLM enrichment to populate this section.*
 
 
 
@@ -32,8 +50,8 @@
 
 | Called Program | Type | Line | Why |
 |----------------|------|------|-----|
-| [UNKNOWN](UNKNOWN.md) | None | 303 |  |
-| [UNKNOWN](UNKNOWN.md) | None | 482 |  |
+| `UNKNOWN` | None | 303 |  |
+| `UNKNOWN` | None | 482 |  |
 
 ### Shared Data (Copybooks & Files)
 
@@ -43,6 +61,155 @@
 |----------|-------------|------------|
 | `CODATECN` |  | 0 |
 | `CVACT01Y` | CBACT04C, CBEXPORT, CBIMPORT, CBSTM03A, CBTRN01C (+8 more) | 13 |
+
+#### Shared Files
+
+| File | Type | Access | Also Used By |
+|------|------|--------|-------------|
+| `ACCTFILE-FILE` | VSAM | SEQUENTIAL |  |
+| `ARRY-FILE` | SEQUENTIAL | SEQUENTIAL |  |
+| `OUT-FILE` | SEQUENTIAL | SEQUENTIAL |  |
+| `VBRC-FILE` | SEQUENTIAL | SEQUENTIAL |  |
+
+## Legacy Data Contracts
+
+> These tables are derived from FILE SECTION records and COPY-expanded data declarations. They preserve the legacy field names, COBOL storage type, inferred modern type, and status-code values needed for Java DTOs, SQL schemas, API contracts, and migration mapping.
+
+### File Record Layouts
+
+#### `ACCTFILE-FILE` / `FD-ACCTFILE-REC`
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+| `FD-ACCTFILE-REC` | Fd Acctfile Record | `GROUP` | `OBJECT` |  |
+| `FD-ACCT-ID` | Fd Account ID | `PIC 9(11)` | `BIGINT` |  |
+| `FD-ACCT-DATA` | Fd Account Data | `PIC X(289)` | `STRING(289)` |  |
+
+#### `OUT-FILE` / `OUT-ACCT-REC`
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+| `OUT-ACCT-REC` | Out Account Record | `GROUP` | `OBJECT` |  |
+| `OUT-ACCT-ID` | Out Account ID | `PIC 9(11)` | `BIGINT` |  |
+| `OUT-ACCT-ACTIVE-STATUS` | Out Account Active Status | `PIC X(01)` | `STRING(1)` |  |
+| `OUT-ACCT-CURR-BAL` | Out Account Curr Bal | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `OUT-ACCT-CREDIT-LIMIT` | Out Account Credit Limit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `OUT-ACCT-CASH-CREDIT-LIMIT` | Out Account Cash Credit Limit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `OUT-ACCT-OPEN-DATE` | Out Account Open Date | `PIC X(10)` | `STRING(10)` | Date-like field; verify YYDDD, YYMMDD, or ISO format before migration. |
+| `OUT-ACCT-EXPIRAION-DATE` | Out Account Expiraion Date | `PIC X(10)` | `STRING(10)` | Date-like field; verify YYDDD, YYMMDD, or ISO format before migration. |
+| `OUT-ACCT-REISSUE-DATE` | Out Account Reissue Date | `PIC X(10)` | `STRING(10)` | Date-like field; verify YYDDD, YYMMDD, or ISO format before migration. |
+| `OUT-ACCT-CURR-CYC-CREDIT` | Out Account Curr Cyc Credit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `OUT-ACCT-CURR-CYC-DEBIT` | Out Account Curr Cyc Debit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `OUT-ACCT-GROUP-ID` | Out Account Group ID | `PIC X(10)` | `STRING(10)` |  |
+
+#### `ARRY-FILE` / `ARR-ARRAY-REC`
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+| `ARR-ARRAY-REC` | Arr Array Record | `GROUP` | `OBJECT` |  |
+| `ARR-ACCT-ID` | Arr Account ID | `PIC 9(11)` | `BIGINT` |  |
+| `ARR-ACCT-BAL` | Arr Account Bal | `OCCURS 5` | `OBJECT` | Repeating field, 5 occurrences. |
+| `ARR-ACCT-CURR-BAL` | Arr Account Curr Bal | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `ARR-ACCT-CURR-CYC-DEBIT` | Arr Account Curr Cyc Debit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `ARR-FILLER` | Arr Filler | `PIC X(04)` | `STRING(4)` |  |
+
+#### `VBRC-FILE` / `VBR-REC`
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+| `VBR-REC` | Vbr Record | `PIC X(80)` | `STRING(80)` |  |
+
+
+### Copybook Segment Layouts
+
+#### `CODATECN` as `CODATECN-REC`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `CODATECN-REC` | Codatecn Record | `GROUP` | `OBJECT` |  |
+| `CODATECN-IN-REC` | Codatecn In Record | `GROUP` | `OBJECT` |  |
+| `CODATECN-TYPE` | Codatecn Type | `PIC X` | `STRING(1)` |  |
+| `CODATECN-INP-DATE` | Codatecn Inp Date | `PIC X(20)` | `STRING(20)` |  |
+| `CODATECN-1INP` | Codatecn 1Inp | `GROUP` | `OBJECT` |  |
+| `CODATECN-1YYYY` | Codatecn 1Yyyy | `PIC XXXX` | `STRING(4)` |  |
+| `CODATECN-1MM` | Codatecn 1Mm | `PIC XX` | `STRING(2)` |  |
+| `CODATECN-1DD` | Codatecn 1Dd | `PIC XX` | `STRING(2)` |  |
+| `CODATECN-1FIL` | Codatecn 1Fil | `PIC X(12)` | `STRING(12)` |  |
+| `CODATECN-2INP` | Codatecn 2Inp | `GROUP` | `OBJECT` |  |
+| `CODATECN-1O-YYYY` | Codatecn 1O Yyyy | `PIC XXXX` | `STRING(4)` |  |
+| `CODATECN-1I-S1` | Codatecn 1I S1 | `PIC X` | `STRING(1)` |  |
+| `CODATECN-1MM` | Codatecn 1Mm | `PIC XX` | `STRING(2)` |  |
+| `CODATECN-1I-S2` | Codatecn 1I S2 | `PIC X` | `STRING(1)` |  |
+| `CODATECN-2YY` | Codatecn 2Yy | `PIC XX` | `STRING(2)` |  |
+| `CODATECN-2FIL` | Codatecn 2Fil | `PIC X(10)` | `STRING(10)` | Date-like field; verify YYDDD, YYMMDD, or ISO format before migration. |
+| `CODATECN-OUT-REC` | Codatecn Out Record | `GROUP` | `OBJECT` |  |
+| `CODATECN-OUTTYPE` | Codatecn Outtype | `PIC X` | `STRING(1)` |  |
+| `CODATECN-0UT-DATE` | Codatecn 0Ut Date | `PIC X(20)` | `STRING(20)` |  |
+| `CODATECN-1OUT` | Codatecn 1Out | `GROUP` | `OBJECT` |  |
+| `CODATECN-1O-YYYY` | Codatecn 1O Yyyy | `PIC XXXX` | `STRING(4)` |  |
+| `CODATECN-1O-S1` | Codatecn 1O S1 | `PIC X` | `STRING(1)` |  |
+| `CODATECN-1O-MM` | Codatecn 1O Mm | `PIC XX` | `STRING(2)` |  |
+| `CODATECN-1O-S2` | Codatecn 1O S2 | `PIC X` | `STRING(1)` |  |
+| `CODATECN-1O-DD` | Codatecn 1O Dd | `PIC XX` | `STRING(2)` |  |
+| `CODATECN-1OFIL` | Codatecn 1Ofil | `PIC X(10)` | `STRING(10)` | Date-like field; verify YYDDD, YYMMDD, or ISO format before migration. |
+| `CODATECN-2OUT` | Codatecn 2Out | `GROUP` | `OBJECT` |  |
+| `CODATECN-2O-YYYY` | Codatecn 2O Yyyy | `PIC XXXX` | `STRING(4)` |  |
+| `CODATECN-2O-MM` | Codatecn 2O Mm | `PIC XX` | `STRING(2)` |  |
+| `CODATECN-2O-DD` | Codatecn 2O Dd | `PIC XX` | `STRING(2)` |  |
+| `CODATECN-2OFIL` | Codatecn 2Ofil | `PIC X(12)` | `STRING(12)` |  |
+| `CODATECN-ERROR-MSG` | Codatecn Error Msg | `PIC X(38)` | `STRING(38)` |  |
+
+#### `CVACT01Y` as `ACCOUNT-RECORD`
+
+| Legacy Field | Meaning | COBOL Type | Modern Type | Status / Format Notes |
+|--------------|---------|------------|-------------|-----------------------|
+| `ACCOUNT-RECORD` | Account Record | `GROUP` | `OBJECT` |  |
+| `ACCT-ID` | Account ID | `PIC 9(11)` | `BIGINT` |  |
+| `ACCT-ACTIVE-STATUS` | Account Active Status | `PIC X(01)` | `STRING(1)` |  |
+| `ACCT-CURR-BAL` | Account Curr Bal | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `ACCT-CREDIT-LIMIT` | Account Credit Limit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `ACCT-CASH-CREDIT-LIMIT` | Account Cash Credit Limit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `ACCT-OPEN-DATE` | Account Open Date | `PIC X(10)` | `STRING(10)` | Date-like field; verify YYDDD, YYMMDD, or ISO format before migration. |
+| `ACCT-EXPIRAION-DATE` | Account Expiraion Date | `PIC X(10)` | `STRING(10)` | Date-like field; verify YYDDD, YYMMDD, or ISO format before migration. |
+| `ACCT-REISSUE-DATE` | Account Reissue Date | `PIC X(10)` | `STRING(10)` | Date-like field; verify YYDDD, YYMMDD, or ISO format before migration. |
+| `ACCT-CURR-CYC-CREDIT` | Account Curr Cyc Credit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `ACCT-CURR-CYC-DEBIT` | Account Curr Cyc Debit | `PIC S9(10)V99` | `DECIMAL(12,2)` |  |
+| `ACCT-ADDR-ZIP` | Account Addr Zip | `PIC X(10)` | `STRING(10)` |  |
+| `ACCT-GROUP-ID` | Account Group ID | `PIC X(10)` | `STRING(10)` |  |
+| `FILLER` | Filler | `PIC X(178)` | `STRING(178)` |  |
+
+
+### Data Movement And Key Mapping
+
+| Line | Source | Target | Meaning |
+|------|--------|--------|---------|
+| 190 | `'Y'` | `END-OF-FILE` | 'Y' populates END-OF-FILE |
+| 193 | `ACCTFILE-STATUS` | `IO-STATUS` | ACCTFILE-STATUS populates IO-STATUS |
+| 216 | `ACCT-ID` | `OUT-ACCT-ID` | ACCT-ID populates OUT-ACCT-ID |
+| 217 | `ACCT-ACTIVE-STATUS` | `OUT-ACCT-ACTIVE-STATUS` | ACCT-ACTIVE-STATUS populates OUT-ACCT-ACTIVE-STATUS |
+| 218 | `ACCT-CURR-BAL` | `OUT-ACCT-CURR-BAL` | ACCT-CURR-BAL populates OUT-ACCT-CURR-BAL |
+| 219 | `ACCT-CREDIT-LIMIT` | `OUT-ACCT-CREDIT-LIMIT` | ACCT-CREDIT-LIMIT populates OUT-ACCT-CREDIT-LIMIT |
+| 220 | `ACCT-CASH-CREDIT-LIMIT` | `OUT-ACCT-CASH-CREDIT-LIMIT` | ACCT-CASH-CREDIT-LIMIT populates OUT-ACCT-CASH-CREDIT-LIMIT |
+| 221 | `ACCT-OPEN-DATE` | `OUT-ACCT-OPEN-DATE` | ACCT-OPEN-DATE populates OUT-ACCT-OPEN-DATE |
+| 222 | `ACCT-EXPIRAION-DATE` | `OUT-ACCT-EXPIRAION-DATE` | ACCT-EXPIRAION-DATE populates OUT-ACCT-EXPIRAION-DATE |
+| 223 | `ACCT-REISSUE-DATE` | `CODATECN-INP-DATE` | ACCT-REISSUE-DATE populates CODATECN-INP-DATE |
+| 225 | `'2'` | `CODATECN-TYPE` | '2' populates CODATECN-TYPE |
+| 226 | `'2'` | `CODATECN-OUTTYPE` | '2' populates CODATECN-OUTTYPE |
+| 233 | `CODATECN-0UT-DATE` | `OUT-ACCT-REISSUE-DATE` | CODATECN-0UT-DATE populates OUT-ACCT-REISSUE-DATE |
+| 235 | `ACCT-CURR-CYC-CREDIT` | `OUT-ACCT-CURR-CYC-CREDIT` | ACCT-CURR-CYC-CREDIT populates OUT-ACCT-CURR-CYC-CREDIT |
+| 237 | `2525.00` | `OUT-ACCT-CURR-CYC-DEBIT` | 2525.00 populates OUT-ACCT-CURR-CYC-DEBIT |
+| 239 | `ACCT-GROUP-ID` | `OUT-ACCT-GROUP-ID` | ACCT-GROUP-ID populates OUT-ACCT-GROUP-ID |
+| 247 | `OUTFILE-STATUS` | `IO-STATUS` | OUTFILE-STATUS populates IO-STATUS |
+| 254 | `ACCT-ID` | `ARR-ACCT-ID` | ACCT-ID populates ARR-ACCT-ID |
+| 255 | `ACCT-CURR-BAL` | `ARR-ACCT-CURR-BAL(1)` | ACCT-CURR-BAL populates ARR-ACCT-CURR-BAL(1) |
+| 256 | `1005.00` | `ARR-ACCT-CURR-CYC-DEBIT(1)` | 1005.00 populates ARR-ACCT-CURR-CYC-DEBIT(1) |
+| 257 | `ACCT-CURR-BAL` | `ARR-ACCT-CURR-BAL(2)` | ACCT-CURR-BAL populates ARR-ACCT-CURR-BAL(2) |
+| 258 | `1525.00` | `ARR-ACCT-CURR-CYC-DEBIT(2)` | 1525.00 populates ARR-ACCT-CURR-CYC-DEBIT(2) |
+| 259 | `-1025.00` | `ARR-ACCT-CURR-BAL(3)` | -1025.00 populates ARR-ACCT-CURR-BAL(3) |
+| 260 | `-2500.00` | `ARR-ACCT-CURR-CYC-DEBIT(3)` | -2500.00 populates ARR-ACCT-CURR-CYC-DEBIT(3) |
+| 270 | `ARRYFILE-STATUS` | `IO-STATUS` | ARRYFILE-STATUS populates IO-STATUS |
+| 277 | `ACCT-ID` | `VB1-ACCT-ID` | ACCT-ID populates VB1-ACCT-ID |
+| 279 | `ACCT-ACTIVE-STATUS` | `VB1-ACCT-ACTIVE-STATUS` | ACCT-ACTIVE-STATUS populates VB1-ACCT-ACTIVE-STATUS |
+| 280 | `ACCT-CURR-BAL` | `VB2-ACCT-CURR-BAL` | ACCT-CURR-BAL populates VB2-ACCT-CURR-BAL |
+| 281 | `ACCT-CREDIT-LIMIT` | `VB2-ACCT-CREDIT-LIMIT` | ACCT-CREDIT-LIMIT populates VB2-ACCT-CREDIT-LIMIT |
+| 282 | `WS-ACCT-REISSUE-YYYY` | `VB2-ACCT-REISSUE-YYYY` | WS-ACCT-REISSUE-YYYY populates VB2-ACCT-REISSUE-YYYY |
+
 
 
 ---
@@ -112,15 +279,15 @@ flowchart TD
 
 | Statement Type | Count |
 |---------------|-------|
+| IF | 39 |
 | MOVE | 35 |
-| IF | 18 |
 | EXIT | 15 |
 | DISPLAY | 15 |
-| WRITE | 4 |
-| OPEN | 4 |
+| WRITE | 8 |
+| OPEN | 8 |
+| READ | 2 |
+| CLOSE | 2 |
 | CALL | 2 |
-| READ | 1 |
-| CLOSE | 1 |
 | ARITHMETIC | 1 |
 
 ## Control Flow
@@ -153,8 +320,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1000-ACCTFILE-GET-NEXT` |
-| **Lines** | 237 - 270 |
-| **View Code** | [Jump to Line 237](../carddemo/CBACT01C.cbl#L237) |
+| **Lines** | 165 - 199 |
+| **View Code** | [Jump to Line 165](../carddemo/CBACT01C.cbl#L165) |
 
 
 
@@ -163,8 +330,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1100-DISPLAY-ACCT-RECORD` |
-| **Lines** | 272 - 285 |
-| **View Code** | [Jump to Line 272](../carddemo/CBACT01C.cbl#L272) |
+| **Lines** | 200 - 214 |
+| **View Code** | [Jump to Line 200](../carddemo/CBACT01C.cbl#L200) |
 
 
 
@@ -173,8 +340,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1300-POPUL-ACCT-RECORD` |
-| **Lines** | 287 - 312 |
-| **View Code** | [Jump to Line 287](../carddemo/CBACT01C.cbl#L287) |
+| **Lines** | 215 - 241 |
+| **View Code** | [Jump to Line 215](../carddemo/CBACT01C.cbl#L215) |
 
 
 
@@ -183,8 +350,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1350-WRITE-ACCT-RECORD` |
-| **Lines** | 314 - 323 |
-| **View Code** | [Jump to Line 314](../carddemo/CBACT01C.cbl#L314) |
+| **Lines** | 242 - 252 |
+| **View Code** | [Jump to Line 242](../carddemo/CBACT01C.cbl#L242) |
 
 
 
@@ -193,8 +360,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1400-POPUL-ARRAY-RECORD` |
-| **Lines** | 325 - 333 |
-| **View Code** | [Jump to Line 325](../carddemo/CBACT01C.cbl#L325) |
+| **Lines** | 253 - 262 |
+| **View Code** | [Jump to Line 253](../carddemo/CBACT01C.cbl#L253) |
 
 
 
@@ -203,8 +370,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1450-WRITE-ARRY-RECORD` |
-| **Lines** | 335 - 346 |
-| **View Code** | [Jump to Line 335](../carddemo/CBACT01C.cbl#L335) |
+| **Lines** | 263 - 275 |
+| **View Code** | [Jump to Line 263](../carddemo/CBACT01C.cbl#L263) |
 
 
 
@@ -213,8 +380,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1500-POPUL-VBRC-RECORD` |
-| **Lines** | 348 - 357 |
-| **View Code** | [Jump to Line 348](../carddemo/CBACT01C.cbl#L348) |
+| **Lines** | 276 - 286 |
+| **View Code** | [Jump to Line 276](../carddemo/CBACT01C.cbl#L276) |
 
 
 
@@ -223,8 +390,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1550-WRITE-VB1-RECORD` |
-| **Lines** | 359 - 372 |
-| **View Code** | [Jump to Line 359](../carddemo/CBACT01C.cbl#L359) |
+| **Lines** | 287 - 301 |
+| **View Code** | [Jump to Line 287](../carddemo/CBACT01C.cbl#L287) |
 
 
 
@@ -233,8 +400,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1575-WRITE-VB2-RECORD` |
-| **Lines** | 374 - 387 |
-| **View Code** | [Jump to Line 374](../carddemo/CBACT01C.cbl#L374) |
+| **Lines** | 302 - 316 |
+| **View Code** | [Jump to Line 302](../carddemo/CBACT01C.cbl#L302) |
 
 
 
@@ -243,8 +410,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `0000-ACCTFILE-OPEN` |
-| **Lines** | 389 - 405 |
-| **View Code** | [Jump to Line 389](../carddemo/CBACT01C.cbl#L389) |
+| **Lines** | 317 - 333 |
+| **View Code** | [Jump to Line 317](../carddemo/CBACT01C.cbl#L317) |
 
 
 
@@ -253,8 +420,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `2000-OUTFILE-OPEN` |
-| **Lines** | 406 - 422 |
-| **View Code** | [Jump to Line 406](../carddemo/CBACT01C.cbl#L406) |
+| **Lines** | 334 - 351 |
+| **View Code** | [Jump to Line 334](../carddemo/CBACT01C.cbl#L334) |
 
 
 
@@ -263,8 +430,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `3000-ARRFILE-OPEN` |
-| **Lines** | 424 - 440 |
-| **View Code** | [Jump to Line 424](../carddemo/CBACT01C.cbl#L424) |
+| **Lines** | 352 - 369 |
+| **View Code** | [Jump to Line 352](../carddemo/CBACT01C.cbl#L352) |
 
 
 
@@ -273,8 +440,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `4000-VBRFILE-OPEN` |
-| **Lines** | 442 - 458 |
-| **View Code** | [Jump to Line 442](../carddemo/CBACT01C.cbl#L442) |
+| **Lines** | 370 - 387 |
+| **View Code** | [Jump to Line 370](../carddemo/CBACT01C.cbl#L370) |
 
 
 
@@ -283,8 +450,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `9000-ACCTFILE-CLOSE` |
-| **Lines** | 460 - 476 |
-| **View Code** | [Jump to Line 460](../carddemo/CBACT01C.cbl#L460) |
+| **Lines** | 388 - 405 |
+| **View Code** | [Jump to Line 388](../carddemo/CBACT01C.cbl#L388) |
 
 
 
@@ -293,8 +460,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `9999-ABEND-PROGRAM` |
-| **Lines** | 478 - 482 |
-| **View Code** | [Jump to Line 478](../carddemo/CBACT01C.cbl#L478) |
+| **Lines** | 406 - 412 |
+| **View Code** | [Jump to Line 406](../carddemo/CBACT01C.cbl#L406) |
 
 
 
@@ -303,8 +470,8 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `9910-DISPLAY-IO-STATUS` |
-| **Lines** | 485 - 498 |
-| **View Code** | [Jump to Line 485](../carddemo/CBACT01C.cbl#L485) |
+| **Lines** | 413 - 430 |
+| **View Code** | [Jump to Line 413](../carddemo/CBACT01C.cbl#L413) |
 
 
 
@@ -319,6 +486,405 @@ This program is run by the following batch JCL jobs:
 RUN THE PROG... |
 
 
+
+
+## Copybook Field Dictionaries
+
+The following copybooks are included by this program. Each entry shows the actual fields
+extracted from the copybook source file (`.cpy`).
+
+### Copybook `CODATECN`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `CODATECN-REC` | `None` | None | None |  |
+| `05` | `CODATECN-IN-REC` | `None` | None | CODATECN-REC |  |
+| `10` | `CODATECN-TYPE` | `X` | None | CODATECN-IN-REC |  |
+| `88` | `YYYYMMDD-IN` | `None` | None | CODATECN-IN-REC |  |
+| `88` | `YYYY-MM-DD-IN` | `None` | None | CODATECN-IN-REC |  |
+| `10` | `CODATECN-INP-DATE` | `X(20)` | None | CODATECN-IN-REC |  |
+| `10` | `CODATECN-1INP` | `None` | None | CODATECN-IN-REC |  REDEFINES CODATECN-INP-DATE |
+| `15` | `CODATECN-1YYYY` | `XXXX` | None | CODATECN-1INP |  |
+| `15` | `CODATECN-1MM` | `XX` | None | CODATECN-1INP |  |
+| `15` | `CODATECN-1DD` | `XX` | None | CODATECN-1INP |  |
+| `15` | `CODATECN-1FIL` | `X(12)` | None | CODATECN-1INP |  |
+| `10` | `CODATECN-2INP` | `None` | None | CODATECN-IN-REC |  REDEFINES CODATECN-INP-DATE |
+| `15` | `CODATECN-1O-YYYY` | `XXXX` | None | CODATECN-2INP |  |
+| `15` | `CODATECN-1I-S1` | `X` | None | CODATECN-2INP |  |
+| `15` | `CODATECN-1MM` | `XX` | None | CODATECN-2INP |  |
+| `15` | `CODATECN-1I-S2` | `X` | None | CODATECN-2INP |  |
+| `15` | `CODATECN-2YY` | `XX` | None | CODATECN-2INP |  |
+| `15` | `CODATECN-2FIL` | `X(10)` | None | CODATECN-2INP |  |
+| `05` | `CODATECN-OUT-REC` | `None` | None | CODATECN-REC |  |
+| `10` | `CODATECN-OUTTYPE` | `X` | None | CODATECN-OUT-REC |  |
+| `88` | `YYYY-MM-DD-OP` | `None` | None | CODATECN-OUT-REC |  |
+| `88` | `YYYYMMDD-OP` | `None` | None | CODATECN-OUT-REC |  |
+| `10` | `CODATECN-0UT-DATE` | `X(20)` | None | CODATECN-OUT-REC |  |
+| `10` | `CODATECN-1OUT` | `None` | None | CODATECN-OUT-REC |  REDEFINES CODATECN-0UT-DATE |
+| `15` | `CODATECN-1O-YYYY` | `XXXX` | None | CODATECN-1OUT |  |
+| `15` | `CODATECN-1O-S1` | `X` | None | CODATECN-1OUT |  |
+| `15` | `CODATECN-1O-MM` | `XX` | None | CODATECN-1OUT |  |
+| `15` | `CODATECN-1O-S2` | `X` | None | CODATECN-1OUT |  |
+| `15` | `CODATECN-1O-DD` | `XX` | None | CODATECN-1OUT |  |
+| `15` | `CODATECN-1OFIL` | `X(10)` | None | CODATECN-1OUT |  |
+| `10` | `CODATECN-2OUT` | `None` | None | CODATECN-OUT-REC |  REDEFINES CODATECN-0UT-DATE |
+| `15` | `CODATECN-2O-YYYY` | `XXXX` | None | CODATECN-2OUT |  |
+| `15` | `CODATECN-2O-MM` | `XX` | None | CODATECN-2OUT |  |
+| `15` | `CODATECN-2O-DD` | `XX` | None | CODATECN-2OUT |  |
+| `15` | `CODATECN-2OFIL` | `X(12)` | None | CODATECN-2OUT |  |
+| `05` | `CODATECN-ERROR-MSG` | `X(38)` | None | CODATECN-REC |  |
+
+### Copybook `CVACT01Y`
+
+| Level | Field | PIC | USAGE | Parent | Notes |
+|-------|-------|-----|-------|--------|-------|
+| `01` | `ACCOUNT-RECORD` | `None` | None | None |  |
+| `05` | `ACCT-ID` | `9(11)` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-ACTIVE-STATUS` | `X(01)` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-CURR-BAL` | `S9(10)V99` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-CREDIT-LIMIT` | `S9(10)V99` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-CASH-CREDIT-LIMIT` | `S9(10)V99` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-OPEN-DATE` | `X(10)` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-EXPIRAION-DATE` | `X(10)` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-REISSUE-DATE` | `X(10)` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-CURR-CYC-CREDIT` | `S9(10)V99` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-CURR-CYC-DEBIT` | `S9(10)V99` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-ADDR-ZIP` | `X(10)` | None | ACCOUNT-RECORD |  |
+| `05` | `ACCT-GROUP-ID` | `X(10)` | None | ACCOUNT-RECORD |  |
+
+
+## File Record Layouts (FD)
+
+This program declares the following file records (data contracts for I/O):
+
+### `FD ACCTFILE-FILE` (record `FD-ACCTFILE-REC`)
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+| `01` | `FD-ACCTFILE-REC` | `None` | None | None |
+| `05` | `FD-ACCT-ID` | `9(11)` | None | FD-ACCTFILE-REC |
+| `05` | `FD-ACCT-DATA` | `X(289)` | None | FD-ACCTFILE-REC |
+
+### `FD ARRY-FILE` (record `ARR-ARRAY-REC`)
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+| `01` | `ARR-ARRAY-REC` | `None` | None | None |
+| `05` | `ARR-ACCT-ID` | `9(11)` | None | ARR-ARRAY-REC |
+| `05` | `ARR-ACCT-BAL` | `None` | None | ARR-ARRAY-REC |
+| `10` | `ARR-ACCT-CURR-BAL` | `S9(10)V99` | None | ARR-ACCT-BAL |
+| `10` | `ARR-ACCT-CURR-CYC-DEBIT` | `S9(10)V99` | COMP | ARR-ACCT-BAL |
+| `05` | `ARR-FILLER` | `X(04)` | None | ARR-ARRAY-REC |
+
+### `FD OUT-FILE` (record `OUT-ACCT-REC`)
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+| `01` | `OUT-ACCT-REC` | `None` | None | None |
+| `05` | `OUT-ACCT-ID` | `9(11)` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-ACTIVE-STATUS` | `X(01)` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-CURR-BAL` | `S9(10)V99` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-CREDIT-LIMIT` | `S9(10)V99` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-CASH-CREDIT-LIMIT` | `S9(10)V99` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-OPEN-DATE` | `X(10)` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-EXPIRAION-DATE` | `X(10)` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-REISSUE-DATE` | `X(10)` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-CURR-CYC-CREDIT` | `S9(10)V99` | None | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-CURR-CYC-DEBIT` | `S9(10)V99` | COMP | OUT-ACCT-REC |
+| `05` | `OUT-ACCT-GROUP-ID` | `X(10)` | None | OUT-ACCT-REC |
+
+### `FD VBRC-FILE` (record `VBR-REC`)
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+| `01` | `VBR-REC` | `X(80)` | None | None |
+
+
+## Data Lineage (MOVE Flow)
+
+The following MOVE statements were extracted from the source. Each row is a `source → destination`
+flow that the migration team can use to trace how data is reshaped and routed.
+
+| Source | Destination | Paragraph | Line |
+|--------|-------------|-----------|------|
+| `'0'` | `APPL-RESULT` | 1000-ACCTFILE-GET-NEXT | 168 |
+| `'16'` | `APPL-RESULT` | 1000-ACCTFILE-GET-NEXT | 181 |
+| `'12'` | `APPL-RESULT` | 1000-ACCTFILE-GET-NEXT | 183 |
+| `'Y'` | `END-OF-FILE` | 1000-ACCTFILE-GET-NEXT | 190 |
+| `ACCTFILE-STATUS` | `IO-STATUS` | 1000-ACCTFILE-GET-NEXT | 193 |
+| `ACCT-ID` | `OUT-ACCT-ID` | 1300-POPUL-ACCT-RECORD | 216 |
+| `ACCT-ACTIVE-STATUS` | `OUT-ACCT-ACTIVE-STATUS` | 1300-POPUL-ACCT-RECORD | 217 |
+| `ACCT-CURR-BAL` | `OUT-ACCT-CURR-BAL` | 1300-POPUL-ACCT-RECORD | 218 |
+| `ACCT-CREDIT-LIMIT` | `OUT-ACCT-CREDIT-LIMIT` | 1300-POPUL-ACCT-RECORD | 219 |
+| `ACCT-CASH-CREDIT-LIMIT` | `OUT-ACCT-CASH-CREDIT-LIMIT` | 1300-POPUL-ACCT-RECORD | 220 |
+| `ACCT-OPEN-DATE` | `OUT-ACCT-OPEN-DATE` | 1300-POPUL-ACCT-RECORD | 221 |
+| `ACCT-EXPIRAION-DATE` | `OUT-ACCT-EXPIRAION-DATE` | 1300-POPUL-ACCT-RECORD | 222 |
+| `ACCT-REISSUE-DATE` | `CODATECN-INP-DATE` | 1300-POPUL-ACCT-RECORD | 223 |
+| `'2'` | `CODATECN-TYPE` | 1300-POPUL-ACCT-RECORD | 225 |
+| `'2'` | `CODATECN-OUTTYPE` | 1300-POPUL-ACCT-RECORD | 226 |
+| `CODATECN-0UT-DATE` | `OUT-ACCT-REISSUE-DATE` | 1300-POPUL-ACCT-RECORD | 233 |
+| `ACCT-CURR-CYC-CREDIT` | `OUT-ACCT-CURR-CYC-CREDIT` | 1300-POPUL-ACCT-RECORD | 235 |
+| `'2525.00'` | `OUT-ACCT-CURR-CYC-DEBIT` | 1300-POPUL-ACCT-RECORD | 237 |
+| `ACCT-GROUP-ID` | `OUT-ACCT-GROUP-ID` | 1300-POPUL-ACCT-RECORD | 239 |
+| `OUTFILE-STATUS` | `IO-STATUS` | 1350-WRITE-ACCT-RECORD | 247 |
+| `ACCT-ID` | `ARR-ACCT-ID` | 1400-POPUL-ARRAY-RECORD | 254 |
+| `ACCT-CURR-BAL` | `ARR-ACCT-CURR-BAL` | 1400-POPUL-ARRAY-RECORD | 255 |
+| `'1005.00'` | `ARR-ACCT-CURR-CYC-DEBIT` | 1400-POPUL-ARRAY-RECORD | 256 |
+| `ACCT-CURR-BAL` | `ARR-ACCT-CURR-BAL` | 1400-POPUL-ARRAY-RECORD | 257 |
+| `'1525.00'` | `ARR-ACCT-CURR-CYC-DEBIT` | 1400-POPUL-ARRAY-RECORD | 258 |
+| `'-1025.00'` | `ARR-ACCT-CURR-BAL` | 1400-POPUL-ARRAY-RECORD | 259 |
+| `'-2500.00'` | `ARR-ACCT-CURR-CYC-DEBIT` | 1400-POPUL-ARRAY-RECORD | 260 |
+| `ARRYFILE-STATUS` | `IO-STATUS` | 1450-WRITE-ARRY-RECORD | 270 |
+| `ACCT-ID` | `VB1-ACCT-ID` | 1500-POPUL-VBRC-RECORD | 277 |
+| `ACCT-ACTIVE-STATUS` | `VB1-ACCT-ACTIVE-STATUS` | 1500-POPUL-VBRC-RECORD | 279 |
+| `ACCT-CURR-BAL` | `VB2-ACCT-CURR-BAL` | 1500-POPUL-VBRC-RECORD | 280 |
+| `ACCT-CREDIT-LIMIT` | `VB2-ACCT-CREDIT-LIMIT` | 1500-POPUL-VBRC-RECORD | 281 |
+| `WS-ACCT-REISSUE-YYYY` | `VB2-ACCT-REISSUE-YYYY` | 1500-POPUL-VBRC-RECORD | 282 |
+| `'12'` | `WS-RECD-LEN` | 1550-WRITE-VB1-RECORD | 288 |
+| `VBRC-REC1` | `VBR-REC` | 1550-WRITE-VB1-RECORD | 289 |
+| `VBRCFILE-STATUS` | `IO-STATUS` | 1550-WRITE-VB1-RECORD | 296 |
+| `'39'` | `WS-RECD-LEN` | 1575-WRITE-VB2-RECORD | 303 |
+| `VBRC-REC2` | `VBR-REC` | 1575-WRITE-VB2-RECORD | 304 |
+| `VBRCFILE-STATUS` | `IO-STATUS` | 1575-WRITE-VB2-RECORD | 311 |
+| `'8'` | `APPL-RESULT` | 0000-ACCTFILE-OPEN | 318 |
+| `'0'` | `APPL-RESULT` | 0000-ACCTFILE-OPEN | 321 |
+| `'12'` | `APPL-RESULT` | 0000-ACCTFILE-OPEN | 323 |
+| `ACCTFILE-STATUS` | `IO-STATUS` | 0000-ACCTFILE-OPEN | 329 |
+| `'8'` | `APPL-RESULT` | 2000-OUTFILE-OPEN | 335 |
+| `'0'` | `APPL-RESULT` | 2000-OUTFILE-OPEN | 338 |
+| `'12'` | `APPL-RESULT` | 2000-OUTFILE-OPEN | 340 |
+| `OUTFILE-STATUS` | `IO-STATUS` | 2000-OUTFILE-OPEN | 346 |
+| `'8'` | `APPL-RESULT` | 3000-ARRFILE-OPEN | 353 |
+| `'0'` | `APPL-RESULT` | 3000-ARRFILE-OPEN | 356 |
+| `'12'` | `APPL-RESULT` | 3000-ARRFILE-OPEN | 358 |
+| `ARRYFILE-STATUS` | `IO-STATUS` | 3000-ARRFILE-OPEN | 364 |
+| `'8'` | `APPL-RESULT` | 4000-VBRFILE-OPEN | 371 |
+| `'0'` | `APPL-RESULT` | 4000-VBRFILE-OPEN | 374 |
+| `'12'` | `APPL-RESULT` | 4000-VBRFILE-OPEN | 376 |
+| `VBRCFILE-STATUS` | `IO-STATUS` | 4000-VBRFILE-OPEN | 382 |
+| `ACCTFILE-STATUS` | `IO-STATUS` | 9000-ACCTFILE-CLOSE | 400 |
+| `'0'` | `TIMING` | 9999-ABEND-PROGRAM | 408 |
+| `'999'` | `ABCODE` | 9999-ABEND-PROGRAM | 409 |
+| `IO-STAT1` | `IO-STATUS-04` | 9910-DISPLAY-IO-STATUS | 416 |
+| `'0'` | `TWO-BYTES-BINARY` | 9910-DISPLAY-IO-STATUS | 417 |
+*+ 4 more movements*
+
+## Known Issues & Code Anomalies
+
+Static analysis flagged the following items in this program. Migration teams should
+review each one before re-implementing in a modern stack.
+
+| Severity | Category | Title | Paragraph | Line |
+|----------|----------|-------|-----------|------|
+| **NOTICE** | DEAD_CODE | Variable `FD-ACCT-DATA` is declared but never referenced | None | 55 |
+| **NOTICE** | DEAD_CODE | Variable `ARR-FILLER` is declared but never referenced | None | 78 |
+| **NOTICE** | DEAD_CODE | Variable `ACCTFILE-STAT1` is declared but never referenced | None | 92 |
+| **NOTICE** | DEAD_CODE | Variable `ACCTFILE-STAT2` is declared but never referenced | None | 93 |
+| **NOTICE** | DEAD_CODE | Variable `OUTFILE-STAT1` is declared but never referenced | None | 95 |
+| **NOTICE** | DEAD_CODE | Variable `OUTFILE-STAT2` is declared but never referenced | None | 96 |
+| **NOTICE** | DEAD_CODE | Variable `ARRYFILE-STAT1` is declared but never referenced | None | 98 |
+| **NOTICE** | DEAD_CODE | Variable `ARRYFILE-STAT2` is declared but never referenced | None | 99 |
+| **NOTICE** | DEAD_CODE | Variable `VBRCFILE-STAT1` is declared but never referenced | None | 101 |
+| **NOTICE** | DEAD_CODE | Variable `VBRCFILE-STAT2` is declared but never referenced | None | 102 |
+| **NOTICE** | LOGIC | Paragraph `1000-ACCTFILE-GET-NEXT` terminates the program on error | 1000-ACCTFILE-GET-NEXT | 165 |
+| **NOTICE** | LOGIC | Paragraph `1350-WRITE-ACCT-RECORD` terminates the program on error | 1350-WRITE-ACCT-RECORD | 242 |
+| **NOTICE** | LOGIC | Paragraph `1450-WRITE-ARRY-RECORD` terminates the program on error | 1450-WRITE-ARRY-RECORD | 263 |
+| **NOTICE** | LOGIC | Paragraph `1550-WRITE-VB1-RECORD` terminates the program on error | 1550-WRITE-VB1-RECORD | 287 |
+| **NOTICE** | LOGIC | Paragraph `1575-WRITE-VB2-RECORD` terminates the program on error | 1575-WRITE-VB2-RECORD | 302 |
+| **NOTICE** | LOGIC | Paragraph `0000-ACCTFILE-OPEN` terminates the program on error | 0000-ACCTFILE-OPEN | 317 |
+| **NOTICE** | LOGIC | Paragraph `2000-OUTFILE-OPEN` terminates the program on error | 2000-OUTFILE-OPEN | 334 |
+| **NOTICE** | LOGIC | Paragraph `3000-ARRFILE-OPEN` terminates the program on error | 3000-ARRFILE-OPEN | 352 |
+| **NOTICE** | LOGIC | Paragraph `4000-VBRFILE-OPEN` terminates the program on error | 4000-VBRFILE-OPEN | 370 |
+| **NOTICE** | LOGIC | Paragraph `9000-ACCTFILE-CLOSE` terminates the program on error | 9000-ACCTFILE-CLOSE | 388 |
+
+### NOTICE — Variable `FD-ACCT-DATA` is declared but never referenced
+
+`FD-ACCT-DATA` is declared at line 55 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 55):
+```cobol
+05 FD-ACCT-DATA                      PIC X(289).
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `ARR-FILLER` is declared but never referenced
+
+`ARR-FILLER` is declared at line 78 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 78):
+```cobol
+05  ARR-FILLER                 PIC X(04).
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `ACCTFILE-STAT1` is declared but never referenced
+
+`ACCTFILE-STAT1` is declared at line 92 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 92):
+```cobol
+05  ACCTFILE-STAT1      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `ACCTFILE-STAT2` is declared but never referenced
+
+`ACCTFILE-STAT2` is declared at line 93 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 93):
+```cobol
+05  ACCTFILE-STAT2      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `OUTFILE-STAT1` is declared but never referenced
+
+`OUTFILE-STAT1` is declared at line 95 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 95):
+```cobol
+05  OUTFILE-STAT1       PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `OUTFILE-STAT2` is declared but never referenced
+
+`OUTFILE-STAT2` is declared at line 96 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 96):
+```cobol
+05  OUTFILE-STAT2       PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `ARRYFILE-STAT1` is declared but never referenced
+
+`ARRYFILE-STAT1` is declared at line 98 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 98):
+```cobol
+05  ARRYFILE-STAT1      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `ARRYFILE-STAT2` is declared but never referenced
+
+`ARRYFILE-STAT2` is declared at line 99 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 99):
+```cobol
+05  ARRYFILE-STAT2      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `VBRCFILE-STAT1` is declared but never referenced
+
+`VBRCFILE-STAT1` is declared at line 101 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 101):
+```cobol
+05  VBRCFILE-STAT1      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `VBRCFILE-STAT2` is declared but never referenced
+
+`VBRCFILE-STAT2` is declared at line 102 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 102):
+```cobol
+05  VBRCFILE-STAT2      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Paragraph `1000-ACCTFILE-GET-NEXT` terminates the program on error
+
+`1000-ACCTFILE-GET-NEXT` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `1350-WRITE-ACCT-RECORD` terminates the program on error
+
+`1350-WRITE-ACCT-RECORD` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `1450-WRITE-ARRY-RECORD` terminates the program on error
+
+`1450-WRITE-ARRY-RECORD` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `1550-WRITE-VB1-RECORD` terminates the program on error
+
+`1550-WRITE-VB1-RECORD` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `1575-WRITE-VB2-RECORD` terminates the program on error
+
+`1575-WRITE-VB2-RECORD` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `0000-ACCTFILE-OPEN` terminates the program on error
+
+`0000-ACCTFILE-OPEN` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `2000-OUTFILE-OPEN` terminates the program on error
+
+`2000-OUTFILE-OPEN` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `3000-ARRFILE-OPEN` terminates the program on error
+
+`3000-ARRFILE-OPEN` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `4000-VBRFILE-OPEN` terminates the program on error
+
+`4000-VBRFILE-OPEN` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Paragraph `9000-ACCTFILE-CLOSE` terminates the program on error
+
+`9000-ACCTFILE-CLOSE` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
+
+**Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+
+
+## File OPEN / CLOSE Operations
+
+The exact OPEN mode (INPUT / OUTPUT / I-O / EXTEND) determines whether a file can be
+read, written, or both — and whether REWRITE / DELETE are legal. This table is the
+source of truth for migrators converting to modern storage layers.
+
+| File | Operation | Mode | Paragraph | Line |
+|------|-----------|------|-----------|------|
+| `ACCTFILE-FILE` | OPEN | INPUT | 0000-ACCTFILE-OPEN | 319 |
+| `OUT-FILE` | OPEN | OUTPUT | 2000-OUTFILE-OPEN | 336 |
+| `ARRY-FILE` | OPEN | OUTPUT | 3000-ARRFILE-OPEN | 354 |
+| `VBRC-FILE` | OPEN | OUTPUT | 4000-VBRFILE-OPEN | 372 |
+| `ACCTFILE-FILE` | CLOSE | None | 9000-ACCTFILE-CLOSE | 390 |
+
+
+
+
+
+
+## Modernization Review Findings
+
+These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
+
+| Finding | Why It Matters |
+|---------|----------------|
+| Nested IF blocks need compiler-accurate validation | Nested conditional logic was detected. During migration, validate scope with the original compiler rules and explicit `END-IF`/period termination before translating to Java or SQL. |
 
 
 ## Business Rules
@@ -427,4 +993,4 @@ RUN THE PROG... |
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

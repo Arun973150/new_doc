@@ -78,7 +78,6 @@ PARM-END-DATE,C'2022-07-06'                                        //Date
 
 ### COBOL Programs Executed
 
-- [SORT](../programs/SORT.md)
 - [CBTRN03C](../programs/CBTRN03C.md)
 
 ### Input Datasets
@@ -99,4 +98,4 @@ PARM-END-DATE,C'2022-07-06'                                        //Date
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

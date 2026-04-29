@@ -119,11 +119,6 @@
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [DFHECP1](../programs/DFHECP1.md)
-- [IGYCRCTL](../programs/IGYCRCTL.md)
-- [IEBGENER](../programs/IEBGENER.md)
 
 ### Input Datasets
 
@@ -134,4 +129,4 @@
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

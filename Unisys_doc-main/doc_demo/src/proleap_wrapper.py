@@ -1014,18 +1014,33 @@ class ProLeapWrapper:
         self.copybook_dirs = cpy_dirs
         console.print(f"[cyan]Copybook dirs: {cpy_dirs}[/cyan]")
 
-        # Find COBOL program files
+        # Find COBOL program files. On Windows, rglob is case-insensitive so
+        # *.cbl and *.CBL both match the same files — dedupe by resolved path.
+        def _dedupe_by_path(paths):
+            seen = set()
+            out = []
+            for p in paths:
+                key = str(p.resolve()).lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(p)
+            return out
+
         cobol_files = []
         for ext in [".cbl", ".CBL", ".cob", ".COB"]:
             cobol_files.extend(repo_path.rglob(f"*{ext}"))
+        cobol_files = _dedupe_by_path(cobol_files)
 
-        # Find copybook files
         cpy_files = []
         for ext in [".cpy", ".CPY"]:
             cpy_files.extend(repo_path.rglob(f"*{ext}"))
+        cpy_files = _dedupe_by_path(cpy_files)
 
-        # Find BMS files
-        bms_files = list(repo_path.rglob("*.bms"))
+        bms_files = []
+        for ext in [".bms", ".BMS"]:
+            bms_files.extend(repo_path.rglob(f"*{ext}"))
+        bms_files = _dedupe_by_path(bms_files)
 
         console.print(f"[cyan]Found: {len(cobol_files)} programs, {len(cpy_files)} copybooks, {len(bms_files)} BMS maps[/cyan]")
 

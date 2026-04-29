@@ -50,12 +50,9 @@
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [SDSF](../programs/SDSF.md)
 
 
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

@@ -201,11 +201,6 @@ USER0005LEE                 TING                PASSWORDU
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [IEFBR14](../programs/IEFBR14.md)
-- [IEBGENER](../programs/IEBGENER.md)
-- [IDCAMS](../programs/IDCAMS.md)
 
 ### Input Datasets
 
@@ -219,4 +214,4 @@ USER0005LEE                 TING                PASSWORDU
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

@@ -24,28 +24,28 @@ graph LR
 
 | Caller | Calls | Line |
 |--------|-------|------|
-| [COACCT01](../programs/COACCT01.md) | [MQOPEN](../programs/MQOPEN.md) | 233 |
-| [COACCT01](../programs/COACCT01.md) | [MQOPEN](../programs/MQOPEN.md) | 267 |
-| [COACCT01](../programs/COACCT01.md) | [MQOPEN](../programs/MQOPEN.md) | 302 |
-| [COACCT01](../programs/COACCT01.md) | [MQGET](../programs/MQGET.md) | 352 |
-| [COACCT01](../programs/COACCT01.md) | [MQPUT](../programs/MQPUT.md) | 479 |
-| [COACCT01](../programs/COACCT01.md) | [MQPUT](../programs/MQPUT.md) | 516 |
-| [COACCT01](../programs/COACCT01.md) | [MQCLOSE](../programs/MQCLOSE.md) | 557 |
-| [COACCT01](../programs/COACCT01.md) | [MQCLOSE](../programs/MQCLOSE.md) | 579 |
-| [COACCT01](../programs/COACCT01.md) | [MQCLOSE](../programs/MQCLOSE.md) | 602 |
-| [CODATE01](../programs/CODATE01.md) | [MQOPEN](../programs/MQOPEN.md) | 182 |
-| [CODATE01](../programs/CODATE01.md) | [MQOPEN](../programs/MQOPEN.md) | 216 |
-| [CODATE01](../programs/CODATE01.md) | [MQOPEN](../programs/MQOPEN.md) | 251 |
-| [CODATE01](../programs/CODATE01.md) | [MQGET](../programs/MQGET.md) | 301 |
-| [CODATE01](../programs/CODATE01.md) | [MQPUT](../programs/MQPUT.md) | 383 |
-| [CODATE01](../programs/CODATE01.md) | [MQPUT](../programs/MQPUT.md) | 420 |
-| [CODATE01](../programs/CODATE01.md) | [MQCLOSE](../programs/MQCLOSE.md) | 461 |
-| [CODATE01](../programs/CODATE01.md) | [MQCLOSE](../programs/MQCLOSE.md) | 483 |
-| [CODATE01](../programs/CODATE01.md) | [MQCLOSE](../programs/MQCLOSE.md) | 506 |
-| [COPAUA0C](../programs/COPAUA0C.md) | [MQOPEN](../programs/MQOPEN.md) | 262 |
-| [COPAUA0C](../programs/COPAUA0C.md) | [MQGET](../programs/MQGET.md) | 400 |
-| [COPAUA0C](../programs/COPAUA0C.md) | [MQPUT1](../programs/MQPUT1.md) | 758 |
-| [COPAUA0C](../programs/COPAUA0C.md) | [MQCLOSE](../programs/MQCLOSE.md) | 956 |
+| [COACCT01](../programs/COACCT01.md) | `MQOPEN` | 233 |
+| [COACCT01](../programs/COACCT01.md) | `MQOPEN` | 267 |
+| [COACCT01](../programs/COACCT01.md) | `MQOPEN` | 302 |
+| [COACCT01](../programs/COACCT01.md) | `MQGET` | 352 |
+| [COACCT01](../programs/COACCT01.md) | `MQPUT` | 479 |
+| [COACCT01](../programs/COACCT01.md) | `MQPUT` | 516 |
+| [COACCT01](../programs/COACCT01.md) | `MQCLOSE` | 557 |
+| [COACCT01](../programs/COACCT01.md) | `MQCLOSE` | 579 |
+| [COACCT01](../programs/COACCT01.md) | `MQCLOSE` | 602 |
+| [CODATE01](../programs/CODATE01.md) | `MQOPEN` | 182 |
+| [CODATE01](../programs/CODATE01.md) | `MQOPEN` | 216 |
+| [CODATE01](../programs/CODATE01.md) | `MQOPEN` | 251 |
+| [CODATE01](../programs/CODATE01.md) | `MQGET` | 301 |
+| [CODATE01](../programs/CODATE01.md) | `MQPUT` | 383 |
+| [CODATE01](../programs/CODATE01.md) | `MQPUT` | 420 |
+| [CODATE01](../programs/CODATE01.md) | `MQCLOSE` | 461 |
+| [CODATE01](../programs/CODATE01.md) | `MQCLOSE` | 483 |
+| [CODATE01](../programs/CODATE01.md) | `MQCLOSE` | 506 |
+| [COPAUA0C](../programs/COPAUA0C.md) | `MQOPEN` | 262 |
+| [COPAUA0C](../programs/COPAUA0C.md) | `MQGET` | 400 |
+| [COPAUA0C](../programs/COPAUA0C.md) | `MQPUT1` | 758 |
+| [COPAUA0C](../programs/COPAUA0C.md) | `MQCLOSE` | 956 |
 
 ## Entry Points
 
@@ -128,4 +128,4 @@ Programs that don't call any other program (utility or terminal logic):
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

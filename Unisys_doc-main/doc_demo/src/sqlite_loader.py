@@ -185,6 +185,107 @@ class SQLiteLoader:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_data_movements_source ON data_movements(source_field)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_data_movements_dest ON data_movements(destination_field)")
 
+        # code_anomalies — static-analysis findings (bugs, dead code, mismatches)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS code_anomalies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                category TEXT NOT NULL,
+                rule_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                paragraph_name TEXT,
+                line_number INTEGER,
+                snippet TEXT,
+                suggestion TEXT
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_code_anomalies_program ON code_anomalies(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_code_anomalies_severity ON code_anomalies(severity)")
+
+        # mq_calls — IBM MQ API usage per program
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mq_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                function_code TEXT NOT NULL,
+                function_name TEXT,
+                queue_name TEXT,
+                queue_manager TEXT,
+                object_descriptor TEXT,
+                message_descriptor TEXT,
+                options_area TEXT,
+                paragraph_name TEXT,
+                line_number INTEGER,
+                raw_text TEXT
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_mq_calls_program ON mq_calls(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_mq_calls_function ON mq_calls(function_code)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_mq_calls_queue ON mq_calls(queue_name)")
+
+        # evaluate_branches — EVALUATE / WHEN decision tables
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS evaluate_branches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                evaluate_id TEXT NOT NULL,
+                subject TEXT,
+                branch_index INTEGER,
+                when_condition TEXT,
+                action_summary TEXT,
+                paragraph_name TEXT,
+                line_number INTEGER,
+                is_default INTEGER DEFAULT 0
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_evaluate_branches_program ON evaluate_branches(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_evaluate_branches_eval ON evaluate_branches(evaluate_id)")
+
+        # cics_handles — EXEC CICS HANDLE CONDITION/AID/ABEND routing
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cics_handles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                handle_type TEXT NOT NULL,
+                condition_name TEXT NOT NULL,
+                target_paragraph TEXT,
+                paragraph_name TEXT,
+                line_number INTEGER
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cics_handles_program ON cics_handles(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cics_handles_target ON cics_handles(target_paragraph)")
+
+        # program_parameters — PROCEDURE DIVISION USING ... (linkage-section parameters)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS program_parameters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                position INTEGER,
+                parameter_name TEXT NOT NULL,
+                source TEXT,                  -- "PROCEDURE DIVISION USING" or "ENTRY USING"
+                line_number INTEGER
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_program_parameters_program ON program_parameters(program_id)")
+
+        # file_operations — every OPEN/CLOSE with mode (INPUT/OUTPUT/I-O/EXTEND)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS file_operations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                operation TEXT NOT NULL,      -- OPEN | CLOSE
+                mode TEXT,                    -- INPUT | OUTPUT | I-O | EXTEND  (NULL for CLOSE)
+                paragraph_name TEXT,
+                line_number INTEGER
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_file_ops_program ON file_operations(program_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_file_ops_file ON file_operations(file_name)")
+
         # Add resolved_target column to program_calls (dynamic CALL resolution)
         try:
             cursor.execute("ALTER TABLE program_calls ADD COLUMN resolved_target TEXT")
@@ -345,7 +446,9 @@ class SQLiteLoader:
                     # Clear old data for this program
                     for table in ["paragraphs", "data_items", "files", "statements",
                                   "performs", "copybook_usage", "exec_cics", "exec_sql",
-                                  "ims_calls", "file_records", "data_movements"]:
+                                  "ims_calls", "file_records", "data_movements",
+                                  "code_anomalies", "mq_calls", "evaluate_branches",
+                                  "cics_handles", "program_parameters", "file_operations"]:
                         cursor.execute(f"DELETE FROM {table} WHERE program_id = ?", (program_id,))
                     # program_calls uses caller_program, not program_id
                     cursor.execute("DELETE FROM program_calls WHERE caller_program = ?", (program_id,))
@@ -364,22 +467,35 @@ class SQLiteLoader:
                                 return pname
                         return None
 
-                    # Insert paragraphs. If ProLeap returned none AND we have source,
-                    # fall back to a regex paragraph parser so the program isn't blank.
+                    # Insert paragraphs. Always re-extract from source so line
+                    # numbers match the current file (ProLeap output may be stale
+                    # if the source has been edited since parsing). Fall back to
+                    # ProLeap-supplied paragraphs only when source extraction
+                    # returns nothing.
                     parsed_paras = program.get("paragraphs", []) or []
-                    if not parsed_paras and program.get("file_path"):
+                    if program.get("file_path"):
                         try:
-                            fallback = self._extract_paragraphs_from_source(program["file_path"])
+                            fresh = self._extract_paragraphs_from_source(program["file_path"])
                         except Exception:
-                            fallback = []
-                        if fallback:
-                            parsed_paras = fallback
-                            console.print(
-                                f"[cyan]  paragraphs fallback: extracted {len(fallback)} paragraphs from source for {program_id}[/cyan]"
-                            )
-                            # Also write back into the program dict so downstream
-                            # extractors (FD/MOVE/IMS) can use the paragraph ranges.
-                            program["paragraphs"] = fallback
+                            fresh = []
+                        if fresh:
+                            # If ProLeap had paragraphs but they're stale, prefer fresh.
+                            # If counts roughly match, keep ProLeap's enriched fields
+                            # (business_name, narrative) by name-matching back into fresh.
+                            by_name = {(p.get("name") or "").upper(): p for p in parsed_paras}
+                            merged = []
+                            for f in fresh:
+                                old = by_name.get((f.get("name") or "").upper(), {})
+                                merged.append({
+                                    "name": f["name"],
+                                    "line_start": f["line_start"],
+                                    "line_end": f["line_end"],
+                                    "business_name": old.get("business_name"),
+                                    "narrative": old.get("narrative"),
+                                    "purpose": old.get("purpose"),
+                                })
+                            parsed_paras = merged
+                            program["paragraphs"] = merged
 
                     for para in parsed_paras:
                         para_name = para.get("name")
@@ -669,6 +785,189 @@ class SQLiteLoader:
                         except Exception as _mv_err:
                             console.print(f"[yellow]  MOVE extraction failed for {program_id}: {_mv_err}[/yellow]")
 
+                    # Source-side fallback for I/O statements + IF conditions.
+                    # Only inserts when a row with the same line+type doesn't exist,
+                    # so we never overwrite ProLeap output that's already populated.
+                    if program.get("file_path"):
+                        try:
+                            io_stmts = self._extract_io_statements_from_source(
+                                program["file_path"], program.get("paragraphs", [])
+                            )
+                            for s in io_stmts:
+                                # Skip if a row already exists for this program/line/type
+                                cursor.execute("""
+                                    SELECT 1 FROM statements
+                                    WHERE program_id = ? AND line_number = ? AND statement_type = ?
+                                """, (program_id, s["line_number"], s["type"]))
+                                if cursor.fetchone():
+                                    continue
+                                cursor.execute("""
+                                    INSERT INTO statements (
+                                        program_id, paragraph_name, statement_type,
+                                        line_number, details_json
+                                    ) VALUES (?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    s.get("paragraph"),
+                                    s["type"],
+                                    s["line_number"],
+                                    json.dumps(s.get("details", {})),
+                                ))
+                        except Exception as _io_err:
+                            console.print(f"[yellow]  IO statement fallback failed for {program_id}: {_io_err}[/yellow]")
+
+                    # Static analysis: detect bugs, dead code, naming mismatches
+                    if program.get("file_path"):
+                        try:
+                            anomalies = self._detect_code_anomalies(
+                                program["file_path"], program_id, program.get("paragraphs", [])
+                            )
+                            for a in anomalies:
+                                cursor.execute("""
+                                    INSERT INTO code_anomalies (
+                                        program_id, severity, category, rule_id,
+                                        title, description, paragraph_name,
+                                        line_number, snippet, suggestion
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    a.get("severity"),
+                                    a.get("category"),
+                                    a.get("rule_id"),
+                                    a.get("title"),
+                                    a.get("description"),
+                                    a.get("paragraph_name"),
+                                    a.get("line_number"),
+                                    a.get("snippet"),
+                                    a.get("suggestion"),
+                                ))
+                        except Exception as _ca_err:
+                            console.print(f"[yellow]  anomaly detection failed for {program_id}: {_ca_err}[/yellow]")
+
+                    # IBM MQ API calls
+                    if program.get("file_path"):
+                        try:
+                            mq = self._extract_mq_calls_from_source(
+                                program["file_path"], program.get("paragraphs", []),
+                                program.get("data_items", []),
+                            )
+                            for m in mq:
+                                cursor.execute("""
+                                    INSERT INTO mq_calls (
+                                        program_id, function_code, function_name,
+                                        queue_name, queue_manager, object_descriptor,
+                                        message_descriptor, options_area,
+                                        paragraph_name, line_number, raw_text
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    m.get("function_code"),
+                                    m.get("function_name"),
+                                    m.get("queue_name"),
+                                    m.get("queue_manager"),
+                                    m.get("object_descriptor"),
+                                    m.get("message_descriptor"),
+                                    m.get("options_area"),
+                                    m.get("paragraph"),
+                                    m.get("line_number"),
+                                    m.get("raw_text"),
+                                ))
+                        except Exception as _mq_err:
+                            console.print(f"[yellow]  MQ extraction failed for {program_id}: {_mq_err}[/yellow]")
+
+                    # EVALUATE / WHEN branches
+                    if program.get("file_path"):
+                        try:
+                            evals = self._extract_evaluate_branches_from_source(
+                                program["file_path"], program.get("paragraphs", []),
+                            )
+                            for e in evals:
+                                cursor.execute("""
+                                    INSERT INTO evaluate_branches (
+                                        program_id, evaluate_id, subject, branch_index,
+                                        when_condition, action_summary,
+                                        paragraph_name, line_number, is_default
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    e.get("evaluate_id"),
+                                    e.get("subject"),
+                                    e.get("branch_index"),
+                                    e.get("when_condition"),
+                                    e.get("action_summary"),
+                                    e.get("paragraph"),
+                                    e.get("line_number"),
+                                    e.get("is_default", 0),
+                                ))
+                        except Exception as _ev_err:
+                            console.print(f"[yellow]  EVALUATE extraction failed for {program_id}: {_ev_err}[/yellow]")
+
+                    # CICS HANDLE CONDITION routing
+                    if program.get("file_path"):
+                        try:
+                            handles = self._extract_cics_handles_from_source(
+                                program["file_path"], program.get("paragraphs", []),
+                            )
+                            for h in handles:
+                                cursor.execute("""
+                                    INSERT INTO cics_handles (
+                                        program_id, handle_type, condition_name,
+                                        target_paragraph, paragraph_name, line_number
+                                    ) VALUES (?, ?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    h.get("handle_type"),
+                                    h.get("condition_name"),
+                                    h.get("target_paragraph"),
+                                    h.get("paragraph_name"),
+                                    h.get("line_number"),
+                                ))
+                        except Exception as _h_err:
+                            console.print(f"[yellow]  CICS HANDLE extraction failed for {program_id}: {_h_err}[/yellow]")
+
+                    # PROCEDURE DIVISION USING / ENTRY USING parameters
+                    if program.get("file_path"):
+                        try:
+                            params = self._extract_program_parameters_from_source(program["file_path"])
+                            for pp in params:
+                                cursor.execute("""
+                                    INSERT INTO program_parameters (
+                                        program_id, position, parameter_name,
+                                        source, line_number
+                                    ) VALUES (?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    pp.get("position"),
+                                    pp.get("parameter_name"),
+                                    pp.get("source"),
+                                    pp.get("line_number"),
+                                ))
+                        except Exception as _pp_err:
+                            console.print(f"[yellow]  PROCEDURE USING extraction failed for {program_id}: {_pp_err}[/yellow]")
+
+                    # OPEN/CLOSE with explicit modes
+                    if program.get("file_path"):
+                        try:
+                            ops = self._extract_file_operations_from_source(
+                                program["file_path"], program.get("paragraphs", [])
+                            )
+                            for op in ops:
+                                cursor.execute("""
+                                    INSERT INTO file_operations (
+                                        program_id, file_name, operation, mode,
+                                        paragraph_name, line_number
+                                    ) VALUES (?, ?, ?, ?, ?, ?)
+                                """, (
+                                    program_id,
+                                    op.get("file_name"),
+                                    op.get("operation"),
+                                    op.get("mode"),
+                                    op.get("paragraph"),
+                                    op.get("line_number"),
+                                ))
+                        except Exception as _op_err:
+                            console.print(f"[yellow]  file-op extraction failed for {program_id}: {_op_err}[/yellow]")
+
                 except Exception as e:
                     import traceback
                     console.print(f"[yellow]Warning: Error loading {program.get('program_id')}: {e}[/yellow]")
@@ -857,14 +1156,29 @@ class SQLiteLoader:
         lines = content.split("\n")
 
         in_proc = False
-        para_pat = re.compile(r"^\s{0,7}([A-Z][A-Z0-9-]{2,30})\s*\.\s*$")
-        # COBOL keywords/sections that match the regex but aren't paragraphs
-        skip = {"PROCEDURE", "DIVISION", "SECTION", "FILE", "WORKING-STORAGE",
-                 "LINKAGE", "LOCAL-STORAGE", "INPUT-OUTPUT", "FILE-CONTROL",
-                 "I-O-CONTROL", "DATA", "ENVIRONMENT", "IDENTIFICATION",
-                 "CONFIGURATION", "SPECIAL-NAMES", "SOURCE-COMPUTER",
-                 "OBJECT-COMPUTER", "PROGRAM-ID", "AUTHOR", "DATE-WRITTEN",
-                 "DATE-COMPILED", "INSTALLATION", "SECURITY", "REMARKS"}
+        # In COBOL, a paragraph header MUST start in Area A (columns 8-11). The
+        # regex requires the name to start at column 8 (i.e. body[0] is the name's
+        # first character with at most one leading space — accommodates editor tabs).
+        # Names CAN start with a digit (e.g. 1400-COMPUTE-FEES).
+        para_pat = re.compile(r"^\s{0,3}([A-Z0-9][A-Z0-9-]{2,30})\s*\.\s*$")
+        # COBOL keywords/sections/scope-terminators that match the regex but
+        # aren't paragraph names.
+        skip = {
+            # Section / division markers
+            "PROCEDURE", "DIVISION", "SECTION", "FILE", "WORKING-STORAGE",
+            "LINKAGE", "LOCAL-STORAGE", "INPUT-OUTPUT", "FILE-CONTROL",
+            "I-O-CONTROL", "DATA", "ENVIRONMENT", "IDENTIFICATION",
+            "CONFIGURATION", "SPECIAL-NAMES", "SOURCE-COMPUTER",
+            "OBJECT-COMPUTER", "PROGRAM-ID", "AUTHOR", "DATE-WRITTEN",
+            "DATE-COMPILED", "INSTALLATION", "SECURITY", "REMARKS",
+            # Statement / scope terminators
+            "EXIT", "STOP", "GOBACK", "CONTINUE", "END-EXEC",
+            "END-IF", "END-EVALUATE", "END-PERFORM", "END-READ", "END-WRITE",
+            "END-CALL", "END-SEARCH", "END-START", "END-STRING", "END-UNSTRING",
+            "END-COMPUTE", "END-ADD", "END-SUBTRACT", "END-MULTIPLY", "END-DIVIDE",
+            "END-RETURN", "END-RECEIVE", "END-INVOKE", "END-DELETE",
+            "TRUE", "FALSE", "NULL",
+        }
 
         paras = []
         cur_name = None
@@ -887,9 +1201,6 @@ class SQLiteLoader:
             name = m.group(1).upper()
             if name in skip:
                 continue
-            # Skip if it's actually an SQL/CICS keyword being used as period statement
-            if name in ("END-EXEC", "EXIT", "STOP"):
-                continue
 
             # Close out previous paragraph
             if cur_name:
@@ -901,6 +1212,1167 @@ class SQLiteLoader:
             paras.append({"name": cur_name, "line_start": cur_start, "line_end": len(lines)})
 
         return paras
+
+    @staticmethod
+    def _extract_program_parameters_from_source(file_path: str) -> List[Dict]:
+        """Pull `PROCEDURE DIVISION USING param1 param2 ...` and any
+        `ENTRY 'name' USING ...` clauses. Each parameter becomes a row."""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip(line):
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        # Collect both patterns. PROCEDURE DIVISION USING may span multiple lines.
+        cleaned = [(i + 1, _strip(l)) for i, l in enumerate(lines)]
+        joined_with_lines = []
+        for ln, body in cleaned:
+            joined_with_lines.append((ln, body))
+
+        results = []
+
+        # PROCEDURE DIVISION USING
+        for idx, (ln, body) in enumerate(joined_with_lines):
+            up = body.upper().lstrip()
+            if not up.startswith("PROCEDURE DIVISION"):
+                continue
+            # Capture USING list — may run across lines until a period
+            tail = body
+            j = idx + 1
+            while "." not in tail and j < len(joined_with_lines):
+                tail += " " + joined_with_lines[j][1]
+                j += 1
+            tail = re.sub(r"\s+", " ", tail)
+            m = re.search(r"USING\s+([^.]+)", tail, re.IGNORECASE)
+            if m:
+                names = re.findall(r"[A-Z][A-Z0-9-]*", m.group(1))
+                for pos, name in enumerate(names):
+                    if name.upper() in ("BY", "REFERENCE", "VALUE", "CONTENT"):
+                        continue
+                    results.append({
+                        "position": pos,
+                        "parameter_name": name.upper(),
+                        "source": "PROCEDURE DIVISION USING",
+                        "line_number": ln,
+                    })
+            break  # only one PROCEDURE DIVISION per program
+
+        # ENTRY 'name' USING — secondary entry points (e.g. ENTRY 'DLITCBL' USING)
+        for ln, body in joined_with_lines:
+            m = re.search(r"\bENTRY\s+['\"][A-Z0-9-]+['\"]\s+USING\s+([^.]+)", body, re.IGNORECASE)
+            if not m:
+                continue
+            names = re.findall(r"[A-Z][A-Z0-9-]*", m.group(1))
+            for pos, name in enumerate(names):
+                if name.upper() in ("BY", "REFERENCE", "VALUE", "CONTENT"):
+                    continue
+                results.append({
+                    "position": pos,
+                    "parameter_name": name.upper(),
+                    "source": "ENTRY USING",
+                    "line_number": ln,
+                })
+
+        return results
+
+    @staticmethod
+    def _extract_file_operations_from_source(file_path: str,
+                                               paragraphs: List[Dict]) -> List[Dict]:
+        """Extract OPEN/CLOSE statements with their explicit mode.
+        Pattern: OPEN INPUT FILE-A FILE-B  /  OPEN OUTPUT FILE-X  /  OPEN I-O FILE-Y
+                CLOSE FILE-A FILE-B"""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip(line):
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        def _find_para(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        # OPEN  <mode> file [, file ...] [<mode> file ...]
+        open_pat = re.compile(
+            r"\bOPEN\s+(INPUT|OUTPUT|I-O|EXTEND)\s+([A-Z][A-Z0-9-]*(?:\s*,?\s*[A-Z][A-Z0-9-]*)*)",
+            re.IGNORECASE,
+        )
+        close_pat = re.compile(r"\bCLOSE\s+([A-Z][A-Z0-9-]*(?:\s*,?\s*[A-Z][A-Z0-9-]*)*)",
+                                re.IGNORECASE)
+
+        results = []
+        for i, raw in enumerate(lines):
+            body = _strip(raw)
+            if not body.strip():
+                continue
+            ln = i + 1
+            # OPEN — multi-mode supported by repeated regex application
+            for m in open_pat.finditer(body):
+                mode = m.group(1).upper()
+                files = re.split(r"[,\s]+", m.group(2).strip())
+                for f in files:
+                    f = f.strip(",")
+                    if not f or not re.match(r"^[A-Z][A-Z0-9-]*$", f, re.IGNORECASE):
+                        continue
+                    # Skip COBOL keywords masquerading as filenames
+                    if f.upper() in ("INPUT", "OUTPUT", "I-O", "EXTEND", "REVERSED",
+                                       "WITH", "NO", "REWIND", "LOCK"):
+                        continue
+                    results.append({
+                        "file_name": f.upper(),
+                        "operation": "OPEN",
+                        "mode": mode,
+                        "paragraph": _find_para(ln),
+                        "line_number": ln,
+                    })
+            # CLOSE
+            for m in close_pat.finditer(body):
+                files = re.split(r"[,\s]+", m.group(1).strip())
+                for f in files:
+                    f = f.strip(",")
+                    if not f or not re.match(r"^[A-Z][A-Z0-9-]*$", f, re.IGNORECASE):
+                        continue
+                    if f.upper() in ("WITH", "REEL", "UNIT", "NO", "REWIND", "LOCK"):
+                        continue
+                    results.append({
+                        "file_name": f.upper(),
+                        "operation": "CLOSE",
+                        "mode": None,
+                        "paragraph": _find_para(ln),
+                        "line_number": ln,
+                    })
+        return results
+
+    @staticmethod
+    def _extract_mq_calls_from_source(file_path: str, paragraphs: List[Dict],
+                                       data_items: List[Dict] = None) -> List[Dict]:
+        """Extract IBM MQ API calls. Pattern:
+            CALL 'MQOPEN'  USING HCONN, OBJDESC, OPTIONS, HOBJ, COMPCODE, REASON
+            CALL 'MQGET'   USING HCONN, HOBJ, MQMD, MQGMO, BUFLEN, BUFFER, ...
+            CALL 'MQPUT'   USING HCONN, HOBJ, MQMD, MQPMO, BUFLEN, BUFFER, ...
+            CALL 'MQCLOSE' USING HCONN, HOBJ, OPTIONS, COMPCODE, REASON
+            CALL 'MQCONN' / 'MQDISC' / 'MQCMIT' / 'MQBACK'
+        Also tries to resolve queue name by following MOVE statements that
+        populate MQOD-OBJECTNAME / OBJDESC-OBJECTNAME just before the call."""
+        import re
+        from pathlib import Path
+
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        FUNCTIONS = {
+            "MQCONN":  "Connect to queue manager",
+            "MQDISC":  "Disconnect from queue manager",
+            "MQOPEN":  "Open a queue or other object",
+            "MQCLOSE": "Close a queue or other object",
+            "MQGET":   "Read a message from a queue",
+            "MQPUT":   "Write a message to a queue",
+            "MQPUT1":  "Open + write + close in one call",
+            "MQINQ":   "Inquire on object attributes",
+            "MQSET":   "Set object attributes",
+            "MQCMIT":  "Commit pending unit of work",
+            "MQBACK":  "Backout pending unit of work",
+            "MQSUB":   "Register a subscription",
+            "MQSUBRQ": "Subscription request",
+        }
+
+        # Build call regex: CALL '<MQfunc>' USING <args>
+        func_or = "|".join(FUNCTIONS.keys())
+        call_pat = re.compile(
+            rf"CALL\s+['\"]({func_or})['\"]\s+USING\s+([^.]+?)(?:\.|END-CALL|$)",
+            re.IGNORECASE,
+        )
+
+        results = []
+
+        # Concatenate body for multi-line CALL statements
+        body_lines = []
+        line_offsets = []  # cumulative chars per line -> line number
+        cum = 0
+        for i, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            body_lines.append(body)
+            line_offsets.append(cum)
+            cum += len(body) + 1
+        joined = "\n".join(body_lines)
+
+        def _line_for_offset(off):
+            # binary search would be nicer; len < 5k usually
+            for ln, o in enumerate(line_offsets):
+                if o > off:
+                    return ln  # 1-based: ln-1 is the index, ln is the line above
+            return len(line_offsets)
+
+        for m in call_pat.finditer(joined):
+            fn = m.group(1).upper()
+            args_block = re.sub(r"\s+", " ", m.group(2)).strip().rstrip(",")
+            args = [a.strip() for a in args_block.split(",") if a.strip()]
+            line_num = _line_for_offset(m.start())
+            para = _find_paragraph(line_num)
+
+            # Argument layout: convention is HCONN, HOBJ, MQMD, MQGMO/MQPMO, ...
+            # We capture the named areas we recognize.
+            object_descriptor = None
+            message_descriptor = None
+            options_area = None
+            queue_manager = None
+            for a in args:
+                au = a.upper()
+                if "OBJDESC" in au or "MQOD" in au:
+                    object_descriptor = a
+                elif "MQMD" in au or "MSGDESC" in au:
+                    message_descriptor = a
+                elif "MQGMO" in au or "MQPMO" in au or "MQCNO" in au or au.endswith("OPTIONS"):
+                    options_area = a
+                elif "QMGR" in au or "QMNAME" in au or "QM-NAME" in au:
+                    queue_manager = a
+
+            # Try to resolve queue name from a recent MOVE 'QNAME' TO MQOD-OBJECTNAME
+            queue_name = None
+            for back in range(line_num - 1, max(0, line_num - 30), -1):
+                bb = body_lines[back - 1] if back - 1 < len(body_lines) else ""
+                qm = re.search(
+                    r"MOVE\s+['\"]([A-Z0-9._-]+)['\"]\s+TO\s+([A-Z0-9-]*OBJECTNAME[A-Z0-9-]*|[A-Z0-9-]*Q-?NAME[A-Z0-9-]*)",
+                    bb,
+                    re.IGNORECASE,
+                )
+                if qm:
+                    queue_name = qm.group(1).upper()
+                    break
+
+            results.append({
+                "function_code": fn,
+                "function_name": FUNCTIONS.get(fn, fn),
+                "queue_name": queue_name,
+                "queue_manager": queue_manager,
+                "object_descriptor": object_descriptor,
+                "message_descriptor": message_descriptor,
+                "options_area": options_area,
+                "paragraph": para,
+                "line_number": line_num,
+                "raw_text": m.group(0)[:300],
+            })
+
+        return results
+
+    @staticmethod
+    def _extract_evaluate_branches_from_source(file_path: str,
+                                                 paragraphs: List[Dict]) -> List[Dict]:
+        """Parse EVALUATE / WHEN / END-EVALUATE blocks. Each WHEN clause becomes
+        one branch row. Captures the subject (what's being evaluated) and the
+        condition for each branch."""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        eval_open = re.compile(r"^\s*EVALUATE\s+(.+?)(?:\.\s*$|$)", re.IGNORECASE)
+        when_pat = re.compile(r"^\s*WHEN\s+(.+?)(?:\.\s*$|$)", re.IGNORECASE)
+        end_eval = re.compile(r"^\s*END-EVALUATE", re.IGNORECASE)
+
+        results = []
+        # Stack of currently-open EVALUATEs: list of dicts
+        stack = []
+
+        for i, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            line_num = i + 1
+            if not body.strip():
+                continue
+            up = body.strip().upper()
+
+            m_eval = eval_open.match(body)
+            if m_eval:
+                subject = m_eval.group(1).strip()
+                # Multi-line subject: walk forward until first WHEN
+                if "WHEN" in subject.upper():
+                    # split on first WHEN
+                    pre, _, _ = subject.upper().partition("WHEN")
+                    subject = subject[:len(pre)].strip()
+                eid = f"{file_path}:{line_num}"
+                stack.append({
+                    "evaluate_id": eid,
+                    "subject": subject,
+                    "branch_index": 0,
+                    "line_number": line_num,
+                    "paragraph": _find_paragraph(line_num),
+                    "branches": [],
+                    "current_branch": None,
+                })
+                continue
+
+            if not stack:
+                continue
+
+            # End of innermost EVALUATE
+            if end_eval.match(body):
+                evblock = stack.pop()
+                # Flush current branch
+                if evblock["current_branch"]:
+                    evblock["branches"].append(evblock["current_branch"])
+                for b in evblock["branches"]:
+                    results.append({
+                        "evaluate_id": evblock["evaluate_id"],
+                        "subject": evblock["subject"],
+                        "branch_index": b["index"],
+                        "when_condition": b["condition"],
+                        "action_summary": b["action"],
+                        "paragraph": evblock["paragraph"],
+                        "line_number": b["line_number"],
+                        "is_default": 1 if b["condition"].strip().upper() in ("OTHER", "OTHER-WISE") else 0,
+                    })
+                continue
+
+            current = stack[-1]
+            m_when = when_pat.match(body)
+            if m_when:
+                # Flush previous branch
+                if current["current_branch"]:
+                    current["branches"].append(current["current_branch"])
+                cond = m_when.group(1).strip()
+                idx = current["branch_index"]
+                current["branch_index"] += 1
+                current["current_branch"] = {
+                    "index": -1 if cond.upper().startswith("OTHER") else idx,
+                    "condition": cond,
+                    "action": "",
+                    "line_number": line_num,
+                }
+                continue
+
+            # Body inside a WHEN — capture first non-empty action line
+            if current["current_branch"] and not current["current_branch"]["action"]:
+                current["current_branch"]["action"] = body.strip()[:120]
+
+        return results
+
+    @staticmethod
+    def _extract_cics_handles_from_source(file_path: str,
+                                            paragraphs: List[Dict]) -> List[Dict]:
+        """Extract EXEC CICS HANDLE CONDITION/AID/ABEND routing maps.
+        Pattern: EXEC CICS HANDLE CONDITION ERROR(error-para) NOTFND(nf-para) END-EXEC."""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        # Collect each EXEC CICS HANDLE block
+        handle_open = re.compile(
+            r"EXEC\s+CICS\s+HANDLE\s+(CONDITION|AID|ABEND)", re.IGNORECASE)
+
+        results = []
+        i = 0
+        while i < len(lines):
+            body = _strip_seq(lines[i])
+            line_num = i + 1
+            mo = handle_open.search(body)
+            if not mo:
+                i += 1
+                continue
+            handle_type = mo.group(1).upper()
+            # Walk forward until END-EXEC
+            block_lines = [body]
+            j = i + 1
+            while j < len(lines):
+                bb = _strip_seq(lines[j])
+                block_lines.append(bb)
+                if "END-EXEC" in bb.upper():
+                    break
+                j += 1
+            i = j + 1
+
+            joined = re.sub(r"\s+", " ", " ".join(block_lines)).strip()
+            # Strip the leading EXEC CICS HANDLE <TYPE> and trailing END-EXEC
+            joined = re.sub(r"EXEC\s+CICS\s+HANDLE\s+\w+\s*", "", joined,
+                             flags=re.IGNORECASE)
+            joined = re.sub(r"END-EXEC\.?$", "", joined, flags=re.IGNORECASE).strip()
+
+            # Now joined is something like: "ERROR(ERR-RTN) NOTFND(NOT-FOUND) MAPFAIL(MFAIL-RTN)"
+            # Or for ABEND: "PROGRAM(my-handler)" or "LABEL(error-para)"
+            cond_pat = re.compile(r"([A-Z][A-Z0-9-]*)\s*\(\s*([A-Z][A-Z0-9-]*)\s*\)",
+                                   re.IGNORECASE)
+            for cm in cond_pat.finditer(joined):
+                results.append({
+                    "handle_type": handle_type,
+                    "condition_name": cm.group(1).upper(),
+                    "target_paragraph": cm.group(2).upper(),
+                    "paragraph_name": _find_paragraph(line_num),
+                    "line_number": line_num,
+                })
+
+            # Bare conditions without parens mean SUSPEND/restore (no routing target)
+            # e.g. "EXEC CICS HANDLE CONDITION ERROR END-EXEC" → routing back to default
+            for word in re.findall(r"\b([A-Z][A-Z0-9-]+)\b", joined):
+                if word.upper() in ("AND", "OR"): continue
+                # Already captured above if inside parens
+                if f"{word}(" in joined.replace(" ", ""):
+                    continue
+                # Skip noise
+                if word in ("END", "EXEC"): continue
+                results.append({
+                    "handle_type": handle_type,
+                    "condition_name": word.upper(),
+                    "target_paragraph": None,  # cancels prior handler
+                    "paragraph_name": _find_paragraph(line_num),
+                    "line_number": line_num,
+                })
+
+        # Dedupe — same (program, condition, target, line)
+        seen = set()
+        unique = []
+        for r in results:
+            key = (r["handle_type"], r["condition_name"], r["target_paragraph"], r["line_number"])
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(r)
+        return unique
+
+    @staticmethod
+    def _extract_io_statements_from_source(file_path: str, paragraphs: List[Dict]) -> List[Dict]:
+        """Source-side fallback for READ/WRITE/OPEN/CLOSE/REWRITE/DELETE/START
+        and IF conditions. Returns rows ready for the `statements` table."""
+        import re, json
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        # Statement patterns. Each captures the file name (or condition text).
+        io_patterns = [
+            ("READ",     re.compile(r"^\s*READ\s+([A-Z][A-Z0-9-]*)", re.IGNORECASE)),
+            ("WRITE",    re.compile(r"^\s*WRITE\s+([A-Z][A-Z0-9-]*)", re.IGNORECASE)),
+            ("REWRITE",  re.compile(r"^\s*REWRITE\s+([A-Z][A-Z0-9-]*)", re.IGNORECASE)),
+            ("DELETE",   re.compile(r"^\s*DELETE\s+([A-Z][A-Z0-9-]*)", re.IGNORECASE)),
+            ("START",    re.compile(r"^\s*START\s+([A-Z][A-Z0-9-]*)", re.IGNORECASE)),
+            ("OPEN",     re.compile(r"^\s*OPEN\s+(?:INPUT|OUTPUT|I-O|EXTEND)?\s*([A-Z][A-Z0-9-,\s]*)", re.IGNORECASE)),
+            ("CLOSE",    re.compile(r"^\s*CLOSE\s+([A-Z][A-Z0-9-,\s]*)", re.IGNORECASE)),
+        ]
+        if_pat = re.compile(r"^\s*IF\s+(.+)$", re.IGNORECASE)
+
+        results = []
+        in_proc = False
+        for i, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            if not body.strip():
+                continue
+            up = body.upper()
+            if "PROCEDURE DIVISION" in up:
+                in_proc = True
+                continue
+            if not in_proc:
+                continue
+
+            line_num = i + 1
+            para = _find_paragraph(line_num)
+
+            # I/O statements
+            matched = False
+            for stype, pat in io_patterns:
+                m = pat.match(body)
+                if not m:
+                    continue
+                target = m.group(1).strip().split(",")[0].split()[0]
+                results.append({
+                    "type": stype,
+                    "paragraph": para,
+                    "line_number": line_num,
+                    "details": {"file": target.upper()},
+                })
+                matched = True
+                break
+            if matched:
+                continue
+
+            # IF condition (single-line capture; multi-line conditions get the first line)
+            mif = if_pat.match(body)
+            if mif:
+                cond = mif.group(1).strip().rstrip(".")
+                # Trim trailing words that look like a statement on the same line
+                cond_short = cond[:160]
+                results.append({
+                    "type": "IF",
+                    "paragraph": para,
+                    "line_number": line_num,
+                    "details": {"condition": cond_short},
+                })
+
+        return results
+
+    @staticmethod
+    def _detect_code_anomalies(file_path: str, program_id: str,
+                                paragraphs: List[Dict]) -> List[Dict]:
+        """Static analysis pass that detects suspicious or buggy COBOL patterns.
+        Returns a list of dicts ready to insert into code_anomalies."""
+        import re
+        from pathlib import Path
+        src = Path(file_path)
+        if not src.exists():
+            return []
+        try:
+            content = src.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return []
+        lines = content.split("\n")
+
+        def _strip_seq(line: str) -> str:
+            if len(line) > 6 and line[6] == "*":
+                return ""
+            body = line[6:] if len(line) > 6 else line
+            return body[:66] if len(body) > 66 else body
+
+        def _find_paragraph(line_num):
+            for p in paragraphs:
+                start = p.get("line_start", 0)
+                end = p.get("line_end", 0)
+                if start and end and start <= line_num <= end:
+                    return p.get("name")
+            return None
+
+        def _snippet(line_num, before=1, after=1):
+            lo = max(0, line_num - 1 - before)
+            hi = min(len(lines), line_num + after)
+            return "\n".join(lines[lo:hi]).strip()
+
+        anomalies = []
+
+        # ── 1. Duplicate AND/OR condition: `X op Y AND X op Y` (likely typo) ─
+        # Catches things like `IF PA-APPROVED <= 0 AND PA-APPROVED <= 0`
+        cond_pat = re.compile(
+            r"\b([A-Z][A-Z0-9-]*)\s*(=|<>|<=|>=|<|>|EQUAL|NOT EQUAL|GREATER|LESS)\s*"
+            r"([A-Z0-9'\"-]+)\s+(AND|OR)\s+\1\s*\2\s*\3\b",
+            re.IGNORECASE,
+        )
+        for i, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            if not body:
+                continue
+            m = cond_pat.search(body)
+            if m:
+                anomalies.append({
+                    "severity": "BUG",
+                    "category": "LOGIC",
+                    "rule_id": "DUPLICATE_AND_CONDITION",
+                    "title": f"Duplicate condition in {m.group(4).upper()} clause",
+                    "description": (
+                        f"The condition `{m.group(1)} {m.group(2)} {m.group(3)}` is "
+                        f"checked twice with `{m.group(4).upper()}` between them. "
+                        f"This is almost certainly a typo where one side was meant to "
+                        f"reference a different variable (e.g. DECLINED instead of APPROVED)."
+                    ),
+                    "paragraph_name": _find_paragraph(i + 1),
+                    "line_number": i + 1,
+                    "snippet": _snippet(i + 1),
+                    "suggestion": "Verify the intended second condition with the source-of-truth spec; the most common cause is a copy-paste of the first variable.",
+                })
+
+        # ── 2. WS-PGMNAME literal that doesn't match the program's PROGRAM-ID ─
+        # Flags `MOVE 'OLDNAME' TO WS-PGMNAME.` when OLDNAME != program_id
+        pgm_lit_pat = re.compile(
+            r"MOVE\s+['\"]([A-Z0-9-]+)['\"]\s+TO\s+WS-PGMNAME",
+            re.IGNORECASE,
+        )
+        # Also handle  05 WS-PGMNAME PIC X(8) VALUE 'OLDNAME'.
+        pgm_value_pat = re.compile(
+            r"\bWS-PGMNAME\b[^.\n]*\bVALUE\s+['\"]([A-Z0-9-]+)['\"]",
+            re.IGNORECASE,
+        )
+        for i, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            if not body:
+                continue
+            for pat in (pgm_lit_pat, pgm_value_pat):
+                m = pat.search(body)
+                if not m:
+                    continue
+                literal = m.group(1).upper()
+                if literal != program_id.upper():
+                    anomalies.append({
+                        "severity": "WARNING",
+                        "category": "NAMING",
+                        "rule_id": "PGMNAME_MISMATCH",
+                        "title": "WS-PGMNAME literal does not match the actual PROGRAM-ID",
+                        "description": (
+                            f"The program identifier is `{program_id}` but the source sets "
+                            f"`WS-PGMNAME` to `'{literal}'`. This is misleading for debug "
+                            f"traces, runtime logs, and audit records that key off "
+                            f"WS-PGMNAME."
+                        ),
+                        "paragraph_name": _find_paragraph(i + 1),
+                        "line_number": i + 1,
+                        "snippet": body.strip(),
+                        "suggestion": (
+                            f"Update the literal to '{program_id}' or rename the program "
+                            f"to '{literal}' depending on which is canonical."
+                        ),
+                    })
+                    break
+
+        # ── 3. Period-inside-IF (premature termination of IF block) ──────────
+        # COBOL pattern: `IF cond ... PERFORM thing.` — the period inside
+        # closes the IF and the next statement runs unconditionally.
+        # Heuristic: line starts with IF, contains no END-IF or ELSE before period,
+        # and period appears mid-statement (not just at end).
+        if_open_pat = re.compile(r"^\s*IF\b", re.IGNORECASE)
+        end_if_in_block = re.compile(r"\bEND-IF\b|\bELSE\b", re.IGNORECASE)
+        period_inside_pat = re.compile(r"\.\s+\w")
+        for i, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            if not body or not if_open_pat.match(body):
+                continue
+            # Walk forward up to 8 lines or until a period-end or END-IF
+            block = body
+            found_endif = False
+            depth = 1
+            for j in range(i + 1, min(i + 10, len(lines))):
+                next_body = _strip_seq(lines[j])
+                if not next_body:
+                    continue
+                block += " " + next_body
+                if end_if_in_block.search(next_body):
+                    found_endif = True
+                    break
+                if next_body.rstrip().endswith("."):
+                    break
+            if not found_endif and period_inside_pat.search(block):
+                # only flag when there's a non-trivial mid-block period
+                # AND no END-IF closes it
+                anomalies.append({
+                    "severity": "WARNING",
+                    "category": "LOGIC",
+                    "rule_id": "MISSING_END_IF",
+                    "title": "IF block likely terminated by a period instead of END-IF",
+                    "description": (
+                        "An `IF` statement appears to be closed by a period mid-block "
+                        "rather than an explicit `END-IF`/`ELSE`. Statements that look "
+                        "nested in the IF may actually run unconditionally. This pattern "
+                        "frequently masks a real conditional bug."
+                    ),
+                    "paragraph_name": _find_paragraph(i + 1),
+                    "line_number": i + 1,
+                    "snippet": _snippet(i + 1, before=0, after=4),
+                    "suggestion": (
+                        "Add an explicit END-IF and re-check that the statements after "
+                        "the period are intentionally unconditional."
+                    ),
+                })
+
+        # ── 4. Unused VAR (declared with VALUE but never referenced) ────────
+        # Look for 01/05/77 declarations and check if name appears elsewhere.
+        decl_pat = re.compile(
+            r"^\s*(?:01|05|77)\s+([A-Z][A-Z0-9-]*)\s+PIC\b",
+            re.IGNORECASE,
+        )
+        decls = {}  # name -> line
+        for i, raw in enumerate(lines):
+            body = _strip_seq(raw)
+            if not body:
+                continue
+            m = decl_pat.match(body)
+            if m:
+                name = m.group(1).upper()
+                if name not in ("FILLER",):
+                    decls[name] = i + 1
+
+        # Build a single concatenated body without comments to count refs
+        whole = " ".join(_strip_seq(l) for l in lines).upper()
+        for name, decl_line in decls.items():
+            # Count case-insensitive occurrences. A real declaration counts as 1.
+            count = whole.count(name)
+            if count <= 1:  # only the declaration itself
+                anomalies.append({
+                    "severity": "NOTICE",
+                    "category": "DEAD_CODE",
+                    "rule_id": "UNUSED_VARIABLE",
+                    "title": f"Variable `{name}` is declared but never referenced",
+                    "description": (
+                        f"`{name}` is declared at line {decl_line} but no other "
+                        f"statement reads or writes it. Likely a leftover from prior "
+                        f"refactoring or an incomplete feature."
+                    ),
+                    "paragraph_name": None,
+                    "line_number": decl_line,
+                    "snippet": lines[decl_line - 1].strip() if decl_line - 1 < len(lines) else "",
+                    "suggestion": "Remove the declaration or wire it into the logic that was originally intended.",
+                })
+
+        # ── 5. STUB / UNIMPLEMENTED paragraphs ───────────────────────────────
+        # Pattern: a paragraph whose body is essentially empty (only EXIT / STOP
+        # / GOBACK or a "TBD"-style comment) signals an unimplemented feature.
+        # Exception: COBOL convention puts an empty `<NAME>-EXIT` paragraph at
+        # the end of every routine to anchor PERFORM ... THRU. Skip those.
+        for p in paragraphs:
+            pname = p.get("name") or ""
+            ps = p.get("line_start", 0)
+            pe = p.get("line_end", 0)
+            if not (pname and ps and pe):
+                continue
+            # Skip conventional exit paragraphs — they're idiomatic, not stubs.
+            up_name = pname.upper()
+            if up_name.endswith("-EXIT") or up_name in ("9999-GOBACK", "GOBACK", "EXIT-PROGRAM"):
+                continue
+            body_lines = lines[ps:pe]   # exclusive of the header line itself
+            real_lines = []
+            tbd_marker = False
+            for raw in body_lines:
+                if len(raw) > 6 and raw[6] == "*":
+                    if re.search(r"\b(TO\s+BE\s+IMPLEMENTED|TBD|TODO|NOT\s+IMPLEMENTED|STUB)\b",
+                                  raw, re.IGNORECASE):
+                        tbd_marker = True
+                    continue
+                txt = raw[6:] if len(raw) > 6 else raw
+                stripped = txt.strip().rstrip(".").strip()
+                if not stripped:
+                    continue
+                up = stripped.upper()
+                if up in ("EXIT", "STOP RUN", "STOP", "GOBACK"):
+                    continue
+                real_lines.append(stripped)
+            if not real_lines:
+                anomalies.append({
+                    "severity": "NOTICE",
+                    "category": "INCOMPLETE",
+                    "rule_id": "STUB_PARAGRAPH",
+                    "title": f"Paragraph `{pname}` is a stub" + (" (TBD comment present)" if tbd_marker else ""),
+                    "description": (
+                        f"`{pname}` contains no executable statements other than "
+                        f"EXIT/STOP/GOBACK. The migration team should treat this as "
+                        f"an UNIMPLEMENTED FEATURE and surface it on the migration "
+                        f"backlog."
+                    ),
+                    "paragraph_name": pname,
+                    "line_number": ps,
+                    "snippet": "\n".join(body_lines[:6]).strip(),
+                    "suggestion": "Confirm whether this is intentionally empty (placeholder for future feature) or whether the implementation was lost during refactoring.",
+                })
+
+        # ── 6. MISLEADING DISPLAY message near OPEN of a different file ──────
+        # Pattern: OPEN <FILE-A> ... DISPLAY 'ERROR OPENING <FILE-B>'
+        # where FILE-B is an ACTUAL file declared in this program (so we know
+        # the message really references the wrong file, not just descriptive
+        # English text like "TRANSACTION CATEGORY BALANCE").
+        open_pat = re.compile(
+            r"\bOPEN\s+(?:INPUT|OUTPUT|I-O|EXTEND)\s+([A-Z][A-Z0-9-]+)",
+            re.IGNORECASE,
+        )
+        display_pat = re.compile(r"\bDISPLAY\s+['\"]([^'\"]{3,120})['\"]", re.IGNORECASE)
+
+        # First pass: collect every file declared in this program (from SELECT/OPEN)
+        all_files_in_program = set()
+        for raw in lines:
+            if len(raw) > 6 and raw[6] == "*":
+                continue
+            body = raw[6:] if len(raw) > 6 else raw
+            for mm in open_pat.finditer(body):
+                all_files_in_program.add(mm.group(1).upper())
+            sm = re.search(r"\bSELECT\s+([A-Z][A-Z0-9-]+)", body, re.IGNORECASE)
+            if sm:
+                all_files_in_program.add(sm.group(1).upper())
+
+        for p in paragraphs:
+            ps = p.get("line_start", 0)
+            pe = p.get("line_end", 0)
+            if not (ps and pe):
+                continue
+            block_lines = lines[ps - 1:pe]
+            opened = None
+            for raw in block_lines:
+                if len(raw) > 6 and raw[6] == "*":
+                    continue
+                body = raw[6:] if len(raw) > 6 else raw
+                mo = open_pat.search(body)
+                if mo:
+                    opened = mo.group(1).upper()
+                md = display_pat.search(body)
+                if not (md and opened):
+                    continue
+                msg = md.group(1).upper()
+
+                # Look for ANOTHER file name from this program inside the message.
+                # We require a real file-name match — descriptive English like
+                # "TRANSACTION CATEGORY BALANCE" won't trip the warning.
+                # Strategy A: message names ANOTHER file from this program
+                wrong_file = None
+                for fname in all_files_in_program:
+                    if fname == opened:
+                        continue
+                    stem = re.sub(r"-?(FILE|FILES|REJECTS)$", "", fname).strip("-")
+                    if not stem or len(stem) < 3:
+                        continue
+                    if re.search(rf"\b{re.escape(stem)}(?:[-\s]+(?:FILE|REJECTS))?\b",
+                                  msg, re.IGNORECASE):
+                        wrong_file = fname
+                        break
+
+                # Strategy B: "ERROR OPENING <X> FILE" pattern but the opened
+                # file's stem doesn't appear anywhere in <X>. Catches cases
+                # where the message names a fictional file that doesn't exist
+                # in this program at all (e.g. 'DALY REJECTS FILE' inside a
+                # DISCGRP-FILE opener — DALY/DAILY/REJECTS aren't related to
+                # DISCGRP).
+                if not wrong_file:
+                    open_msg_pat = re.search(
+                        r"\b(?:ERROR\s+(?:OPEN|OPENING)|UNABLE\s+TO\s+OPEN|FAILED\s+TO\s+OPEN|CANNOT\s+OPEN)\b\s*([A-Z][A-Z0-9\s-]{2,40}?)\s+FILE\b",
+                        msg, re.IGNORECASE,
+                    )
+                    if open_msg_pat:
+                        # The "X" mentioned in the message
+                        named_in_msg = open_msg_pat.group(1).strip()
+                        # Strip the file-name stems (and common synonyms)
+                        opened_stem = re.sub(r"-?(FILE|FILES|REJECTS)$", "", opened).strip("-")
+                        # Build a set of variants for the opened file
+                        variants = {opened_stem}
+                        # Split on dashes too: DISCGRP-FILE → DISCGRP, DISC, GRP
+                        for piece in re.split(r"-", opened_stem):
+                            if len(piece) >= 3:
+                                variants.add(piece)
+                        # Common abbreviation expansions (small dictionary —
+                        # fully generic, no app-specific names).
+                        synonyms = {
+                            "DISC": ["DISCOUNT"], "DISCGRP": ["DISCOUNT", "DISCOUNT GROUP"],
+                            "ACCT": ["ACCOUNT"], "ACCTFILE": ["ACCOUNT"],
+                            "TRAN": ["TRANSACTION"], "TRANSACT": ["TRANSACTION"],
+                            "XREF": ["CROSS REFERENCE", "CROSS REF", "CROSSREF"],
+                            "CUST": ["CUSTOMER"], "TCAT": ["TRANSACTION CATEGORY"],
+                            "TCATBAL": ["TRANSACTION CATEGORY BALANCE"],
+                            "REPT": ["REPORT"], "USR": ["USER"],
+                            "BAL": ["BALANCE"], "MSTR": ["MASTER"],
+                        }
+                        expanded = set(variants)
+                        for v in list(variants):
+                            for syn in synonyms.get(v, []):
+                                expanded.add(syn)
+                        # Check if ANY variant appears in the message text.
+                        named_upper = named_in_msg.upper()
+                        if not any(v.upper() in named_upper for v in expanded):
+                            anomalies.append({
+                                "severity": "WARNING",
+                                "category": "NAMING",
+                                "rule_id": "MISLEADING_ERROR_MESSAGE",
+                                "title": (
+                                    f"DISPLAY message in `{p.get('name')}` says "
+                                    f"\"{named_in_msg}\" but the OPEN is on `{opened}`"
+                                ),
+                                "description": (
+                                    f"The error message refers to a file name that "
+                                    f"doesn't match the file being opened. Operators "
+                                    f"reading the log will look for the wrong file "
+                                    f"during incident triage."
+                                ),
+                                "paragraph_name": p.get("name"),
+                                "line_number": ps,
+                                "snippet": body.strip(),
+                                "suggestion": f"Update the DISPLAY string to mention `{opened}`.",
+                            })
+                            break
+
+                if not wrong_file:
+                    continue
+
+                anomalies.append({
+                    "severity": "WARNING",
+                    "category": "NAMING",
+                    "rule_id": "MISLEADING_ERROR_MESSAGE",
+                    "title": (
+                        f"DISPLAY message in `{p.get('name')}` references "
+                        f"`{wrong_file}` but the OPEN was on `{opened}`"
+                    ),
+                    "description": (
+                        f"Copy-paste bug: the error message displayed when "
+                        f"`{opened}` fails to open will mention `{wrong_file}` "
+                        f"instead — both are real files in this program. "
+                        f"This will mislead operators during incident triage."
+                    ),
+                    "paragraph_name": p.get("name"),
+                    "line_number": ps,
+                    "snippet": body.strip(),
+                    "suggestion": f"Update the DISPLAY string to reference `{opened}` instead of `{wrong_file}`.",
+                })
+                break
+
+        # ── 7. BUSINESS FORMULA — division by 12 / 100 / 360 / 365 / 1200 etc. ──
+        # These literals encode real business semantics. Capture the FULL formula
+        # so the doc can quote it verbatim instead of saying "not detailed".
+        # Two patterns:
+        #   (a) `(<expr>) / NNN`  →  full parenthesised expression on left
+        #   (b) `COMPUTE X = <expr> / NNN`  → COMPUTE form
+        formula_pat = re.compile(
+            r"\(([^)]{3,80})\)\s*/\s*(\d{2,6})\b"
+            r"|COMPUTE\s+\S+\s*=\s*([^./\n]{3,80})\s*/\s*(\d{2,6})\b",
+            re.IGNORECASE,
+        )
+        seen_magic = set()
+        for i, raw in enumerate(lines):
+            if len(raw) > 6 and raw[6] == "*":
+                continue
+            body = raw[6:] if len(raw) > 6 else raw
+            if "/" not in body:
+                continue
+            for m in formula_pat.finditer(body):
+                expr = (m.group(1) or m.group(3) or "").strip()
+                val = m.group(2) or m.group(4)
+                if not val:
+                    continue
+                key = (i + 1, val, expr)
+                if key in seen_magic:
+                    continue
+                seen_magic.add(key)
+                para = None
+                for p in paragraphs:
+                    ps = p.get("line_start", 0)
+                    pe = p.get("line_end", 0)
+                    if ps and pe and ps <= i + 1 <= pe:
+                        para = p.get("name")
+                        break
+                interp = {
+                    "12":   "annual → monthly conversion (÷12)",
+                    "100":  "percent → decimal conversion (÷100)",
+                    "360":  "360-day banking year",
+                    "365":  "365-day calendar year",
+                    "1000": "milli/1000 conversion",
+                    "1200": "annual percentage rate → monthly decimal (combines ÷100 percent-to-decimal AND ÷12 annual-to-monthly)",
+                    "10000": "basis-points → decimal",
+                    "360000": "annual basis-points → daily decimal (×100 × 360)",
+                }.get(val)
+                # Build a clear formula label for the title
+                formula_str = f"({expr}) / {val}"
+                anomalies.append({
+                    "severity": "WARNING" if val == "1200" else "NOTICE",
+                    "category": "LOGIC",
+                    "rule_id": "BUSINESS_FORMULA",
+                    "title": f"Business formula: `{formula_str}`" + (f" — {interp}" if interp else ""),
+                    "description": (
+                        f"This formula is a business-rule calculation that MUST be "
+                        f"preserved in the modern implementation. Document it verbatim "
+                        f"in the Business Rules section of the doc — do not say "
+                        f"\"specific formula not detailed\". Verbatim source line: "
+                        f"`{body.strip()}`"
+                        + (f"\n\nInterpretation: {interp}." if interp else "")
+                    ),
+                    "paragraph_name": para,
+                    "line_number": i + 1,
+                    "snippet": body.strip(),
+                    "suggestion": (
+                        "Replace the literal with a named constant in the modern code "
+                        "and add a comment explaining the conversion. Quote the formula "
+                        "verbatim in the documentation's Business Rules section."
+                    ),
+                })
+
+        # ── 8. ABEND / TERMINATION — paragraphs that end the program on error ──
+        # When a paragraph PERFORM 9999-ABEND-PROGRAM (or STOP RUN) on a status
+        # check, the program TERMINATES — it does not "reject" or "skip" the
+        # record. Surface this so docs use accurate language.
+        abend_pat = re.compile(
+            r"\bPERFORM\s+(?:[A-Z0-9][A-Z0-9-]*ABEND[A-Z0-9-]*)\b"
+            r"|\bSTOP\s+RUN\b",
+            re.IGNORECASE,
+        )
+        for p in paragraphs:
+            ps = p.get("line_start", 0)
+            pe = p.get("line_end", 0)
+            if not (ps and pe):
+                continue
+            block = " ".join(
+                (l[6:] if len(l) > 6 else l)
+                for l in lines[ps - 1:pe]
+                if not (len(l) > 6 and l[6] == "*")
+            )
+            if not abend_pat.search(block):
+                continue
+            anomalies.append({
+                "severity": "NOTICE",
+                "category": "LOGIC",
+                "rule_id": "ABEND_TERMINATION",
+                "title": f"Paragraph `{p.get('name')}` terminates the program on error",
+                "description": (
+                    f"`{p.get('name')}` calls an ABEND routine (or STOP RUN) on the "
+                    f"failure path. This means an error here ENDS the entire program — "
+                    f"it does NOT reject, skip, or log-and-continue. Documentation "
+                    f"must use \"abend\" / \"terminate\" language, not \"reject\"."
+                ),
+                "paragraph_name": p.get("name"),
+                "line_number": ps,
+                "snippet": "",
+                "suggestion": "Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.",
+            })
+
+        # ── 9. CONTROL-BREAK / ACCOUNT-BREAK pattern detector ────────────────
+        # Pattern: an IF compares a key field against a "WS-LAST-..." holder,
+        # then PERFORMs a flush paragraph. The same flush paragraph is also
+        # called from the loop's wrap-up code. This is a control-break pattern
+        # that the migration team MUST understand explicitly.
+        wslast_pat = re.compile(
+            r"\bIF\s+([A-Z][A-Z0-9-]*)\s*(?:NOT\s*=|<>|NOT\s+EQUAL)\s*"
+            r"(WS-LAST-[A-Z0-9-]+|LAST-[A-Z0-9-]+|PREV-[A-Z0-9-]+|HOLD-[A-Z0-9-]+)",
+            re.IGNORECASE,
+        )
+        for i, raw in enumerate(lines):
+            if len(raw) > 6 and raw[6] == "*":
+                continue
+            body = raw[6:] if len(raw) > 6 else raw
+            m = wslast_pat.search(body)
+            if not m:
+                continue
+            key_field = m.group(1).upper()
+            hold_field = m.group(2).upper()
+            # Find the paragraph this is in
+            para = None
+            for p in paragraphs:
+                ps = p.get("line_start", 0)
+                pe = p.get("line_end", 0)
+                if ps and pe and ps <= i + 1 <= pe:
+                    para = p.get("name")
+                    break
+            # Look ahead a few lines for the PERFORM call (the flush paragraph)
+            flush_para = None
+            for k in range(i, min(i + 8, len(lines))):
+                if len(lines[k]) > 6 and lines[k][6] == "*":
+                    continue
+                bb = lines[k][6:] if len(lines[k]) > 6 else lines[k]
+                pm = re.search(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)\b", bb, re.IGNORECASE)
+                if pm and "UPDATE" in pm.group(1).upper() or (pm and "WRITE" in pm.group(1).upper()):
+                    flush_para = pm.group(1).upper()
+                    break
+                if pm and not pm.group(1).upper().startswith(("END-", "WHEN")):
+                    flush_para = pm.group(1).upper()
+                    break
+            anomalies.append({
+                "severity": "NOTICE",
+                "category": "LOGIC",
+                "rule_id": "CONTROL_BREAK_PATTERN",
+                "title": f"Control-break pattern on `{key_field}` (vs `{hold_field}`)",
+                "description": (
+                    f"Classic control-break: when `{key_field}` changes, "
+                    f"`{flush_para or '<flush paragraph>'}` is invoked to flush "
+                    f"the previous group's accumulated state. After the main loop "
+                    f"completes the same paragraph is typically called one more "
+                    f"time to flush the final group. This is the architectural "
+                    f"backbone of the program — document it explicitly with the "
+                    f"key field, the holder field, and the flush paragraph name."
+                ),
+                "paragraph_name": para,
+                "line_number": i + 1,
+                "snippet": body.strip(),
+                "suggestion": (
+                    "In the modern implementation, replace this idiom with a "
+                    "GROUP BY (SQL) or a stream group operator (collect-by-key) "
+                    "and ensure the final group is also flushed."
+                ),
+            })
+
+        # Cap: don't drown the LLM in dozens of low-importance unused-var notices.
+        # Keep ALL bugs/warnings + top 10 unused-var notices + ALL stub/magic notices.
+        bugs = [a for a in anomalies if a["severity"] in ("BUG", "WARNING")]
+        unused = [a for a in anomalies
+                   if a["severity"] == "NOTICE" and a["rule_id"] == "UNUSED_VARIABLE"][:10]
+        other_notices = [a for a in anomalies
+                          if a["severity"] == "NOTICE" and a["rule_id"] != "UNUSED_VARIABLE"]
+        return bugs + unused + other_notices
 
     @staticmethod
     def _extract_files_from_source(file_path: str) -> List[Dict]:
@@ -1738,6 +3210,272 @@ class SQLiteLoader:
         """, (program_id,))
         return [dict(r) for r in cursor.fetchall()]
 
+    def get_program_parameters(self, program_id: str) -> List[Dict]:
+        """For each parameter declared in PROCEDURE DIVISION USING, also trace
+        where it (or any of its sub-fields) is referenced in the source code."""
+        cur = self.conn.cursor()
+        try:
+            cur.execute("""
+                SELECT position, parameter_name, source, line_number
+                FROM program_parameters WHERE program_id = ?
+                ORDER BY source, position
+            """, (program_id,))
+            params = [dict(r) for r in cur.fetchall()]
+        except Exception:
+            return []
+        if not params:
+            return []
+
+        # For each parameter, find usage sites (data_movements + statements)
+        # plus sub-fields of any group structure with the same prefix.
+        usages_by_param = {}
+        for p in params:
+            name = p["parameter_name"]
+            usage = []
+            # MOVE flows where this parameter (or a sub-field) is source or destination
+            try:
+                cur.execute("""
+                    SELECT DISTINCT paragraph_name, line_number, source_field, destination_field
+                    FROM data_movements
+                    WHERE program_id = ?
+                      AND (source_field = ? OR destination_field = ?
+                           OR source_field LIKE ? OR destination_field LIKE ?)
+                    ORDER BY line_number LIMIT 8
+                """, (program_id, name, name, f"{name}-%", f"{name}-%"))
+                for r in cur.fetchall():
+                    role = "source" if r[2] == name or (r[2] or "").startswith(f"{name}-") else "destination"
+                    other = r[3] if role == "source" else r[2]
+                    usage.append({
+                        "kind": "MOVE",
+                        "role": role,
+                        "other_field": other,
+                        "paragraph": r[0],
+                        "line_number": r[1],
+                    })
+            except Exception:
+                pass
+            # Statement references
+            try:
+                cur.execute("""
+                    SELECT DISTINCT paragraph_name, line_number, statement_type
+                    FROM statements
+                    WHERE program_id = ?
+                      AND (details_json LIKE ? OR details_json LIKE ?)
+                    ORDER BY line_number LIMIT 6
+                """, (program_id, f"%{name}%", f"%{name}-%"))
+                for r in cur.fetchall():
+                    usage.append({
+                        "kind": r[2],
+                        "role": "ref",
+                        "other_field": None,
+                        "paragraph": r[0],
+                        "line_number": r[1],
+                    })
+            except Exception:
+                pass
+            p["usage_sites"] = usage[:10]
+        return params
+
+    def get_program_file_operations(self, program_id: str) -> List[Dict]:
+        cur = self.conn.cursor()
+        try:
+            cur.execute("""
+                SELECT file_name, operation, mode, paragraph_name, line_number
+                FROM file_operations WHERE program_id = ?
+                ORDER BY line_number
+            """, (program_id,))
+            return [dict(r) for r in cur.fetchall()]
+        except Exception:
+            return []
+
+    def get_program_mq_calls(self, program_id: str) -> List[Dict]:
+        cur = self.conn.cursor()
+        try:
+            cur.execute("""
+                SELECT function_code, function_name, queue_name, queue_manager,
+                       object_descriptor, message_descriptor, options_area,
+                       paragraph_name, line_number
+                FROM mq_calls WHERE program_id = ?
+                ORDER BY line_number
+            """, (program_id,))
+            return [dict(r) for r in cur.fetchall()]
+        except Exception:
+            return []
+
+    def get_program_evaluates(self, program_id: str) -> List[Dict]:
+        cur = self.conn.cursor()
+        try:
+            cur.execute("""
+                SELECT evaluate_id, subject, branch_index, when_condition,
+                       action_summary, paragraph_name, line_number, is_default
+                FROM evaluate_branches WHERE program_id = ?
+                ORDER BY evaluate_id, branch_index
+            """, (program_id,))
+            return [dict(r) for r in cur.fetchall()]
+        except Exception:
+            return []
+
+    def get_program_cics_handles(self, program_id: str) -> List[Dict]:
+        cur = self.conn.cursor()
+        try:
+            cur.execute("""
+                SELECT handle_type, condition_name, target_paragraph,
+                       paragraph_name, line_number
+                FROM cics_handles WHERE program_id = ?
+                ORDER BY line_number
+            """, (program_id,))
+            return [dict(r) for r in cur.fetchall()]
+        except Exception:
+            return []
+
+    def get_program_cursor_lifecycles(self, program_id: str) -> List[Dict]:
+        """Pair DECLARE / OPEN / FETCH(es) / CLOSE for each cursor by name.
+        Returns one row per cursor with the four phase line numbers."""
+        cur = self.conn.cursor()
+        try:
+            cur.execute("""
+                SELECT command, cursor_name, paragraph_name, line_number, table_name
+                FROM exec_sql
+                WHERE program_id = ? AND cursor_name IS NOT NULL
+                ORDER BY cursor_name, line_number
+            """, (program_id,))
+            rows = [dict(r) for r in cur.fetchall()]
+        except Exception:
+            return []
+
+        from collections import defaultdict
+        by_cursor = defaultdict(lambda: {
+            "cursor_name": None,
+            "declare": None, "open": None,
+            "fetch_paragraphs": [], "fetch_lines": [],
+            "close": None, "table_name": None,
+        })
+        for r in rows:
+            entry = by_cursor[r["cursor_name"]]
+            entry["cursor_name"] = r["cursor_name"]
+            cmd = (r["command"] or "").upper()
+            if cmd == "DECLARE":
+                entry["declare"] = {"paragraph": r["paragraph_name"], "line": r["line_number"]}
+                entry["table_name"] = r["table_name"]
+            elif cmd == "OPEN":
+                entry["open"] = {"paragraph": r["paragraph_name"], "line": r["line_number"]}
+            elif cmd == "FETCH":
+                entry["fetch_paragraphs"].append(r["paragraph_name"])
+                entry["fetch_lines"].append(r["line_number"])
+            elif cmd == "CLOSE":
+                entry["close"] = {"paragraph": r["paragraph_name"], "line": r["line_number"]}
+        return list(by_cursor.values())
+
+    def get_data_flow_chains(self, max_hops: int = 4) -> List[Dict]:
+        """Trace end-to-end data lineage:
+            JCL → program → (writes file) → program → (writes file) → ...
+        Walks files written by one program back to programs that read the same name.
+        Returns list of {chain: [...], starts_with_jcl: bool}."""
+        cur = self.conn.cursor()
+        # Build maps: who writes / reads each file (by file_name OR ddname)
+        try:
+            cur.execute("SELECT program_id, file_name, access_mode FROM files")
+            file_rows = [dict(r) for r in cur.fetchall()]
+        except Exception:
+            return []
+
+        from collections import defaultdict
+        writers = defaultdict(set)   # file -> {program}
+        readers = defaultdict(set)
+        for r in file_rows:
+            mode = (r.get("access_mode") or "").upper()
+            # SEQUENTIAL access alone doesn't tell us read vs write — we use OPEN
+            # statements as additional source. Heuristic: if there's any WRITE
+            # in statements for that program/file, it's a writer.
+            cur.execute(
+                "SELECT 1 FROM statements WHERE program_id = ? AND statement_type IN ('WRITE','REWRITE') AND details_json LIKE ? LIMIT 1",
+                (r["program_id"], f"%{r['file_name']}%"),
+            )
+            is_writer = bool(cur.fetchone())
+            cur.execute(
+                "SELECT 1 FROM statements WHERE program_id = ? AND statement_type='READ' AND details_json LIKE ? LIMIT 1",
+                (r["program_id"], f"%{r['file_name']}%"),
+            )
+            is_reader = bool(cur.fetchone())
+            if is_writer:
+                writers[r["file_name"]].add(r["program_id"])
+            if is_reader:
+                readers[r["file_name"]].add(r["program_id"])
+            # If we couldn't infer, assume reader (most cards-demo programs read)
+            if not (is_writer or is_reader):
+                readers[r["file_name"]].add(r["program_id"])
+
+        # Map JCL job → program
+        try:
+            cur.execute("SELECT DISTINCT job_name, program FROM jcl_steps WHERE program IS NOT NULL")
+            jcl_to_prog = [dict(r) for r in cur.fetchall()]
+        except Exception:
+            jcl_to_prog = []
+
+        chains = []
+        seen_chains = set()
+
+        def _walk(prog, path, depth):
+            if depth > max_hops:
+                return
+            # All files written by `prog` lead to readers of those files
+            for fname, ws in writers.items():
+                if prog not in ws:
+                    continue
+                for next_prog in readers.get(fname, set()):
+                    if next_prog == prog or next_prog in path:
+                        continue  # avoid cycles
+                    new_path = path + [{"file": fname, "program": next_prog}]
+                    key = "->".join([(p.get("program") or p.get("job") or p.get("file") or "?") for p in new_path])
+                    if key not in seen_chains:
+                        seen_chains.add(key)
+                        chains.append({
+                            "starts_with_jcl": new_path[0].get("job") is not None,
+                            "chain": new_path,
+                        })
+                    _walk(next_prog, new_path, depth + 1)
+
+        for jp in jcl_to_prog:
+            start_path = [
+                {"job": jp["job_name"]},
+                {"program": jp["program"]},
+            ]
+            key = "->".join([(p.get("program") or p.get("job") or "?") for p in start_path])
+            if key not in seen_chains:
+                seen_chains.add(key)
+                chains.append({
+                    "starts_with_jcl": True,
+                    "chain": start_path,
+                })
+            _walk(jp["program"], start_path, depth=2)
+
+        # Also include orphan write→read pairs that aren't reached from JCL
+        for fname, ws in writers.items():
+            for w in ws:
+                # If we never started from this writer via JCL, kick off a walk
+                if not any(c["chain"] and c["chain"][-1].get("program") == w
+                            for c in chains if c["starts_with_jcl"]):
+                    _walk(w, [{"program": w}], depth=1)
+
+        # Limit the size of the response
+        return chains[:200]
+
+    def get_program_anomalies(self, program_id: str) -> List[Dict]:
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT severity, category, rule_id, title, description,
+                       paragraph_name, line_number, snippet, suggestion
+                FROM code_anomalies
+                WHERE program_id = ?
+                ORDER BY CASE severity
+                    WHEN 'BUG' THEN 1 WHEN 'WARNING' THEN 2 ELSE 3 END,
+                    line_number
+            """, (program_id,))
+            return [dict(r) for r in cursor.fetchall()]
+        except Exception:
+            return []
+
     def get_program_data_movements(self, program_id: str, limit: int = 50) -> List[Dict]:
         cursor = self.conn.cursor()
         cursor.execute("""
@@ -2164,85 +3902,110 @@ class SQLiteLoader:
             connected[caller].add(called)
             connected[called].add(caller)
 
-        # Strategy 1: Name-based functional grouping
+        # Strategy 1: Name-based functional grouping — fully generic.
+        #
+        # Algorithm:
+        #  (a) Group programs by their longest meaningful prefix. We try a 5-char
+        #      prefix first; if a 5-char prefix has fewer than 2 members, fall
+        #      back to 4-char, then 3-char, then 2-char.
+        #  (b) Programs whose 2-char prefix has >= 2 members are kept under that
+        #      key; loners go to a single "OTHER" bucket.
+        #
+        # This works on any codebase — no hardcoded application-specific strings.
         func_groups = defaultdict(list)
-        for pid in all_programs:
-            # CardDemo naming: CO* = Common Online, CB* = Credit Card Batch
-            # More specific: COSGN = Sign-on, COMEN = Menu, COTRN = Transaction
-            # CBACT = Account, CBTRN = Transaction, COCRD = Credit Card
-            if len(pid) >= 5:
-                prefix4 = pid[:4]  # e.g., COSG, COME, COTR, CBAC, CBTR
-                prefix5 = pid[:5]  # e.g., COSGN, COMEN, COTRN
 
-                # Specific functional groupings
-                if pid.startswith("COSGN"):
-                    func_groups["AUTHENTICATION"].append(pid)
-                elif pid.startswith("COMEN"):
-                    func_groups["NAVIGATION"].append(pid)
-                elif pid.startswith("COADM"):
-                    func_groups["ADMINISTRATION"].append(pid)
-                elif pid.startswith("COUSR"):
-                    func_groups["USER_MANAGEMENT"].append(pid)
-                elif pid.startswith("COTRN"):
-                    func_groups["TRANSACTION_ONLINE"].append(pid)
-                elif pid.startswith("COCRD"):
-                    func_groups["CREDIT_CARD_MGMT"].append(pid)
-                elif pid.startswith("COBIL"):
-                    func_groups["BILLING"].append(pid)
-                elif pid.startswith("CORPT"):
-                    func_groups["REPORTING"].append(pid)
-                elif pid.startswith("COACTU") or pid.startswith("COACTV"):
-                    func_groups["ACCOUNT_MGMT_ONLINE"].append(pid)
-                elif pid.startswith("CBACT"):
-                    func_groups["ACCOUNT_BATCH"].append(pid)
-                elif pid.startswith("CBTRN"):
-                    func_groups["TRANSACTION_BATCH"].append(pid)
-                elif pid.startswith("CBCUS"):
-                    func_groups["CUSTOMER_BATCH"].append(pid)
-                elif pid.startswith("CBEXPO") or pid.startswith("CBIMPO"):
-                    func_groups["DATA_EXCHANGE"].append(pid)
-                elif pid.startswith("CBSTM"):
-                    func_groups["STATEMENT_PROCESSING"].append(pid)
-                elif pid.startswith("CSUTL") or pid.startswith("COBSW"):
-                    func_groups["UTILITIES"].append(pid)
-                else:
-                    # Classify by 2-char prefix with a meaningful fallback name
-                    prefix2 = pid[:2].upper()
-                    group_key = {
-                        "CB": "BATCH_PROCESSING",
-                        "CO": "ONLINE_PROCESSING",
-                        "CS": "SHARED_SERVICES",
-                        "DB": "DATABASE_OPERATIONS",
-                        "PA": "PAYMENT_PROCESSING",
-                    }.get(prefix2, f"MODULE_{prefix2}")
-                    func_groups[group_key].append(pid)
+        # Pre-compute prefix counts at multiple lengths
+        from collections import Counter
+        prefix_counts = {n: Counter(p[:n] for p in all_programs if len(p) >= n)
+                          for n in (5, 4, 3, 2)}
+
+        for pid in all_programs:
+            assigned_prefix = None
+            for n in (5, 4, 3, 2):
+                if len(pid) < n:
+                    continue
+                pref = pid[:n]
+                if prefix_counts[n].get(pref, 0) >= 2:
+                    assigned_prefix = pref
+                    break
+            if assigned_prefix:
+                func_groups[assigned_prefix.upper()].append(pid)
             else:
                 func_groups["OTHER"].append(pid)
 
-        # Strategy 2: Merge small groups into neighbors via call graph
-        module_names = {
-            "AUTHENTICATION":       "Authentication & Sign-On",
-            "NAVIGATION":           "Menu Navigation",
-            "ADMINISTRATION":       "System Administration",
-            "USER_MANAGEMENT":      "User Management",
-            "TRANSACTION_ONLINE":   "Online Transaction Processing",
-            "TRANSACTION_BATCH":    "Batch Transaction Processing",
-            "CREDIT_CARD_MGMT":     "Credit Card Management",
-            "BILLING":              "Billing & Statements",
-            "REPORTING":            "Reports & Analytics",
-            "ACCOUNT_MGMT_ONLINE":  "Online Account Management",
-            "ACCOUNT_BATCH":        "Batch Account Processing",
-            "CUSTOMER_BATCH":       "Customer Data Processing",
-            "DATA_EXCHANGE":        "Data Import/Export",
-            "STATEMENT_PROCESSING": "Statement Generation",
-            "UTILITIES":            "Shared Utilities",
-            "BATCH_PROCESSING":     "Batch Processing (Uncategorised)",
-            "ONLINE_PROCESSING":    "Online Processing (Uncategorised)",
-            "SHARED_SERVICES":      "Shared Services",
-            "DATABASE_OPERATIONS":  "Database Operations",
-            "PAYMENT_PROCESSING":   "Payment Processing",
-            "OTHER":                "Other Programs",
+        # Strategy 2: Module names. Three signals, in priority order:
+        #   (a) LLM-enriched business_name shared across the group
+        #   (b) Common token across paragraph names of all programs in the group
+        #       (e.g. CBACT* programs all have paragraphs containing 'ACCT')
+        #   (c) Fall back to "Module <prefix>"
+        import re
+        cursor.execute("SELECT program_id, business_name FROM programs")
+        biz_names = {r[0]: (r[1] or "") for r in cursor.fetchall()}
+
+        cursor.execute("SELECT program_id, paragraph_name FROM paragraphs")
+        paras_by_prog = defaultdict(list)
+        for r in cursor.fetchall():
+            paras_by_prog[r[0]].append(r[1])
+
+        STOP_WORDS = {
+            "the", "and", "for", "with", "from", "into", "this", "that", "exit",
+            "main", "open", "close", "read", "write", "init", "process", "control",
+            "end", "loop", "next", "find", "get", "set", "put", "out", "step",
+            "abend", "display", "status",
         }
+
+        def _common_token_from_strings(strings):
+            tokens_sets = []
+            for s in strings:
+                toks = [t.lower() for t in re.split(r"[\s\-_,.0-9]+", s or "")
+                         if len(t) >= 3 and t.isalnum()]
+                toks = [t for t in toks if t not in STOP_WORDS]
+                if toks:
+                    tokens_sets.append(set(toks))
+            if not tokens_sets:
+                return None
+            common = set.intersection(*tokens_sets) if len(tokens_sets) > 1 else tokens_sets[0]
+            return max(common, key=len) if common else None
+
+        def _shared_name(group):
+            # (a) From business_name
+            tok = _common_token_from_strings([biz_names.get(p, "") for p in group])
+            if tok:
+                return tok.title()
+            # (b) From paragraph names — collect ALL paragraphs and find a token
+            #     present in every program of the group
+            tokens_per_prog = []
+            for pid in group:
+                pset = set()
+                for pname in paras_by_prog.get(pid, []):
+                    for t in re.split(r"[\s\-_,.0-9]+", pname or ""):
+                        tl = t.lower()
+                        if len(tl) >= 3 and tl.isalnum() and tl not in STOP_WORDS:
+                            pset.add(tl)
+                if pset:
+                    tokens_per_prog.append(pset)
+            if tokens_per_prog:
+                common = set.intersection(*tokens_per_prog) if len(tokens_per_prog) > 1 else tokens_per_prog[0]
+                if common:
+                    return max(common, key=len).title()
+            return None
+
+        module_names = {}
+        for key, group in func_groups.items():
+            label = _shared_name(group)
+            if label:
+                # Disambiguate when multiple groups derive the same label
+                base = label
+                idx = 2
+                while label in module_names.values():
+                    label = f"{base} ({key})"
+                    idx += 1
+                    if idx > 5: break
+                module_names[key] = label
+            elif key == "OTHER":
+                module_names[key] = "Other Programs"
+            else:
+                module_names[key] = f"Module {key}"
 
         # Build result
         modules = []

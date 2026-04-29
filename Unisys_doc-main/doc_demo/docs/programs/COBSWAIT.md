@@ -18,6 +18,11 @@
 > **View Source:** [Open COBSWAIT.cbl](../carddemo/COBSWAIT.cbl#L1)
 
 
+## Business Purpose
+
+*Business purpose is not present in the extracted data. Run LLM enrichment to populate this section.*
+
+
 
 ## Dependency Context
 
@@ -36,6 +41,15 @@
 
 *No shared copybooks.*
 
+
+## Legacy Data Contracts
+
+> These tables are derived from FILE SECTION records and COPY-expanded data declarations. They preserve the legacy field names, COBOL storage type, inferred modern type, and status-code values needed for Java DTOs, SQL schemas, API contracts, and migration mapping.
+
+
+
+
+*No concrete file or copybook record layouts were found for this program.*
 
 ---
 
@@ -99,6 +113,27 @@ Copyright Amaz... |
 
 
 
+
+
+## Data Lineage (MOVE Flow)
+
+The following MOVE statements were extracted from the source. Each row is a `source → destination`
+flow that the migration team can use to trace how data is reshaped and routed.
+
+| Source | Destination | Paragraph | Line |
+|--------|-------------|-----------|------|
+| `PARM-VALUE` | `MVSWAIT-TIME` | None | 37 |
+
+
+
+
+
+
+
+
+
+
+
 ## Business Rules
 
 *No business rules extracted yet. Run LLM enrichment to extract rules from IF/EVALUATE logic.*
@@ -112,4 +147,4 @@ Copyright Amaz... |
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

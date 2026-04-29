@@ -21,27 +21,8 @@ Reports & Analytics
 | Screen | Map | Mapset | Program |
 |--------|-----|--------|---------|
 | [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
-| [CORPT0A](../screens/CORPT0A.md) | CORPT0A | CORPT00 | [CORPT00C](../programs/CORPT00C.md) |
 
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:27*
