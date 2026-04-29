@@ -85,10 +85,6 @@ TRAN-CAT-BAL,18,11,ZD
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [IEFBR14](../programs/IEFBR14.md)
-- [SORT](../programs/SORT.md)
 
 ### Input Datasets
 
@@ -102,4 +98,4 @@ TRAN-CAT-BAL,18,11,ZD
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

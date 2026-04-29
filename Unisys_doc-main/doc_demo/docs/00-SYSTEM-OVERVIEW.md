@@ -1,30 +1,31 @@
 # CardDemo - System Overview
 
-> **Auto-generated documentation** | 2026-04-28 20:00  
-> Analyzed from 44 COBOL programs across 19 functional modules
+> **Auto-generated documentation** | 2026-04-29 10:56  
+> Analyzed from 44 COBOL programs across 16 functional modules
 
 ---
 
 ## What is CardDemo?
 
-CardDemo is a mainframe COBOL application that provides core business functionality
-for credit card account management. The system handles customer sign-on, account inquiries,
-transaction processing, credit card management, and batch operations through a combination
-of CICS online screens and batch JCL jobs.
+CardDemo is a mainframe COBOL application composed of 44 programs
+across 16 functional modules. It exposes 21 BMS screens for
+online (CICS) interaction and is orchestrated by 55 JCL batch
+jobs. The sections below summarize its structure, dependencies, and modernization-relevant
+characteristics.
 
 ## System at a Glance
 
 | Metric | Count |
 |--------|-------|
 | Programs | 44 |
-| Functional Modules | 19 |
-| BMS Screens | 420 |
+| Functional Modules | 16 |
+| BMS Screens | 21 |
 | Data Items | 7383 |
 | CICS Commands | 101 |
 | SQL Statements | 28 |
 | Inter-Program Calls | 59 |
 | Business Rules | 447 |
-| Copybooks | 68 |
+| Copybooks | 73 |
 
 ## Architecture Overview
 
@@ -63,9 +64,20 @@ flowchart TB
 
 ## Functional Modules
 
-### [Batch Account Processing](modules/ACCOUNT_BATCH.md)
+### [Module CB](modules/CB.md)
 
-Batch Account Processing
+Module CB
+
+| Programs | Type |
+|----------|------|
+| [CBCUS01C](programs/CBCUS01C.md) | BATCH |
+| [CBEXPORT](programs/CBEXPORT.md) | BATCH |
+| [CBIMPORT](programs/CBIMPORT.md) | BATCH |
+| [CBPAUP0C](programs/CBPAUP0C.md) | BATCH |
+
+### [Program](modules/CBACT.md)
+
+Program
 
 | Programs | Type |
 |----------|------|
@@ -74,132 +86,18 @@ Batch Account Processing
 | [CBACT03C](programs/CBACT03C.md) | BATCH |
 | [CBACT04C](programs/CBACT04C.md) | BATCH |
 
-### [Online Account Management](modules/ACCOUNT_MGMT_ONLINE.md)
+### [Trnxfile](modules/CBSTM.md)
 
-Online Account Management
-
-| Programs | Type |
-|----------|------|
-| [COACTUPC](programs/COACTUPC.md) | ONLINE |
-| [COACTVWC](programs/COACTVWC.md) | ONLINE |
-
-### [System Administration](modules/ADMINISTRATION.md)
-
-System Administration
-
-| Programs | Type |
-|----------|------|
-| [COADM01C](programs/COADM01C.md) | ONLINE |
-
-### [Authentication & Sign-On](modules/AUTHENTICATION.md)
-
-Authentication & Sign-On
-
-| Programs | Type |
-|----------|------|
-| [COSGN00C](programs/COSGN00C.md) | ONLINE |
-
-### [Batch Processing (Uncategorised)](modules/BATCH_PROCESSING.md)
-
-Batch Processing (Uncategorised)
-
-| Programs | Type |
-|----------|------|
-| [CBPAUP0C](programs/CBPAUP0C.md) | BATCH |
-
-### [Billing & Statements](modules/BILLING.md)
-
-Billing & Statements
-
-| Programs | Type |
-|----------|------|
-| [COBIL00C](programs/COBIL00C.md) | ONLINE |
-
-### [Credit Card Management](modules/CREDIT_CARD_MGMT.md)
-
-Credit Card Management
-
-| Programs | Type |
-|----------|------|
-| [COCRDLIC](programs/COCRDLIC.md) | ONLINE |
-| [COCRDSLC](programs/COCRDSLC.md) | ONLINE |
-| [COCRDUPC](programs/COCRDUPC.md) | ONLINE |
-
-### [Customer Data Processing](modules/CUSTOMER_BATCH.md)
-
-Customer Data Processing
-
-| Programs | Type |
-|----------|------|
-| [CBCUS01C](programs/CBCUS01C.md) | BATCH |
-
-### [Database Operations](modules/DATABASE_OPERATIONS.md)
-
-Database Operations
-
-| Programs | Type |
-|----------|------|
-| [DBUNLDGS](programs/DBUNLDGS.md) | BATCH |
-
-### [Data Import/Export](modules/DATA_EXCHANGE.md)
-
-Data Import/Export
-
-| Programs | Type |
-|----------|------|
-| [CBEXPORT](programs/CBEXPORT.md) | BATCH |
-| [CBIMPORT](programs/CBIMPORT.md) | BATCH |
-
-### [Menu Navigation](modules/NAVIGATION.md)
-
-Menu Navigation
-
-| Programs | Type |
-|----------|------|
-| [COMEN01C](programs/COMEN01C.md) | ONLINE |
-
-### [Online Processing (Uncategorised)](modules/ONLINE_PROCESSING.md)
-
-Online Processing (Uncategorised)
-
-| Programs | Type |
-|----------|------|
-| [COACCT01](programs/COACCT01.md) | ONLINE |
-| [COBTUPDT](programs/COBTUPDT.md) | DB2 |
-| [CODATE01](programs/CODATE01.md) | ONLINE |
-| [COPAUA0C](programs/COPAUA0C.md) | ONLINE |
-| [COPAUS0C](programs/COPAUS0C.md) | ONLINE |
-| *...4 more* | |
-
-### [Payment Processing](modules/PAYMENT_PROCESSING.md)
-
-Payment Processing
-
-| Programs | Type |
-|----------|------|
-| [PAUDBLOD](programs/PAUDBLOD.md) | BATCH |
-| [PAUDBUNL](programs/PAUDBUNL.md) | BATCH |
-
-### [Reports & Analytics](modules/REPORTING.md)
-
-Reports & Analytics
-
-| Programs | Type |
-|----------|------|
-| [CORPT00C](programs/CORPT00C.md) | ONLINE |
-
-### [Statement Generation](modules/STATEMENT_PROCESSING.md)
-
-Statement Generation
+Trnxfile
 
 | Programs | Type |
 |----------|------|
 | [CBSTM03A](programs/CBSTM03A.md) | BATCH |
 | [CBSTM03B](programs/CBSTM03B.md) | BATCH |
 
-### [Batch Transaction Processing](modules/TRANSACTION_BATCH.md)
+### [Tranfile](modules/CBTRN.md)
 
-Batch Transaction Processing
+Tranfile
 
 | Programs | Type |
 |----------|------|
@@ -207,9 +105,76 @@ Batch Transaction Processing
 | [CBTRN02C](programs/CBTRN02C.md) | BATCH |
 | [CBTRN03C](programs/CBTRN03C.md) | BATCH |
 
-### [Online Transaction Processing](modules/TRANSACTION_ONLINE.md)
+### [Module CO](modules/CO.md)
 
-Online Transaction Processing
+Module CO
+
+| Programs | Type |
+|----------|------|
+| [CODATE01](programs/CODATE01.md) | ONLINE |
+| [COMEN01C](programs/COMEN01C.md) | ONLINE |
+| [CORPT00C](programs/CORPT00C.md) | ONLINE |
+| [COSGN00C](programs/COSGN00C.md) | ONLINE |
+
+### [Populate](modules/COA.md)
+
+Populate
+
+| Programs | Type |
+|----------|------|
+| [COADM01C](programs/COADM01C.md) | ONLINE |
+
+### [Termination](modules/COAC.md)
+
+Termination
+
+| Programs | Type |
+|----------|------|
+| [COACCT01](programs/COACCT01.md) | ONLINE |
+
+### [Getcardxref](modules/COACT.md)
+
+Getcardxref
+
+| Programs | Type |
+|----------|------|
+| [COACTUPC](programs/COACTUPC.md) | ONLINE |
+| [COACTVWC](programs/COACTVWC.md) | ONLINE |
+
+### [Update](modules/COB.md)
+
+Update
+
+| Programs | Type |
+|----------|------|
+| [COBIL00C](programs/COBIL00C.md) | ONLINE |
+| [COBSWAIT](programs/COBSWAIT.md) | BATCH |
+| [COBTUPDT](programs/COBTUPDT.md) | DB2 |
+
+### [Receive](modules/COCRD.md)
+
+Receive
+
+| Programs | Type |
+|----------|------|
+| [COCRDLIC](programs/COCRDLIC.md) | ONLINE |
+| [COCRDSLC](programs/COCRDSLC.md) | ONLINE |
+| [COCRDUPC](programs/COCRDUPC.md) | ONLINE |
+
+### [Para](modules/COPAU.md)
+
+Para
+
+| Programs | Type |
+|----------|------|
+| [COPAUA0C](programs/COPAUA0C.md) | ONLINE |
+| [COPAUS0C](programs/COPAUS0C.md) | ONLINE |
+| [COPAUS1C](programs/COPAUS1C.md) | ONLINE |
+| [COPAUS2C](programs/COPAUS2C.md) | ONLINE |
+
+### [Initialize (COTRN)](modules/COTRN.md)
+
+Initialize (COTRN)
 
 | Programs | Type |
 |----------|------|
@@ -217,9 +182,18 @@ Online Transaction Processing
 | [COTRN01C](programs/COTRN01C.md) | ONLINE |
 | [COTRN02C](programs/COTRN02C.md) | ONLINE |
 
-### [User Management](modules/USER_MANAGEMENT.md)
+### [Alphanum](modules/COTRT.md)
 
-User Management
+Alphanum
+
+| Programs | Type |
+|----------|------|
+| [COTRTLIC](programs/COTRTLIC.md) | ONLINE |
+| [COTRTUPC](programs/COTRTUPC.md) | ONLINE |
+
+### [Initialize (COUSR)](modules/COUSR.md)
+
+Initialize (COUSR)
 
 | Programs | Type |
 |----------|------|
@@ -228,14 +202,23 @@ User Management
 | [COUSR02C](programs/COUSR02C.md) | ONLINE |
 | [COUSR03C](programs/COUSR03C.md) | ONLINE |
 
-### [Shared Utilities](modules/UTILITIES.md)
+### [Initialize](modules/OTHER.md)
 
-Shared Utilities
+Initialize
 
 | Programs | Type |
 |----------|------|
-| [COBSWAIT](programs/COBSWAIT.md) | BATCH |
 | [CSUTLDTC](programs/CSUTLDTC.md) | BATCH |
+| [DBUNLDGS](programs/DBUNLDGS.md) | BATCH |
+
+### [Initialize (PAUDB)](modules/PAUDB.md)
+
+Initialize (PAUDB)
+
+| Programs | Type |
+|----------|------|
+| [PAUDBLOD](programs/PAUDBLOD.md) | BATCH |
+| [PAUDBUNL](programs/PAUDBUNL.md) | BATCH |
 
 
 ## Entry Points

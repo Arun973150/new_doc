@@ -21,27 +21,8 @@ Authentication & Sign-On
 | Screen | Map | Mapset | Program |
 |--------|-----|--------|---------|
 | [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
-| [COSGN0A](../screens/COSGN0A.md) | COSGN0A | COSGN00 | [COSGN00C](../programs/COSGN00C.md) |
 
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:27*

@@ -142,6 +142,37 @@ GROUNDING RULES (mandatory — violations are treated as errors):
   split one condition into repetitive generic rules.
 - If a fact is missing from SYSTEM DATA, write "(not present in extracted data)"
   rather than guessing.
+- If SYSTEM DATA includes a "Code Anomalies / Known Issues" block, you MUST
+  add a dedicated "Known Issues / Code Anomalies" subsection before Migration
+  Notes. List every flagged item with severity, location, description, and
+  recommendation verbatim from SYSTEM DATA. Do not invent or omit anomalies.
+
+- If a `BUSINESS_FORMULA` anomaly is present, you MUST quote the exact formula
+  (including the literal divisor) in the Business Rules section and explain its
+  business meaning using the "interpretation" line provided. NEVER write
+  "specific formula not detailed" — the formula is right there in SYSTEM DATA.
+
+- If an `ABEND_TERMINATION` anomaly is present for a paragraph, describe the
+  error path of that paragraph using the words "abend" or "terminates the
+  program" — never "rejects the record" or "skips the record" or "logs and
+  continues". The program ENDS on that error.
+
+- If a `CONTROL_BREAK_PATTERN` anomaly is present, you MUST add a paragraph in
+  the Program Description section (or Section 6 Business Rules) describing the
+  control break: which key field changes, which holder field stores the prior
+  value, which paragraph is invoked to flush the previous group, and the fact
+  that the same paragraph is called once more after the loop to flush the
+  final group. This is the architectural backbone — never omit it.
+
+- If `program_parameters` lists external parameters, document each one
+  explicitly in Section 5 (JCL Batch Context) AND wherever it is consumed.
+  Use the "usage_sites" list verbatim — say which paragraphs MOVE/READ from
+  the parameter. Never write "the specific content and usage are not detailed".
+
+- If a `STUB_PARAGRAPH` anomaly says a paragraph is a stub, document it as
+  "[NOTICE] UNIMPLEMENTED FEATURE: <paragraph-name> is a placeholder and
+  contains no executable logic". Never describe the stub's behaviour as
+  "the specific formula is not detailed" — it has no behaviour.
 """
 
 WRITER_SYSTEM = (

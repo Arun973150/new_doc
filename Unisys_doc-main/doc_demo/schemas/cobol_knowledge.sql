@@ -465,6 +465,120 @@ CREATE INDEX IF NOT EXISTS idx_data_movements_source ON data_movements(source_fi
 CREATE INDEX IF NOT EXISTS idx_data_movements_dest ON data_movements(destination_field);
 
 -- ============================================
+-- Table: code_anomalies
+-- Suspicious patterns / known issues detected by static analysis
+-- (e.g. duplicate IF condition, unused variable, name mismatches)
+-- ============================================
+CREATE TABLE IF NOT EXISTS code_anomalies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    severity TEXT NOT NULL,              -- BUG | WARNING | NOTICE
+    category TEXT NOT NULL,              -- LOGIC | DEAD_CODE | NAMING | STYLE | INCOMPLETE
+    rule_id TEXT NOT NULL,               -- short identifier (e.g. "DUPLICATE_AND_CONDITION")
+    title TEXT NOT NULL,
+    description TEXT,
+    paragraph_name TEXT,
+    line_number INTEGER,
+    snippet TEXT,                        -- short code excerpt around the issue
+    suggestion TEXT,                     -- recommended fix or migration note
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+CREATE INDEX IF NOT EXISTS idx_code_anomalies_program ON code_anomalies(program_id);
+CREATE INDEX IF NOT EXISTS idx_code_anomalies_severity ON code_anomalies(severity);
+
+-- ============================================
+-- Table: mq_calls
+-- IBM MQ API calls (MQOPEN/MQGET/MQPUT/MQCLOSE/MQCONN/MQDISC/MQCMIT/MQBACK)
+-- ============================================
+CREATE TABLE IF NOT EXISTS mq_calls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    function_code TEXT NOT NULL,        -- MQOPEN, MQGET, MQPUT, MQCLOSE, MQCONN, MQDISC, MQCMIT, MQBACK
+    function_name TEXT,                 -- friendly description
+    queue_name TEXT,                    -- target queue, where derivable
+    queue_manager TEXT,                 -- queue manager name (from MQCONN)
+    object_descriptor TEXT,             -- MQOD area
+    message_descriptor TEXT,            -- MQMD area
+    options_area TEXT,                  -- MQGMO/MQPMO/MQCNO area
+    paragraph_name TEXT,
+    line_number INTEGER,
+    raw_text TEXT,
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+CREATE INDEX IF NOT EXISTS idx_mq_calls_program ON mq_calls(program_id);
+CREATE INDEX IF NOT EXISTS idx_mq_calls_function ON mq_calls(function_code);
+CREATE INDEX IF NOT EXISTS idx_mq_calls_queue ON mq_calls(queue_name);
+
+-- ============================================
+-- Table: evaluate_branches
+-- EVALUATE / WHEN decision tables
+-- ============================================
+CREATE TABLE IF NOT EXISTS evaluate_branches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    evaluate_id TEXT NOT NULL,           -- "<program>:<paragraph>:<line>" identifier
+    subject TEXT,                        -- what's being evaluated (TRUE / variable / expression)
+    branch_index INTEGER,                -- order: 0,1,2,... ; -1 for WHEN OTHER
+    when_condition TEXT,                 -- the WHEN expression
+    action_summary TEXT,                 -- first executable line of the branch
+    paragraph_name TEXT,
+    line_number INTEGER,
+    is_default INTEGER DEFAULT 0,        -- 1 for WHEN OTHER
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+CREATE INDEX IF NOT EXISTS idx_evaluate_branches_program ON evaluate_branches(program_id);
+CREATE INDEX IF NOT EXISTS idx_evaluate_branches_eval ON evaluate_branches(evaluate_id);
+
+-- ============================================
+-- Table: cics_handles
+-- EXEC CICS HANDLE CONDITION routing (condition -> error paragraph)
+-- ============================================
+CREATE TABLE IF NOT EXISTS cics_handles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    handle_type TEXT NOT NULL,           -- CONDITION | AID | ABEND
+    condition_name TEXT NOT NULL,        -- e.g. ERROR, NOTFND, MAPFAIL
+    target_paragraph TEXT,               -- routing destination (NULL = SUSPEND/continue)
+    paragraph_name TEXT,                 -- paragraph containing the HANDLE statement
+    line_number INTEGER,
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cics_handles_program ON cics_handles(program_id);
+CREATE INDEX IF NOT EXISTS idx_cics_handles_target ON cics_handles(target_paragraph);
+
+-- ============================================
+-- Table: program_parameters
+-- PROCEDURE DIVISION USING parameters (external runtime inputs)
+-- ============================================
+CREATE TABLE IF NOT EXISTS program_parameters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    position INTEGER,
+    parameter_name TEXT NOT NULL,
+    source TEXT,
+    line_number INTEGER,
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+CREATE INDEX IF NOT EXISTS idx_program_parameters_program ON program_parameters(program_id);
+
+-- ============================================
+-- Table: file_operations
+-- Every OPEN/CLOSE with the explicit mode (INPUT/OUTPUT/I-O/EXTEND)
+-- ============================================
+CREATE TABLE IF NOT EXISTS file_operations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    program_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    mode TEXT,
+    paragraph_name TEXT,
+    line_number INTEGER,
+    FOREIGN KEY (program_id) REFERENCES programs(program_id)
+);
+CREATE INDEX IF NOT EXISTS idx_file_ops_program ON file_operations(program_id);
+CREATE INDEX IF NOT EXISTS idx_file_ops_file ON file_operations(file_name);
+
+-- ============================================
 -- Table: ims_calls
 -- IMS DL/I CALL 'CBLTDLI' statements found in programs
 -- ============================================

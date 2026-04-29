@@ -46,7 +46,7 @@ class PDFReportGenerator:
         pdf.set_text_color(88, 166, 255)
         pdf.set_font("Helvetica", "B", 18)
         pdf.set_y(8)
-        pdf.cell(0, 14, "CardDemo Knowledge Base", align="C")
+        pdf.cell(0, 14, "COBOL Knowledge Base", align="C")
         pdf.ln(20)
 
         # Reset text color
@@ -207,7 +207,7 @@ class PDFReportGenerator:
         pdf.ln(10)
         pdf.set_font("Helvetica", "I", 8)
         pdf.set_text_color(128, 128, 128)
-        pdf.cell(0, 5, "CardDemo Knowledge Base - Auto-generated report",
+        pdf.cell(0, 5, "COBOL Knowledge Base — Auto-generated report",
                  align="C")
 
         return bytes(pdf.output())

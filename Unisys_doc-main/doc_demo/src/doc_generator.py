@@ -67,10 +67,11 @@ TEMPLATES["system_overview.md.j2"] = '''\
 
 ## What is {{ system_name }}?
 
-{{ system_name }} is a mainframe COBOL application that provides core business functionality
-for credit card account management. The system handles customer sign-on, account inquiries,
-transaction processing, credit card management, and batch operations through a combination
-of CICS online screens and batch JCL jobs.
+{{ system_name }} is a mainframe COBOL application composed of {{ total_programs }} programs
+across {{ total_modules }} functional modules. It exposes {{ total_screens }} BMS screens for
+online (CICS) interaction and is orchestrated by {{ total_jcl_jobs | default(0) }} JCL batch
+jobs. The sections below summarize its structure, dependencies, and modernization-relevant
+characteristics.
 
 ## System at a Glance
 
@@ -167,7 +168,7 @@ TEMPLATES["module.md.j2"] = '''\
 
 ## Business Purpose
 
-{{ business_purpose | default("This module groups related programs that handle " ~ business_name ~ " operations within the CardDemo application.") }}
+{{ business_purpose | default("This module groups related programs that share a common naming prefix and/or interact heavily through calls and shared copybooks.") }}
 
 ## Programs in This Module
 
@@ -678,6 +679,137 @@ flow that the migration team can use to trace how data is reshaped and routed.
 {% endfor %}
 {% if data_movements | length > 60 %}*+ {{ data_movements | length - 60 }} more movements*{% endif %}
 
+{% endif %}
+
+{% if code_anomalies %}
+## Known Issues & Code Anomalies
+
+Static analysis flagged the following items in this program. Migration teams should
+review each one before re-implementing in a modern stack.
+
+| Severity | Category | Title | Paragraph | Line |
+|----------|----------|-------|-----------|------|
+{% for a in code_anomalies %}
+| **{{ a.severity }}** | {{ a.category }} | {{ a.title }} | {{ a.paragraph_name | default("-") }} | {{ a.line_number | default("-") }} |
+{% endfor %}
+
+{% for a in code_anomalies %}
+### {{ a.severity }} — {{ a.title }}
+
+{% if a.description %}{{ a.description }}{% endif %}
+
+{% if a.snippet %}**Source excerpt** (line {{ a.line_number }}):
+```cobol
+{{ a.snippet }}
+```
+{% endif %}
+
+{% if a.suggestion %}**Recommendation:** {{ a.suggestion }}{% endif %}
+
+---
+{% endfor %}
+{% endif %}
+
+{% if program_parameters %}
+## External Runtime Parameters
+
+This program receives the following parameters at runtime (via `PROCEDURE DIVISION USING`
+or `ENTRY USING`). Each parameter must be supplied by the caller — typically a JCL job
+step (`PARM=`), CICS COMMAREA, or the IMS region controller. The migration target needs
+an equivalent input wiring.
+
+| # | Parameter | Source | Declared at line |
+|---|-----------|--------|------------------|
+{% for p in program_parameters %}
+| {{ p.position }} | `{{ p.parameter_name }}` | {{ p.source }} | {{ p.line_number }} |
+{% endfor %}
+{% endif %}
+
+{% if file_operations %}
+## File OPEN / CLOSE Operations
+
+The exact OPEN mode (INPUT / OUTPUT / I-O / EXTEND) determines whether a file can be
+read, written, or both — and whether REWRITE / DELETE are legal. This table is the
+source of truth for migrators converting to modern storage layers.
+
+| File | Operation | Mode | Paragraph | Line |
+|------|-----------|------|-----------|------|
+{% for op in file_operations %}
+| `{{ op.file_name }}` | {{ op.operation }} | {{ op.mode | default("-") }} | {{ op.paragraph_name | default("-") }} | {{ op.line_number }} |
+{% endfor %}
+{% endif %}
+
+{% if mq_calls %}
+## IBM MQ Operations
+
+This program calls the IBM MQ API. Each row is a queueing operation that must be
+preserved (or migrated to Kafka/SQS topics) when modernising.
+
+| Function | Description | Queue | Paragraph | Line |
+|----------|-------------|-------|-----------|------|
+{% for m in mq_calls %}
+| `{{ m.function_code }}` | {{ m.function_name | default("-") }} | {{ m.queue_name | default("(not statically resolvable)") }} | {{ m.paragraph_name | default("-") }} | {{ m.line_number | default("-") }} |
+{% endfor %}
+{% endif %}
+
+{% if evaluate_branches %}
+## Decision Tables (EVALUATE / WHEN)
+
+Captured from the source. Each EVALUATE block is a structured decision the
+migration team should turn into either a switch / pattern-match or a rules table.
+
+{% set ev_groups = {} %}
+{% for b in evaluate_branches %}
+{% if b.evaluate_id not in ev_groups %}
+{% set _ = ev_groups.update({b.evaluate_id: []}) %}
+{% endif %}
+{% set _ = ev_groups[b.evaluate_id].append(b) %}
+{% endfor %}
+{% for eid, branches in ev_groups.items() %}
+### EVALUATE `{{ branches[0].subject }}` — paragraph `{{ branches[0].paragraph_name | default("-") }}` (line {{ branches[0].line_number }})
+
+| WHEN | Action |
+|------|--------|
+{% for b in branches %}
+| {% if b.is_default %}**WHEN OTHER**{% else %}`{{ b.when_condition }}`{% endif %} | {{ b.action_summary | default("...") }} |
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+
+{% if cics_handles %}
+## CICS HANDLE Routing
+
+Each entry shows where exceptional CICS conditions are routed. Migration to a
+modern stack should map these to try / catch handlers or middleware filters.
+
+| Type | Condition | Target Paragraph | Line |
+|------|-----------|------------------|------|
+{% for h in cics_handles %}
+| {{ h.handle_type }} | `{{ h.condition_name }}` | {% if h.target_paragraph %}`{{ h.target_paragraph }}`{% else %}*(suspend / cancel prior handler)*{% endif %} | {{ h.line_number }} |
+{% endfor %}
+{% endif %}
+
+{% if cursor_lifecycles %}
+## SQL Cursor Lifecycles
+
+Each cursor's full DECLARE → OPEN → FETCH → CLOSE chain. Use this when porting
+to streaming queries or paginated REST endpoints.
+
+{% for c in cursor_lifecycles %}
+### Cursor `{{ c.cursor_name }}`{% if c.table_name %} (over table `{{ c.table_name }}`){% endif %}
+
+
+| Phase | Paragraph | Line |
+|-------|-----------|------|
+| DECLARE | {{ c.declare.paragraph if c.declare else "-" }} | {{ c.declare.line if c.declare else "-" }} |
+| OPEN | {{ c.open.paragraph if c.open else "-" }} | {{ c.open.line if c.open else "-" }} |
+{% for fp in c.fetch_paragraphs[:4] %}
+| FETCH | {{ fp }} | {{ c.fetch_lines[loop.index0] }} |
+{% endfor %}
+| CLOSE | {{ c.close.paragraph if c.close else "-" }} | {{ c.close.line if c.close else "-" }} |
+
+{% endfor %}
 {% endif %}
 
 {% if exec_cics %}
@@ -1746,6 +1878,7 @@ class DocGenerator:
         self._generate_data_dictionary(generated)
         self._generate_copybook_reference(generated)
         self._generate_jcl_docs(generated)
+        self._generate_data_flow_chains_doc(generated)
 
         total = len(list(self.output_dir.rglob("*.md")))
         console.print(f"[green]OK - Generated {total} documentation files in {self.output_dir}[/green]")
@@ -1753,6 +1886,46 @@ class DocGenerator:
     # ================================================================
     # Layer 1: System Overview
     # ================================================================
+
+    def _generate_data_flow_chains_doc(self, generated_date: str):
+        """Render docs/diagrams/data-flow-chains.md from get_data_flow_chains()."""
+        try:
+            chains = self.db.get_data_flow_chains(max_hops=4)
+        except Exception:
+            chains = []
+        if not chains:
+            return
+        lines = [
+            f"# End-to-End Data Flow Chains",
+            "",
+            f"> Auto-generated {generated_date}",
+            "",
+            "Each chain traces how data flows: a JCL job triggers a program, which writes "
+            "a file/dataset, which is then read by another program, and so on. Use this to "
+            "decide migration units that must move together.",
+            "",
+            f"**Chains discovered:** {len(chains)}",
+            "",
+        ]
+        for i, c in enumerate(chains, 1):
+            chain = c["chain"]
+            kind = "JCL-rooted" if c.get("starts_with_jcl") else "Program-rooted"
+            lines.append(f"## Chain {i} — {kind}")
+            lines.append("")
+            steps = []
+            for step in chain:
+                if step.get("job"):
+                    steps.append(f"`JCL {step['job']}`")
+                elif step.get("program"):
+                    steps.append(f"[{step['program']}](../programs/{step['program']}.md)")
+                if step.get("file"):
+                    steps.append(f"`file {step['file']}`")
+            lines.append(" → ".join(steps))
+            lines.append("")
+        out_path = self.output_dir / "diagrams" / "data-flow-chains.md"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text("\n".join(lines), encoding="utf-8")
+        console.print(f"  [green]OK - Generated {out_path.name} ({len(chains)} chains)[/green]")
 
     def _generate_system_overview(self, generated_date: str):
         console.print("  [cyan]Layer 1: System Overview[/cyan]")
@@ -1784,6 +1957,13 @@ class DocGenerator:
         all_set = set(p["program_id"] for p in programs)
         entry_points = sorted(all_set - called_set)
 
+        # JCL job count for overview narrative
+        try:
+            cursor.execute("SELECT COUNT(*) FROM jcl_jobs")
+            total_jcl_jobs = cursor.fetchone()[0]
+        except Exception:
+            total_jcl_jobs = 0
+
         template = self.env.get_template("system_overview.md.j2")
         content = template.render(
             system_name=self.system_name,
@@ -1796,6 +1976,7 @@ class DocGenerator:
             total_calls=len(call_graph),
             total_rules=len(rules),
             total_copybooks=len(copybooks),
+            total_jcl_jobs=total_jcl_jobs,
             online_programs=online,
             batch_programs=batch,
             call_graph=call_graph,
@@ -1913,18 +2094,31 @@ class DocGenerator:
                                 body = raw_line[6:] if len(raw_line) > 6 else raw_line
                                 body_lines.append(body[:66] if len(body) > 66 else body)
                             body = "\n".join(body_lines)
-                            for name in ("WS-PGMNAME",):
-                                m = re.search(rf"\b{name}\b[\s\S]{{0,90}}?\bVALUE\s+['\"]([^'\"]+)['\"]", body, re.IGNORECASE)
-                                if m:
-                                    source_literals.append({"name": name, "value": m.group(1)})
-                            for condition, pattern in [
-                                ("PAUT-PCB-STATUS = SPACES", r"\bPAUT-PCB-STATUS\s*=\s*SPACES\b"),
-                                ("PAUT-PCB-STATUS = 'II'", r"\bPAUT-PCB-STATUS\s*=\s*['\"]II['\"]"),
-                                ("WS-INFIL1-STATUS", r"\bWS-INFIL1-STATUS\b"),
-                                ("WS-INFIL2-STATUS", r"\bWS-INFIL2-STATUS\b"),
-                            ]:
-                                if re.search(pattern, body, re.IGNORECASE):
-                                    source_statuses.append(condition)
+                            # Generic: extract any WS-*-NAME / PROGRAM-* literal value
+                            # so the LLM can quote the actual VALUE without hallucinating.
+                            for m in re.finditer(
+                                r"\b(WS-[A-Z][A-Z0-9-]{0,28}|PGM[A-Z0-9-]{0,15})\b"
+                                r"[\s\S]{0,90}?\bVALUE\s+['\"]([^'\"]+)['\"]",
+                                body, re.IGNORECASE,
+                            ):
+                                nm = m.group(1).upper()
+                                val = m.group(2)
+                                if not any(s["name"] == nm for s in source_literals):
+                                    source_literals.append({"name": nm, "value": val})
+                                if len(source_literals) >= 8:
+                                    break
+                            # Generic: any *-STATUS reference inside an IF condition
+                            for m in re.finditer(
+                                r"\bIF\s+([A-Z][A-Z0-9-]*-STATUS)\s*("
+                                r"=|<>|NOT\s*EQUAL|EQUAL|NOT\s*=|>|<|>=|<=)"
+                                r"\s*([A-Z0-9'\"-]+)",
+                                body, re.IGNORECASE,
+                            ):
+                                cond = f"{m.group(1)} {m.group(2).upper()} {m.group(3)}"
+                                if cond not in source_statuses:
+                                    source_statuses.append(cond)
+                                if len(source_statuses) >= 12:
+                                    break
                         except Exception:
                             pass
 
@@ -1960,6 +2154,26 @@ class DocGenerator:
                     except Exception:
                         movements = []
 
+                    # Static-analysis anomalies (bugs, dead code, naming issues)
+                    try:
+                        anomalies = self.db.get_program_anomalies(pid)
+                    except Exception:
+                        anomalies = []
+
+                    # New extractions: MQ, EVALUATE, CICS HANDLE, cursor lifecycles
+                    try:    mq_calls = self.db.get_program_mq_calls(pid)
+                    except Exception: mq_calls = []
+                    try:    evaluate_branches = self.db.get_program_evaluates(pid)
+                    except Exception: evaluate_branches = []
+                    try:    cics_handles = self.db.get_program_cics_handles(pid)
+                    except Exception: cics_handles = []
+                    try:    cursor_lifecycles = self.db.get_program_cursor_lifecycles(pid)
+                    except Exception: cursor_lifecycles = []
+                    try:    program_parameters = self.db.get_program_parameters(pid)
+                    except Exception: program_parameters = []
+                    try:    file_operations = self.db.get_program_file_operations(pid)
+                    except Exception: file_operations = []
+
                     content = template.render(
                         **details,
                         stmt_summary=stmt_summary,
@@ -1977,6 +2191,13 @@ class DocGenerator:
                         copybook_dictionaries=cb_dicts,
                         file_records=file_records,
                         data_movements=movements,
+                        code_anomalies=anomalies,
+                        mq_calls=mq_calls,
+                        evaluate_branches=evaluate_branches,
+                        cics_handles=cics_handles,
+                        cursor_lifecycles=cursor_lifecycles,
+                        program_parameters=program_parameters,
+                        file_operations=file_operations,
                         generated_date=generated_date,
                     )
                     (self.output_dir / "programs" / f"{pid}.md").write_text(content, encoding="utf-8")

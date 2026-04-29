@@ -18,7 +18,15 @@ Payment Processing
 
 
 
+## Data Files Used
+
+| File | Type | Access | Program |
+|------|------|--------|---------|
+| `INFILE1` | SEQUENTIAL | SEQUENTIAL | PAUDBLOD |
+| `INFILE2` | SEQUENTIAL | SEQUENTIAL | PAUDBLOD |
+| `OPFILE1` | SEQUENTIAL | SEQUENTIAL | PAUDBUNL |
+| `OPFILE2` | SEQUENTIAL | SEQUENTIAL | PAUDBUNL |
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:27*

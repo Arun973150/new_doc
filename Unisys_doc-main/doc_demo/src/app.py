@@ -220,7 +220,6 @@ section[data-testid="stSidebar"] .streamlit-expanderContent {
 # Helpers
 # 
 
-@st.cache_resource
 def get_loader():
     db_path = os.getenv("DB_PATH", "data/cobol_knowledge.db")
     return SQLiteLoader(db_path)
@@ -497,6 +496,112 @@ def page_overview():
 
     st.divider()
     st.subheader("System Architecture")
+    st.caption(
+        "Architecture evidence extracted from JCL, program calls, copybooks, files, "
+        "CICS, DB2 SQL, IMS calls, and BMS screen mappings."
+    )
+
+    try:
+        _db_path_arch = os.getenv("DB_PATH", "data/cobol_knowledge.db")
+        _arch_conn = sqlite3.connect(_db_path_arch)
+        _jcl_arch_df = pd.read_sql_query(
+            "SELECT DISTINCT job_name, step_name, program FROM jcl_steps "
+            "WHERE COALESCE(program, '') != '' ORDER BY job_name, step_order",
+            _arch_conn,
+        )
+        _sql_arch_df = pd.read_sql_query(
+            "SELECT program_id, command, table_name, paragraph_name, line_number "
+            "FROM exec_sql WHERE COALESCE(table_name, '') != '' "
+            "ORDER BY program_id, table_name",
+            _arch_conn,
+        )
+        _ims_arch_df = pd.read_sql_query(
+            "SELECT program_id, function_code, ssa_segment, segment_area, paragraph_name, line_number "
+            "FROM ims_calls ORDER BY program_id, line_number",
+            _arch_conn,
+        )
+        _cics_arch_df = pd.read_sql_query(
+            "SELECT program_id, command, paragraph_name, line_number "
+            "FROM exec_cics ORDER BY program_id, line_number",
+            _arch_conn,
+        )
+        _file_arch_df = pd.read_sql_query(
+            "SELECT program_id, file_name, file_type, organization, access_mode "
+            "FROM files ORDER BY program_id, file_name",
+            _arch_conn,
+        )
+        _screen_arch_df = pd.read_sql_query(
+            "SELECT transaction_id, screen_name, map_name, associated_program "
+            "FROM screens WHERE COALESCE(associated_program, '') != '' "
+            "ORDER BY associated_program, screen_name",
+            _arch_conn,
+        )
+        _copybook_arch_df = pd.read_sql_query(
+            "SELECT copybook_name, COUNT(DISTINCT program_id) AS program_count "
+            "FROM copybook_usage GROUP BY copybook_name ORDER BY program_count DESC, copybook_name",
+            _arch_conn,
+        )
+        _arch_conn.close()
+
+        _arch_cols = st.columns(7)
+        _arch_cols[0].metric("JCL Links", len(_jcl_arch_df))
+        _arch_cols[1].metric("CICS Commands", len(_cics_arch_df))
+        _arch_cols[2].metric("DB2 Ops", len(_sql_arch_df))
+        _arch_cols[3].metric("DB2 Tables", _sql_arch_df["table_name"].nunique())
+        _arch_cols[4].metric("IMS Calls", len(_ims_arch_df))
+        _arch_cols[5].metric("File Contracts", len(_file_arch_df))
+        _arch_cols[6].metric("Screen Links", len(_screen_arch_df))
+
+        _arch_tab_entry, _arch_tab_data, _arch_tab_ui, _arch_tab_shared = st.tabs(
+            ["Entry Points", "Data Stores", "Screens & CICS", "Shared Contracts"]
+        )
+        with _arch_tab_entry:
+            st.dataframe(_jcl_arch_df.head(80), use_container_width=True, hide_index=True)
+        with _arch_tab_data:
+            data_rows = []
+            for _, _r in _sql_arch_df.iterrows():
+                data_rows.append({
+                    "Kind": "DB2",
+                    "Program": _r["program_id"],
+                    "Resource": _r["table_name"],
+                    "Operation": _r["command"],
+                    "Paragraph": _r["paragraph_name"],
+                    "Line": _r["line_number"],
+                })
+            for _, _r in _ims_arch_df.iterrows():
+                data_rows.append({
+                    "Kind": "IMS",
+                    "Program": _r["program_id"],
+                    "Resource": _r["ssa_segment"] or _r["segment_area"],
+                    "Operation": _r["function_code"],
+                    "Paragraph": _r["paragraph_name"],
+                    "Line": _r["line_number"],
+                })
+            for _, _r in _file_arch_df.iterrows():
+                data_rows.append({
+                    "Kind": "FILE",
+                    "Program": _r["program_id"],
+                    "Resource": _r["file_name"],
+                    "Operation": _r["access_mode"] or _r["organization"] or _r["file_type"],
+                    "Paragraph": "",
+                    "Line": "",
+                })
+            st.dataframe(pd.DataFrame(data_rows).head(120), use_container_width=True, hide_index=True)
+        with _arch_tab_ui:
+            cics_summary = (
+                _cics_arch_df.groupby(["program_id", "command"])
+                .size()
+                .reset_index(name="count")
+                .sort_values(["program_id", "command"])
+            )
+            st.write("Screen to program mappings")
+            st.dataframe(_screen_arch_df.head(80), use_container_width=True, hide_index=True)
+            st.write("CICS command usage")
+            st.dataframe(cics_summary.head(80), use_container_width=True, hide_index=True)
+        with _arch_tab_shared:
+            st.dataframe(_copybook_arch_df.head(80), use_container_width=True, hide_index=True)
+    except Exception as _arch_err:
+        st.warning(f"Architecture evidence summary is unavailable: {_arch_err}")
 
     try:
         from pyvis.network import Network as _Network
@@ -2062,14 +2167,21 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                     cb = m.group(1).upper()
                     if cb not in source_copybooks:
                         source_copybooks.append(cb)
-                for name in ("WS-PGMNAME", "WS-INFIL1-STATUS", "WS-INFIL2-STATUS", "PAUT-PCB-STATUS"):
-                    m = _re_source.search(
-                        rf"\b{name}\b[\s\S]{{0,90}}?\bVALUE\s+['\"]([^'\"]*)['\"]",
-                        source_body,
-                        _re_source.IGNORECASE,
-                    )
-                    if m:
-                        source_values.append(f"{name} VALUE '{m.group(1)}'")
+                # Generic literal-value extractor: any WS-* / PGM* identifier
+                # with a VALUE clause. Surfaces hard-coded program names,
+                # status flags, and similar constants without app-specific lists.
+                for m in _re_source.finditer(
+                    r"\b(WS-[A-Z][A-Z0-9-]{0,28}|PGM[A-Z0-9-]{0,15})\b"
+                    r"[\s\S]{0,90}?\bVALUE\s+['\"]([^'\"]+)['\"]",
+                    source_body, _re_source.IGNORECASE,
+                ):
+                    nm = m.group(1).upper()
+                    val = m.group(2)
+                    entry = f"{nm} VALUE '{val}'"
+                    if entry not in source_values:
+                        source_values.append(entry)
+                    if len(source_values) >= 8:
+                        break
         except Exception:
             pass
         if source_copybooks:
@@ -2145,6 +2257,154 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                             lines.append(f"    {src} -> {dst}   [{para}:L{line}]")
                     if len(moves) > 25:
                         lines.append(f"    ... +{len(moves) - 25} more movements")
+            except Exception:
+                pass
+
+        # ── Code Anomalies / Known Issues (static analysis findings) ──────────
+        if loader:
+            try:
+                anomalies = loader.get_program_anomalies(pid)
+                if anomalies:
+                    lines.append(
+                        f"- Code Anomalies / Known Issues ({len(anomalies)} flagged) — "
+                        f"YOU MUST DOCUMENT THESE in a 'Known Issues' subsection:"
+                    )
+                    for a in anomalies[:12]:
+                        sev = a.get("severity", "?")
+                        rule = a.get("rule_id", "?")
+                        title = a.get("title", "?")
+                        para = a.get("paragraph_name") or "?"
+                        line = a.get("line_number") or "?"
+                        lines.append(f"    [{sev}] {rule} — {title} (in {para}, line {line})")
+                        if a.get("description"):
+                            lines.append(f"        Description: {a['description']}")
+                        if a.get("suggestion"):
+                            lines.append(f"        Recommendation: {a['suggestion']}")
+                    if len(anomalies) > 12:
+                        lines.append(f"    ... +{len(anomalies) - 12} more anomalies")
+            except Exception:
+                pass
+
+        # ── External Runtime Parameters (PROCEDURE DIVISION USING / ENTRY USING)
+        if loader:
+            try:
+                params = loader.get_program_parameters(pid)
+                if params:
+                    lines.append(
+                        f"- External Runtime Parameters ({len(params)} total) — "
+                        f"these MUST be supplied by the caller (JCL PARM, COMMAREA, etc.). "
+                        f"Document each one INCLUDING where it is consumed inside the program:"
+                    )
+                    for pp in params:
+                        src = pp.get("source") or "?"
+                        nm = pp.get("parameter_name") or "?"
+                        ln = pp.get("line_number") or "?"
+                        lines.append(f"    [{src}] position={pp.get('position')} `{nm}`  L{ln}")
+                        for u in (pp.get("usage_sites") or [])[:6]:
+                            kind = u.get("kind", "?")
+                            para = u.get("paragraph") or "?"
+                            uln = u.get("line_number") or "?"
+                            other = u.get("other_field")
+                            role = u.get("role")
+                            if kind == "MOVE" and other:
+                                lines.append(f"        - MOVE ({role}) involving `{other}` in `{para}` (L{uln})")
+                            else:
+                                lines.append(f"        - {kind} reference in `{para}` (L{uln})")
+            except Exception:
+                pass
+
+        # ── File OPEN/CLOSE operations with explicit mode ──────────────────
+        if loader:
+            try:
+                ops = loader.get_program_file_operations(pid)
+                if ops:
+                    lines.append(f"- File OPEN/CLOSE Operations ({len(ops)}):")
+                    for op in ops[:30]:
+                        fn = op.get("file_name", "?")
+                        oper = op.get("operation", "?")
+                        mode = op.get("mode") or ""
+                        para = op.get("paragraph_name") or "?"
+                        ln = op.get("line_number") or "?"
+                        suffix = f" {mode}" if mode else ""
+                        lines.append(f"    {oper}{suffix} `{fn}`  [{para}:L{ln}]")
+            except Exception:
+                pass
+
+        # ── IBM MQ API calls ─────────────────────────────────────────────────
+        if loader:
+            try:
+                mq = loader.get_program_mq_calls(pid)
+                if mq:
+                    lines.append(f"- IBM MQ API Calls ({len(mq)} total):")
+                    for m in mq[:20]:
+                        fn = m.get("function_code", "?")
+                        fname = m.get("function_name", "")
+                        q = m.get("queue_name") or "(queue not statically resolvable)"
+                        para = m.get("paragraph_name") or "?"
+                        ln = m.get("line_number") or "?"
+                        lines.append(f"    {fn} — {fname} | queue={q} | {para}:L{ln}")
+            except Exception:
+                pass
+
+        # ── EVALUATE decision tables ─────────────────────────────────────────
+        if loader:
+            try:
+                evals = loader.get_program_evaluates(pid)
+                if evals:
+                    from collections import defaultdict
+                    by_eval = defaultdict(list)
+                    for e in evals:
+                        by_eval[e["evaluate_id"]].append(e)
+                    lines.append(f"- EVALUATE / Decision Tables ({len(by_eval)} blocks):")
+                    for eid, branches in list(by_eval.items())[:8]:
+                        subj = branches[0].get("subject") or "?"
+                        para = branches[0].get("paragraph_name") or "?"
+                        ln = branches[0].get("line_number") or "?"
+                        lines.append(f"    EVALUATE {subj}  [{para}:L{ln}]")
+                        for b in branches[:8]:
+                            cond = b.get("when_condition") or "?"
+                            action = b.get("action_summary") or "..."
+                            tag = "WHEN OTHER" if b.get("is_default") else "WHEN"
+                            lines.append(f"      {tag} {cond}  =>  {action}")
+            except Exception:
+                pass
+
+        # ── CICS HANDLE CONDITION routing ────────────────────────────────────
+        if loader:
+            try:
+                handles = loader.get_program_cics_handles(pid)
+                if handles:
+                    lines.append(f"- CICS HANDLE Routing ({len(handles)} entries):")
+                    for h in handles[:15]:
+                        ht = h.get("handle_type", "?")
+                        cn = h.get("condition_name", "?")
+                        tgt = h.get("target_paragraph") or "(suspend/cancel)"
+                        ln = h.get("line_number") or "?"
+                        lines.append(f"    HANDLE {ht} {cn}  =>  {tgt}  [L{ln}]")
+            except Exception:
+                pass
+
+        # ── SQL cursor lifecycles (DECLARE → OPEN → FETCH → CLOSE) ──────────
+        if loader:
+            try:
+                cursors = loader.get_program_cursor_lifecycles(pid)
+                if cursors:
+                    lines.append(f"- SQL Cursor Lifecycles ({len(cursors)} cursors):")
+                    for c in cursors[:10]:
+                        cn = c.get("cursor_name", "?")
+                        tbl = c.get("table_name") or "?"
+                        d = c.get("declare") or {}
+                        o = c.get("open") or {}
+                        cl = c.get("close") or {}
+                        fps = c.get("fetch_paragraphs") or []
+                        flines = c.get("fetch_lines") or []
+                        lines.append(f"    Cursor `{cn}` on table {tbl}:")
+                        lines.append(f"      DECLARE in {d.get('paragraph') or '?'} (L{d.get('line') or '?'})")
+                        lines.append(f"      OPEN    in {o.get('paragraph') or '?'} (L{o.get('line') or '?'})")
+                        if fps:
+                            uniq = sorted(set(fps))
+                            lines.append(f"      FETCH   in {', '.join(uniq[:4])} ({len(flines)} fetches)")
+                        lines.append(f"      CLOSE   in {cl.get('paragraph') or '?'} (L{cl.get('line') or '?'})")
             except Exception:
                 pass
 

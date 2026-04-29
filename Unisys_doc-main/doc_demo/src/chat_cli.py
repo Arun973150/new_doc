@@ -756,9 +756,9 @@ class KnowledgeBaseChat:
     # ────────────────────────────────────────────
 
     SYSTEM_PROMPT = textwrap.dedent("""\
-        You are a COBOL legacy system documentation assistant. You help engineers 
-        understand a mainframe COBOL application called CardDemo — a credit card 
-        management system.
+        You are a COBOL legacy system documentation assistant. You help engineers
+        understand a mainframe COBOL application by querying a structured
+        knowledge base extracted from its source code.
         
         You have access to a knowledge base containing:
         - Program details (ID, business purpose, type, paragraphs, control flow)
@@ -830,7 +830,7 @@ User Question: {question}
 
 HELP_TEXT = """\
 [bold cyan]COBOL Knowledge Base Chat[/bold cyan]
-[dim]Ask questions about the CardDemo COBOL application in natural language.[/dim]
+[dim]Ask questions about the loaded COBOL application in natural language.[/dim]
 
 [bold]Special Commands:[/bold]
   [green]/search[/green] [dim]<query>[/dim]    — Full-text search across the knowledge base

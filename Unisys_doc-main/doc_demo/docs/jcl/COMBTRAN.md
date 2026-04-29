@@ -81,10 +81,6 @@ TRAN-ID,1,16,CH
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [SORT](../programs/SORT.md)
-- [IDCAMS](../programs/IDCAMS.md)
 
 ### Input Datasets
 
@@ -98,4 +94,4 @@ TRAN-ID,1,16,CH
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

@@ -12,10 +12,15 @@
 | Lines | 231 |
 | Source | [CBSTM03B.CBL](../carddemo/CBSTM03B.CBL#L1) |
 | Paragraphs | 14 |
-| Statements | 22 |
+| Statements | 34 |
 | Impact Risk | **LOW** — 0 programs affected |
 
 > **View Source:** [Open CBSTM03B.CBL](../carddemo/CBSTM03B.CBL#L1)
+
+
+## Business Purpose
+
+*Business purpose is not present in the extracted data. Run LLM enrichment to populate this section.*
 
 
 
@@ -35,6 +40,65 @@
 ### Shared Data (Copybooks & Files)
 
 *No shared copybooks.*
+
+#### Shared Files
+
+| File | Type | Access | Also Used By |
+|------|------|--------|-------------|
+| `ACCT-FILE` | VSAM | RANDOM |  |
+| `CUST-FILE` | VSAM | RANDOM |  |
+| `TRNX-FILE` | VSAM | SEQUENTIAL |  |
+| `XREF-FILE` | VSAM | SEQUENTIAL | CBACT04C, CBTRN01C, CBTRN02C, CBTRN03C |
+
+## Legacy Data Contracts
+
+> These tables are derived from FILE SECTION records and COPY-expanded data declarations. They preserve the legacy field names, COBOL storage type, inferred modern type, and status-code values needed for Java DTOs, SQL schemas, API contracts, and migration mapping.
+
+### File Record Layouts
+
+#### `TRNX-FILE` / `FD-TRNXFILE-REC`
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+| `FD-TRNXFILE-REC` | Fd Trnxfile Record | `GROUP` | `OBJECT` |  |
+| `FD-TRNXS-ID` | Fd Trnxs ID | `GROUP` | `OBJECT` |  |
+| `FD-TRNX-CARD` | Fd Trnx Card | `PIC X(16)` | `STRING(16)` |  |
+| `FD-TRNX-ID` | Fd Trnx ID | `PIC X(16)` | `STRING(16)` |  |
+| `FD-ACCT-DATA` | Fd Account Data | `PIC X(318)` | `STRING(318)` |  |
+
+#### `XREF-FILE` / `FD-XREFFILE-REC`
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+| `FD-XREFFILE-REC` | Fd Xreffile Record | `GROUP` | `OBJECT` |  |
+| `FD-XREF-CARD-NUM` | Fd Xref Card Number | `PIC X(16)` | `STRING(16)` |  |
+| `FD-XREF-DATA` | Fd Xref Data | `PIC X(34)` | `STRING(34)` |  |
+
+#### `CUST-FILE` / `FD-CUSTFILE-REC`
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+| `FD-CUSTFILE-REC` | Fd Custfile Record | `GROUP` | `OBJECT` |  |
+| `FD-CUST-ID` | Fd Customer ID | `PIC X(09)` | `STRING(9)` |  |
+| `FD-CUST-DATA` | Fd Customer Data | `PIC X(491)` | `STRING(491)` |  |
+
+#### `ACCT-FILE` / `FD-ACCTFILE-REC`
+| Legacy Field | Meaning | COBOL Type | Modern Type | Notes |
+|--------------|---------|------------|-------------|-------|
+| `FD-ACCTFILE-REC` | Fd Acctfile Record | `GROUP` | `OBJECT` |  |
+| `FD-ACCT-ID` | Fd Account ID | `PIC 9(11)` | `BIGINT` |  |
+| `FD-ACCT-DATA` | Fd Account Data | `PIC X(289)` | `STRING(289)` |  |
+
+
+
+### Data Movement And Key Mapping
+
+| Line | Source | Target | Meaning |
+|------|--------|--------|---------|
+| 152 | `TRNXFILE-STATUS` | `LK-M03B-RC` | TRNXFILE-STATUS populates LK-M03B-RC |
+| 176 | `XREFFILE-STATUS` | `LK-M03B-RC` | XREFFILE-STATUS populates LK-M03B-RC |
+| 189 | `LK-M03B-KEY (1:LK-M03B-KEY-LN)` | `FD-CUST-ID` | LK-M03B-KEY (1:LK-M03B-KEY-LN) populates FD-CUST-ID |
+| 201 | `CUSTFILE-STATUS` | `LK-M03B-RC` | CUSTFILE-STATUS populates LK-M03B-RC |
+| 214 | `LK-M03B-KEY (1:LK-M03B-KEY-LN)` | `FD-ACCT-ID` | LK-M03B-KEY (1:LK-M03B-KEY-LN) populates FD-ACCT-ID |
+| 226 | `ACCTFILE-STATUS` | `LK-M03B-RC` | ACCTFILE-STATUS populates LK-M03B-RC |
+
 
 
 ---
@@ -79,8 +143,11 @@ flowchart TD
 | Statement Type | Count |
 |---------------|-------|
 | IF | 12 |
+| READ | 4 |
+| OPEN | 4 |
 | MOVE | 4 |
 | EXIT | 4 |
+| CLOSE | 4 |
 | GOBACK | 1 |
 | EVALUATE | 1 |
 
@@ -113,7 +180,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `0000-START` |
-| **Lines** | 116 - 128 |
+| **Lines** | 116 - 129 |
 | **View Code** | [Jump to Line 116](../carddemo/CBSTM03B.CBL#L116) |
 
 
@@ -123,7 +190,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `9999-GOBACK` |
-| **Lines** | 130 - 131 |
+| **Lines** | 130 - 132 |
 | **View Code** | [Jump to Line 130](../carddemo/CBSTM03B.CBL#L130) |
 
 
@@ -133,7 +200,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1000-TRNXFILE-PROC` |
-| **Lines** | 133 - 149 |
+| **Lines** | 133 - 150 |
 | **View Code** | [Jump to Line 133](../carddemo/CBSTM03B.CBL#L133) |
 
 
@@ -143,7 +210,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1900-EXIT` |
-| **Lines** | 151 - 152 |
+| **Lines** | 151 - 153 |
 | **View Code** | [Jump to Line 151](../carddemo/CBSTM03B.CBL#L151) |
 
 
@@ -153,7 +220,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `1999-EXIT` |
-| **Lines** | 154 - 155 |
+| **Lines** | 154 - 156 |
 | **View Code** | [Jump to Line 154](../carddemo/CBSTM03B.CBL#L154) |
 
 
@@ -163,7 +230,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `2000-XREFFILE-PROC` |
-| **Lines** | 157 - 173 |
+| **Lines** | 157 - 174 |
 | **View Code** | [Jump to Line 157](../carddemo/CBSTM03B.CBL#L157) |
 
 
@@ -173,7 +240,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `2900-EXIT` |
-| **Lines** | 175 - 176 |
+| **Lines** | 175 - 177 |
 | **View Code** | [Jump to Line 175](../carddemo/CBSTM03B.CBL#L175) |
 
 
@@ -183,7 +250,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `2999-EXIT` |
-| **Lines** | 178 - 179 |
+| **Lines** | 178 - 180 |
 | **View Code** | [Jump to Line 178](../carddemo/CBSTM03B.CBL#L178) |
 
 
@@ -193,7 +260,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `3000-CUSTFILE-PROC` |
-| **Lines** | 181 - 198 |
+| **Lines** | 181 - 199 |
 | **View Code** | [Jump to Line 181](../carddemo/CBSTM03B.CBL#L181) |
 
 
@@ -203,7 +270,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `3900-EXIT` |
-| **Lines** | 200 - 201 |
+| **Lines** | 200 - 202 |
 | **View Code** | [Jump to Line 200](../carddemo/CBSTM03B.CBL#L200) |
 
 
@@ -213,7 +280,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `3999-EXIT` |
-| **Lines** | 203 - 204 |
+| **Lines** | 203 - 205 |
 | **View Code** | [Jump to Line 203](../carddemo/CBSTM03B.CBL#L203) |
 
 
@@ -223,7 +290,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `4000-ACCTFILE-PROC` |
-| **Lines** | 206 - 223 |
+| **Lines** | 206 - 224 |
 | **View Code** | [Jump to Line 206](../carddemo/CBSTM03B.CBL#L206) |
 
 
@@ -233,7 +300,7 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `4900-EXIT` |
-| **Lines** | 225 - 226 |
+| **Lines** | 225 - 227 |
 | **View Code** | [Jump to Line 225](../carddemo/CBSTM03B.CBL#L225) |
 
 
@@ -243,13 +310,228 @@ flowchart TD
 | | |
 |---|---|
 | **Paragraph** | `4999-EXIT` |
-| **Lines** | 228 - 229 |
+| **Lines** | 228 - 230 |
 | **View Code** | [Jump to Line 228](../carddemo/CBSTM03B.CBL#L228) |
 
 
 
 
 
+
+
+
+## File Record Layouts (FD)
+
+This program declares the following file records (data contracts for I/O):
+
+### `FD ACCT-FILE` (record `FD-ACCTFILE-REC`)
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+| `01` | `FD-ACCTFILE-REC` | `None` | None | None |
+| `05` | `FD-ACCT-ID` | `9(11)` | None | FD-ACCTFILE-REC |
+| `05` | `FD-ACCT-DATA` | `X(289)` | None | FD-ACCTFILE-REC |
+
+### `FD CUST-FILE` (record `FD-CUSTFILE-REC`)
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+| `01` | `FD-CUSTFILE-REC` | `None` | None | None |
+| `05` | `FD-CUST-ID` | `X(09)` | None | FD-CUSTFILE-REC |
+| `05` | `FD-CUST-DATA` | `X(491)` | None | FD-CUSTFILE-REC |
+
+### `FD TRNX-FILE` (record `FD-TRNXFILE-REC`)
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+| `01` | `FD-TRNXFILE-REC` | `None` | None | None |
+| `05` | `FD-TRNXS-ID` | `None` | None | FD-TRNXFILE-REC |
+| `10` | `FD-TRNX-CARD` | `X(16)` | None | FD-TRNXS-ID |
+| `10` | `FD-TRNX-ID` | `X(16)` | None | FD-TRNXS-ID |
+| `05` | `FD-ACCT-DATA` | `X(318)` | None | FD-TRNXFILE-REC |
+
+### `FD XREF-FILE` (record `FD-XREFFILE-REC`)
+
+| Level | Field | PIC | USAGE | Parent |
+|-------|-------|-----|-------|--------|
+| `01` | `FD-XREFFILE-REC` | `None` | None | None |
+| `05` | `FD-XREF-CARD-NUM` | `X(16)` | None | FD-XREFFILE-REC |
+| `05` | `FD-XREF-DATA` | `X(34)` | None | FD-XREFFILE-REC |
+
+
+## Data Lineage (MOVE Flow)
+
+The following MOVE statements were extracted from the source. Each row is a `source → destination`
+flow that the migration team can use to trace how data is reshaped and routed.
+
+| Source | Destination | Paragraph | Line |
+|--------|-------------|-----------|------|
+| `TRNXFILE-STATUS` | `LK-M03B-RC` | 1900-EXIT | 152 |
+| `XREFFILE-STATUS` | `LK-M03B-RC` | 2900-EXIT | 176 |
+| `CUSTFILE-STATUS` | `LK-M03B-RC` | 3900-EXIT | 201 |
+| `ACCTFILE-STATUS` | `LK-M03B-RC` | 4900-EXIT | 226 |
+
+
+## Known Issues & Code Anomalies
+
+Static analysis flagged the following items in this program. Migration teams should
+review each one before re-implementing in a modern stack.
+
+| Severity | Category | Title | Paragraph | Line |
+|----------|----------|-------|-----------|------|
+| **NOTICE** | DEAD_CODE | Variable `FD-XREF-DATA` is declared but never referenced | None | 68 |
+| **NOTICE** | DEAD_CODE | Variable `FD-CUST-DATA` is declared but never referenced | None | 73 |
+| **NOTICE** | DEAD_CODE | Variable `TRNXFILE-STAT1` is declared but never referenced | None | 84 |
+| **NOTICE** | DEAD_CODE | Variable `TRNXFILE-STAT2` is declared but never referenced | None | 85 |
+| **NOTICE** | DEAD_CODE | Variable `XREFFILE-STAT1` is declared but never referenced | None | 88 |
+| **NOTICE** | DEAD_CODE | Variable `XREFFILE-STAT2` is declared but never referenced | None | 89 |
+| **NOTICE** | DEAD_CODE | Variable `CUSTFILE-STAT1` is declared but never referenced | None | 92 |
+| **NOTICE** | DEAD_CODE | Variable `CUSTFILE-STAT2` is declared but never referenced | None | 93 |
+| **NOTICE** | DEAD_CODE | Variable `ACCTFILE-STAT1` is declared but never referenced | None | 96 |
+| **NOTICE** | DEAD_CODE | Variable `ACCTFILE-STAT2` is declared but never referenced | None | 97 |
+
+### NOTICE — Variable `FD-XREF-DATA` is declared but never referenced
+
+`FD-XREF-DATA` is declared at line 68 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 68):
+```cobol
+05 FD-XREF-DATA                      PIC X(34).
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `FD-CUST-DATA` is declared but never referenced
+
+`FD-CUST-DATA` is declared at line 73 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 73):
+```cobol
+05 FD-CUST-DATA                      PIC X(491).
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `TRNXFILE-STAT1` is declared but never referenced
+
+`TRNXFILE-STAT1` is declared at line 84 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 84):
+```cobol
+05  TRNXFILE-STAT1      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `TRNXFILE-STAT2` is declared but never referenced
+
+`TRNXFILE-STAT2` is declared at line 85 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 85):
+```cobol
+05  TRNXFILE-STAT2      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `XREFFILE-STAT1` is declared but never referenced
+
+`XREFFILE-STAT1` is declared at line 88 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 88):
+```cobol
+05  XREFFILE-STAT1      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `XREFFILE-STAT2` is declared but never referenced
+
+`XREFFILE-STAT2` is declared at line 89 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 89):
+```cobol
+05  XREFFILE-STAT2      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `CUSTFILE-STAT1` is declared but never referenced
+
+`CUSTFILE-STAT1` is declared at line 92 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 92):
+```cobol
+05  CUSTFILE-STAT1      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `CUSTFILE-STAT2` is declared but never referenced
+
+`CUSTFILE-STAT2` is declared at line 93 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 93):
+```cobol
+05  CUSTFILE-STAT2      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `ACCTFILE-STAT1` is declared but never referenced
+
+`ACCTFILE-STAT1` is declared at line 96 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 96):
+```cobol
+05  ACCTFILE-STAT1      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Variable `ACCTFILE-STAT2` is declared but never referenced
+
+`ACCTFILE-STAT2` is declared at line 97 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
+**Source excerpt** (line 97):
+```cobol
+05  ACCTFILE-STAT2      PIC X.
+```
+
+**Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+
+## External Runtime Parameters
+
+This program receives the following parameters at runtime (via `PROCEDURE DIVISION USING`
+or `ENTRY USING`). Each parameter must be supplied by the caller — typically a JCL job
+step (`PARM=`), CICS COMMAREA, or the IMS region controller. The migration target needs
+an equivalent input wiring.
+
+| # | Parameter | Source | Declared at line |
+|---|-----------|--------|------------------|
+| 0 | `LK-M03B-AREA` | PROCEDURE DIVISION USING | 114 |
+
+## File OPEN / CLOSE Operations
+
+The exact OPEN mode (INPUT / OUTPUT / I-O / EXTEND) determines whether a file can be
+read, written, or both — and whether REWRITE / DELETE are legal. This table is the
+source of truth for migrators converting to modern storage layers.
+
+| File | Operation | Mode | Paragraph | Line |
+|------|-----------|------|-----------|------|
+| `VALUE` | CLOSE | None | None | 104 |
+| `TRNX-FILE` | OPEN | INPUT | 1000-TRNXFILE-PROC | 136 |
+| `TRNX-FILE` | CLOSE | None | 1000-TRNXFILE-PROC | 147 |
+| `XREF-FILE` | OPEN | INPUT | 2000-XREFFILE-PROC | 160 |
+| `XREF-FILE` | CLOSE | None | 2000-XREFFILE-PROC | 171 |
+| `CUST-FILE` | OPEN | INPUT | 3000-CUSTFILE-PROC | 184 |
+| `CUST-FILE` | CLOSE | None | 3000-CUSTFILE-PROC | 196 |
+| `ACCT-FILE` | OPEN | INPUT | 4000-ACCTFILE-PROC | 209 |
+| `ACCT-FILE` | CLOSE | None | 4000-ACCTFILE-PROC | 221 |
+
+
+
+
+
+
+## Modernization Review Findings
+
+These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
+
+| Finding | Why It Matters |
+|---------|----------------|
+| Nested IF blocks need compiler-accurate validation | Nested conditional logic was detected. During migration, validate scope with the original compiler rules and explicit `END-IF`/period termination before translating to Java or SQL. |
 
 
 ## Business Rules
@@ -380,4 +662,4 @@ flowchart TD
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

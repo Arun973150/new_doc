@@ -165,9 +165,6 @@
 
 ### COBOL Programs Executed
 
-- [IDCAMS](../programs/IDCAMS.md)
-- [SORT](../programs/SORT.md)
-- [IEFBR14](../programs/IEFBR14.md)
 - [CBSTM03A](../programs/CBSTM03A.md)
 
 ### Input Datasets
@@ -187,4 +184,4 @@
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

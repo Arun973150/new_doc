@@ -55,9 +55,6 @@ PARM-DATE,C'2022-06-02'
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [SORT](../programs/SORT.md)
 
 ### Input Datasets
 
@@ -69,4 +66,4 @@ PARM-DATE,C'2022-06-02'
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

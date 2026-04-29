@@ -68,10 +68,6 @@
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [IEFBR14](../programs/IEFBR14.md)
-- [IDCAMS](../programs/IDCAMS.md)
 
 
 ### Output Datasets
@@ -80,4 +76,4 @@
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

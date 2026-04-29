@@ -22,47 +22,9 @@ Online Account Management
 | Screen | Map | Mapset | Program |
 |--------|-----|--------|---------|
 | [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTUPA](../screens/CACTUPA.md) | CACTUPA | COACTUP | [COACTUPC](../programs/COACTUPC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
-| [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
 | [CACTVWA](../screens/CACTVWA.md) | CACTVWA | COACTVW | [COACTVWC](../programs/COACTVWC.md) |
 
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:27*

@@ -57,9 +57,6 @@
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [DFSRRC00](../programs/DFSRRC00.md)
 
 ### Input Datasets
 
@@ -72,4 +69,4 @@
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

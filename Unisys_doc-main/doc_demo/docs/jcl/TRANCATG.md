@@ -116,9 +116,6 @@
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [IDCAMS](../programs/IDCAMS.md)
 
 ### Input Datasets
 
@@ -128,4 +125,4 @@
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*

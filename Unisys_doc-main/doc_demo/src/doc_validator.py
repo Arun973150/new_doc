@@ -155,6 +155,54 @@ def _load_sqlite_facts(db_path: str) -> Dict[str, Set[str]]:
     except Exception:
         pass
 
+    # Source-file scan: pull every COBOL data declaration and every identifier
+    # that is the target of a MOVE / IF / READ / WRITE / SET clause. Catches
+    # working-storage fields that ProLeap missed (e.g. WS-PFK-FLAG).
+    try:
+        cur.execute("SELECT DISTINCT file_path FROM programs WHERE file_path IS NOT NULL")
+        prog_paths = [r["file_path"] for r in cur.fetchall()]
+    except Exception:
+        prog_paths = []
+
+    decl_re = re.compile(
+        r"^\s*\d{2}\s+([A-Z][A-Z0-9-]{1,30})(?:\s+|\.)",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    move_to_re = re.compile(
+        r"\b(?:MOVE\s+\S+\s+TO|TO|INTO|FROM|RIDFLD|MAP|MAPSET|PROGRAM|FILE|DATASET|TRANSID|"
+        r"COMMAREA|LENGTH|RESP|CURSOR)\s*\(?\s*([A-Z][A-Z0-9-]{2,30})",
+        re.IGNORECASE,
+    )
+
+    # Also scan all .cpy/.CPY files (catches copybook fields that aren't in data_items)
+    try:
+        cur.execute("SELECT DISTINCT file_path FROM copybooks WHERE file_path IS NOT NULL")
+        prog_paths += [r["file_path"] for r in cur.fetchall() if r["file_path"]]
+    except Exception:
+        pass
+
+    for fp in prog_paths:
+        try:
+            from pathlib import Path as _P
+            p = _P(fp)
+            if not p.exists():
+                continue
+            text = p.read_text(encoding="utf-8", errors="ignore")
+            # Strip column 1-6 sequence area + column 73-80 area + comments
+            cleaned = []
+            for line in text.split("\n"):
+                if len(line) > 6 and line[6] == "*":
+                    continue
+                body = line[6:] if len(line) > 6 else line
+                cleaned.append(body[:66] if len(body) > 66 else body)
+            joined = "\n".join(cleaned)
+            for m in decl_re.finditer(joined):
+                facts["data_items"].add(m.group(1).upper())
+            for m in move_to_re.finditer(joined):
+                facts["data_items"].add(m.group(1).upper())
+        except Exception:
+            continue
+
     try:
         cur.execute("SELECT DISTINCT file_name FROM files")
         facts["files"] = {r["file_name"] for r in cur.fetchall() if r["file_name"]}
@@ -370,7 +418,9 @@ NOISE = {
     "GU", "GHN", "GHU", "GN", "GNP", "GHNP", "ISRT", "REPL", "DLET", "CHKP",
     "XRST", "STAT", "TERM", "PCB", "SYNC", "LOG", "GMSG", "ICMD",
     # Common report/util tokens
-    "XXXX", "TBD", "TODO", "FIXME",
+    "XXXX", "XXX", "TBD", "TODO", "FIXME",
+    # Logical operators / quantifiers
+    "AND", "OR", "NOT", "TRUE", "FALSE", "ANY", "ALL", "EACH", "EVERY",
     # COBOL data types / report headers / SQL types
     "BIGINT", "INTEGER", "INT", "SMALLINT", "DECIMAL", "DEC", "NUMERIC",
     "VARCHAR", "CHAR", "DATE", "TIME", "TIMESTAMP", "FLOAT", "DOUBLE",
@@ -380,6 +430,17 @@ NOISE = {
     "END-COMPUTE", "END-ADD", "END-SUBTRACT", "END-MULTIPLY", "END-DIVIDE",
     "PIC", "PICTURE", "USAGE", "VALUE", "OCCURS", "REDEFINES", "FILLER",
     "JCL_JOB", "JCL_STEP", "DD", "DSN", "LRECL", "RECFM", "DISP", "SPACE", "UNIT",
+    # CICS HANDLE clauses + system fields (EIB*)
+    "CANCEL", "LABEL", "PROGRAM", "RESET", "PUSH", "POP", "SUSPEND",
+    "EIBAID", "EIBCALEN", "EIBRESP", "EIBRESP2", "EIBFN", "EIBRCODE",
+    "EIBTRNID", "EIBTRMID", "EIBSYSID", "EIBDATE", "EIBTIME", "EIBTASKN",
+    # MQ standard completion codes / reason codes
+    "MQCC-OK", "MQCC-WARNING", "MQCC-FAILED",
+    "MQRC-NONE", "MQRC-NO-MSG-AVAILABLE", "MQRC-Q-FULL",
+    "MQOO-INPUT-AS-Q-DEF", "MQOO-OUTPUT", "MQOO-BROWSE",
+    "MQGMO-WAIT", "MQGMO-NO-WAIT", "MQPMO-NO-SYNCPOINT", "MQPMO-SYNCPOINT",
+    # IMS PSB / DBD identifiers (often referenced generically)
+    "PSB-NAME", "DBD-NAME", "DBA", "PCB", "AIB",
 }
 
 

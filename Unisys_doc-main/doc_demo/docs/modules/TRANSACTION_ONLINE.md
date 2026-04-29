@@ -23,67 +23,10 @@ Online Transaction Processing
 | Screen | Map | Mapset | Program |
 |--------|-----|--------|---------|
 | [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
-| [COTRN0A](../screens/COTRN0A.md) | COTRN0A | COTRN00 | [COTRN00C](../programs/COTRN00C.md) |
 | [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN1A](../screens/COTRN1A.md) | COTRN1A | COTRN01 | [COTRN01C](../programs/COTRN01C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
-| [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
 | [COTRN2A](../screens/COTRN2A.md) | COTRN2A | COTRN02 | [COTRN02C](../programs/COTRN02C.md) |
 
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:27*

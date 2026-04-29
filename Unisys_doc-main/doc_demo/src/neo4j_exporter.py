@@ -81,7 +81,12 @@ class Neo4jExporter:
             "CREATE CONSTRAINT IF NOT EXISTS FOR (m:Module) REQUIRE m.id IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (cb:Copybook) REQUIRE cb.name IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (j:JclJob) REQUIRE j.name IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (js:JclStep) REQUIRE js.id IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (ds:Dataset) REQUIRE ds.name IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (t:DbTable) REQUIRE t.name IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (ims:ImsSegment) REQUIRE ims.name IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (field:DataField) REQUIRE field.id IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (a:CodeAnomaly) REQUIRE a.id IS UNIQUE",
         ]
         
         with self.driver.session() as session:
@@ -131,6 +136,15 @@ class Neo4jExporter:
 
         # Export EXEC SQL statements + DB tables
         self._export_sql_operations(db_loader)
+
+        # Export IMS calls + segment access
+        self._export_ims_calls(db_loader)
+
+        # Export source-level contracts and lineage
+        self._export_data_contracts(db_loader)
+
+        # Export static-analysis issues
+        self._export_code_anomalies(db_loader)
 
         # Export relationships (calls + performs)
         self._export_relationships(db_loader)
@@ -407,6 +421,76 @@ class Neo4jExporter:
                         "outputDs": output_ds,
                     })
 
+                # Export JCL steps and datasets as first-class graph nodes.
+                job_details = db_loader.get_jcl_job_details(job_name)
+                if not job_details:
+                    continue
+                for step in job_details.get("steps", []):
+                    step_id = f"{job_name}:{step.get('step_name')}"
+                    session.run("""
+                        MERGE (step:JclStep {id: $id})
+                        SET step.name = $name,
+                            step.order = $order,
+                            step.program = $program,
+                            step.proc = $proc,
+                            step.type = $stepType,
+                            step.lineNumber = $lineNumber
+                        WITH step
+                        MATCH (j:JclJob {name: $jobName})
+                        MERGE (j)-[:HAS_STEP]->(step)
+                    """, {
+                        "id": step_id,
+                        "name": step.get("step_name"),
+                        "order": step.get("step_order"),
+                        "program": step.get("program"),
+                        "proc": step.get("proc"),
+                        "stepType": step.get("step_type"),
+                        "lineNumber": step.get("line_number"),
+                        "jobName": job_name,
+                    })
+
+                    prog_id = step.get("program")
+                    if prog_id:
+                        session.run("""
+                            MATCH (step:JclStep {id: $stepId})
+                            MATCH (p:Program {id: $programId})
+                            MERGE (step)-[:EXECUTES]->(p)
+                        """, {
+                            "stepId": step_id,
+                            "programId": prog_id,
+                        })
+
+                    for ds in step.get("datasets", []):
+                        dsn = ds.get("dsn") or f"{job_name}:{step.get('step_name')}:{ds.get('dd_name')}"
+                        session.run("""
+                            MERGE (ds:Dataset {name: $name})
+                            SET ds.ddName = $ddName,
+                                ds.disp = $disp,
+                                ds.direction = $direction,
+                                ds.recfm = $recfm,
+                                ds.lrecl = $lrecl,
+                                ds.isInline = $isInline
+                        """, {
+                            "name": dsn,
+                            "ddName": ds.get("dd_name"),
+                            "disp": ds.get("disp"),
+                            "direction": ds.get("direction"),
+                            "recfm": ds.get("recfm"),
+                            "lrecl": ds.get("lrecl"),
+                            "isInline": bool(ds.get("is_inline")),
+                        })
+                        rel = "WRITES_DATASET" if str(ds.get("direction")).upper() == "OUTPUT" else "READS_DATASET"
+                        session.run(f"""
+                            MATCH (step:JclStep {{id: $stepId}})
+                            MATCH (ds:Dataset {{name: $dsn}})
+                            MERGE (step)-[r:{rel}]->(ds)
+                            SET r.ddName = $ddName
+                        """, {
+                            "stepId": step_id,
+                            "dsn": dsn,
+                            "ddName": ds.get("dd_name"),
+                        })
+
     def _export_cics_commands(self, db_loader):
         """Export EXEC CICS commands as relationships from programs."""
         cursor = db_loader.conn.cursor()
@@ -548,6 +632,226 @@ class Neo4jExporter:
                         "cnt": r["cnt"],
                     },
                 )
+
+    def _export_ims_calls(self, db_loader):
+        """Export IMS segment access from DL/I calls."""
+        cursor = db_loader.conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT program_id, function_code, function_name, pcb_name,
+                       segment_area, ssa_segment, ssa_qualifier, paragraph_name,
+                       line_number
+                FROM ims_calls
+                ORDER BY program_id, line_number
+            """)
+            rows = [dict(row) for row in cursor.fetchall()]
+        except Exception:
+            rows = []
+
+        if not rows:
+            console.print("  No IMS calls to export")
+            return
+
+        console.print(f"  Exporting {len(rows)} IMS calls...")
+
+        WRITE_FUNCS = {"ISRT", "REPL", "DLET"}
+        with self.driver.session() as session:
+            for r in rows:
+                segment = r.get("ssa_segment") or r.get("segment_area") or "UNKNOWN"
+                session.run("""
+                    MERGE (ims:ImsSegment {name: $name})
+                    SET ims.label = 'IMS Segment'
+                """, {"name": segment})
+
+                rel = "WRITES_IMS_SEGMENT" if r.get("function_code") in WRITE_FUNCS else "READS_IMS_SEGMENT"
+                session.run(f"""
+                    MATCH (p:Program {{id: $programId}})
+                    MATCH (ims:ImsSegment {{name: $segment}})
+                    MERGE (p)-[edge:{rel} {{functionCode: $functionCode, lineNumber: $lineNumber}}]->(ims)
+                    SET edge.pcbName = $pcbName,
+                        edge.segmentArea = $segmentArea,
+                        edge.qualifier = $qualifier,
+                        edge.paragraph = $paragraph
+                """, {
+                    "programId": r.get("program_id"),
+                    "segment": segment,
+                    "functionCode": r.get("function_code"),
+                    "lineNumber": r.get("line_number"),
+                    "pcbName": r.get("pcb_name"),
+                    "segmentArea": r.get("segment_area"),
+                    "qualifier": r.get("ssa_qualifier"),
+                    "paragraph": r.get("paragraph_name"),
+                })
+
+    def _export_data_contracts(self, db_loader):
+        """Export file/copybook fields and MOVE lineage as DataField graph facts."""
+        cursor = db_loader.conn.cursor()
+        programs = db_loader.get_all_programs()
+
+        file_field_count = 0
+        copybook_field_count = 0
+        movement_count = 0
+
+        with self.driver.session() as session:
+            for prog in programs:
+                prog_id = prog["program_id"]
+
+                for f in db_loader.get_program_file_records(prog_id):
+                    field_id = f"{prog_id}:FD:{f.get('file_name')}:{f.get('field_name')}:{f.get('line_number')}"
+                    session.run("""
+                        MERGE (field:DataField {id: $id})
+                        SET field.name = $name,
+                            field.kind = 'FILE_FIELD',
+                            field.programId = $programId,
+                            field.fileName = $fileName,
+                            field.recordName = $recordName,
+                            field.levelNumber = $levelNumber,
+                            field.picture = $picture,
+                            field.usage = $usage,
+                            field.parentName = $parentName,
+                            field.lineNumber = $lineNumber
+                        WITH field
+                        MATCH (p:Program {id: $programId})
+                        MERGE (p)-[:DECLARES_FIELD]->(field)
+                    """, {
+                        "id": field_id,
+                        "name": f.get("field_name"),
+                        "programId": prog_id,
+                        "fileName": f.get("file_name"),
+                        "recordName": f.get("record_name"),
+                        "levelNumber": f.get("level_number"),
+                        "picture": f.get("picture"),
+                        "usage": f.get("usage"),
+                        "parentName": f.get("parent_name"),
+                        "lineNumber": f.get("line_number"),
+                    })
+                    if f.get("file_name"):
+                        session.run("""
+                            MATCH (field:DataField {id: $fieldId})
+                            MATCH (file:File {name: $fileName})
+                            MERGE (file)-[:CONTAINS_FIELD]->(field)
+                        """, {"fieldId": field_id, "fileName": f.get("file_name")})
+                    file_field_count += 1
+
+                for m in db_loader.get_program_data_movements(prog_id, limit=100000):
+                    src_id = f"{prog_id}:MOVE:SRC:{m.get('source_field')}"
+                    dst_id = f"{prog_id}:MOVE:DST:{m.get('destination_field')}"
+                    session.run("""
+                        MERGE (src:DataField {id: $srcId})
+                        SET src.name = $srcName,
+                            src.kind = CASE WHEN $isLiteral THEN 'LITERAL' ELSE coalesce(src.kind, 'DATA_FIELD') END,
+                            src.programId = $programId
+                        MERGE (dst:DataField {id: $dstId})
+                        SET dst.name = $dstName,
+                            dst.kind = coalesce(dst.kind, 'DATA_FIELD'),
+                            dst.programId = $programId
+                        WITH src, dst
+                        MATCH (p:Program {id: $programId})
+                        MERGE (p)-[:USES_FIELD]->(src)
+                        MERGE (p)-[:USES_FIELD]->(dst)
+                        MERGE (src)-[r:MOVED_TO {programId: $programId, lineNumber: $lineNumber, destination: $dstName}]->(dst)
+                        SET r.paragraph = $paragraph,
+                            r.isLiteral = $isLiteral
+                    """, {
+                        "srcId": src_id,
+                        "srcName": m.get("source_field"),
+                        "dstId": dst_id,
+                        "dstName": m.get("destination_field"),
+                        "programId": prog_id,
+                        "lineNumber": m.get("line_number"),
+                        "paragraph": m.get("paragraph_name"),
+                        "isLiteral": bool(m.get("is_literal")),
+                    })
+                    movement_count += 1
+
+            try:
+                cursor.execute("""
+                    SELECT copybook_name, field_name, level_number, picture, usage,
+                           value, parent_name, line_number, occurs_count, redefines_target
+                    FROM copybook_fields
+                    ORDER BY copybook_name, line_number
+                """)
+                cb_fields = [dict(row) for row in cursor.fetchall()]
+            except Exception:
+                cb_fields = []
+
+            for f in cb_fields:
+                field_id = f"CPY:{f.get('copybook_name')}:{f.get('field_name')}:{f.get('line_number')}"
+                session.run("""
+                    MERGE (field:DataField {id: $id})
+                    SET field.name = $name,
+                        field.kind = 'COPYBOOK_FIELD',
+                        field.copybookName = $copybookName,
+                        field.levelNumber = $levelNumber,
+                        field.picture = $picture,
+                        field.usage = $usage,
+                        field.value = $value,
+                        field.parentName = $parentName,
+                        field.lineNumber = $lineNumber,
+                        field.occursCount = $occursCount,
+                        field.redefinesTarget = $redefinesTarget
+                    WITH field
+                    MATCH (cb:Copybook {name: $copybookName})
+                    MERGE (cb)-[:DEFINES_FIELD]->(field)
+                """, {
+                    "id": field_id,
+                    "name": f.get("field_name"),
+                    "copybookName": f.get("copybook_name"),
+                    "levelNumber": f.get("level_number"),
+                    "picture": f.get("picture"),
+                    "usage": f.get("usage"),
+                    "value": f.get("value"),
+                    "parentName": f.get("parent_name"),
+                    "lineNumber": f.get("line_number"),
+                    "occursCount": f.get("occurs_count"),
+                    "redefinesTarget": f.get("redefines_target"),
+                })
+                copybook_field_count += 1
+
+        console.print(
+            f"  Exported {file_field_count} file fields, "
+            f"{copybook_field_count} copybook fields, {movement_count} MOVE edges..."
+        )
+
+    def _export_code_anomalies(self, db_loader):
+        """Export static-analysis findings as CodeAnomaly nodes."""
+        programs = db_loader.get_all_programs()
+        count = 0
+        with self.driver.session() as session:
+            for prog in programs:
+                prog_id = prog["program_id"]
+                for idx, a in enumerate(db_loader.get_program_anomalies(prog_id), 1):
+                    anomaly_id = f"{prog_id}:{a.get('rule_id')}:{a.get('line_number')}:{idx}"
+                    session.run("""
+                        MERGE (a:CodeAnomaly {id: $id})
+                        SET a.programId = $programId,
+                            a.severity = $severity,
+                            a.category = $category,
+                            a.ruleId = $ruleId,
+                            a.title = $title,
+                            a.description = $description,
+                            a.paragraph = $paragraph,
+                            a.lineNumber = $lineNumber,
+                            a.snippet = $snippet,
+                            a.suggestion = $suggestion
+                        WITH a
+                        MATCH (p:Program {id: $programId})
+                        MERGE (p)-[:HAS_ANOMALY]->(a)
+                    """, {
+                        "id": anomaly_id,
+                        "programId": prog_id,
+                        "severity": a.get("severity"),
+                        "category": a.get("category"),
+                        "ruleId": a.get("rule_id"),
+                        "title": a.get("title"),
+                        "description": a.get("description"),
+                        "paragraph": a.get("paragraph_name"),
+                        "lineNumber": a.get("line_number"),
+                        "snippet": a.get("snippet"),
+                        "suggestion": a.get("suggestion"),
+                    })
+                    count += 1
+        console.print(f"  Exported {count} code anomalies...")
 
     def _export_relationships(self, db_loader):
         """Export CALLS and PERFORMS relationships."""

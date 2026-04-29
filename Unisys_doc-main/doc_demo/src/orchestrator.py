@@ -9,6 +9,17 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 
+# Force UTF-8 for stdout/stderr on Windows so Rich's spinner braille characters
+# (e.g. ⠋) don't crash cp1252 consoles. Safe no-op on POSIX.
+if sys.platform.startswith("win"):
+    os.environ.setdefault("PYTHONUTF8", "1")
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
@@ -19,7 +30,45 @@ from proleap_wrapper import ProLeapWrapper
 from sqlite_loader import SQLiteLoader
 from doc_generator import DocGenerator
 
-console = Console(force_terminal=True, highlight=False)
+# legacy_windows=False keeps Rich on the modern renderer that supports UTF-8 spinners.
+console = Console(force_terminal=True, highlight=False, legacy_windows=False)
+
+
+def detect_cobol_format(repo_path) -> str:
+    """Sample a few COBOL files to guess FIXED vs FREE format.
+    FIXED format has 6-digit sequence numbers in cols 1-6 and `*` comments
+    in col 7. FREE format has no such column rules. Returns 'FIXED' or 'FREE'."""
+    import re
+    repo = Path(repo_path)
+    samples = []
+    for ext in (".cbl", ".CBL", ".cob", ".COB"):
+        samples.extend(list(repo.rglob(f"*{ext}"))[:5])
+        if len(samples) >= 5:
+            break
+    if not samples:
+        return "FIXED"
+    fixed_signals = 0
+    free_signals = 0
+    seq_pat = re.compile(r"^\d{6}")
+    for fp in samples[:5]:
+        try:
+            with open(fp, encoding="utf-8", errors="ignore") as fh:
+                for i, line in enumerate(fh):
+                    if i > 80:
+                        break
+                    if not line.strip():
+                        continue
+                    if seq_pat.match(line):
+                        fixed_signals += 1
+                    elif len(line) > 6 and line[6] == "*":
+                        fixed_signals += 1
+                    elif line.lstrip().startswith("*>"):
+                        free_signals += 1
+                    elif len(line) > 0 and line[0] not in (" ", "\t") and not line[0].isdigit():
+                        free_signals += 1
+        except Exception:
+            continue
+    return "FIXED" if fixed_signals >= free_signals else "FREE"
 
 
 def ensure_env():
@@ -51,7 +100,8 @@ def run_pipeline(
     neo4j_uri: str = None,
     neo4j_user: str = None,
     neo4j_password: str = None,
-    cobol_format: str = "FIXED",
+    cobol_format: str = None,        # auto-detected if None
+    system_name: str = None,
 ):
     ensure_env()
     print_banner()
@@ -61,6 +111,11 @@ def run_pipeline(
     parsed_dir  = Path("parsed_output")
     enriched_dir = Path("enriched_output")
     jcl_jobs = []
+
+    # Auto-detect COBOL format if caller didn't specify
+    if not cobol_format:
+        cobol_format = detect_cobol_format(repo_path)
+        console.print(f"[cyan]Auto-detected COBOL format: {cobol_format}[/cyan]")
 
     console.print(f"[cyan]Repository: {repo_path}[/cyan]")
     console.print(f"[cyan]Output: {output_dir}[/cyan]")
@@ -197,11 +252,14 @@ def run_pipeline(
     # ========================================
     console.print(Panel("[bold]Step 4: Generating Swimm-Style Documentation[/bold]", style="blue"))
 
+    # Derive system name from repo path basename if not explicitly provided.
+    # Falls back to "Application" if the basename is empty.
+    derived_name = system_name or os.environ.get("SYSTEM_NAME") or repo_path.name.title() or "Application"
     generator = DocGenerator(
         db_loader=loader,
         output_dir=output_dir,
         repo_path=str(repo_path),
-        system_name="CardDemo",
+        system_name=derived_name,
     )
     generator.generate_all()
 

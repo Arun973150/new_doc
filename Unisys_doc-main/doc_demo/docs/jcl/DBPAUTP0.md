@@ -75,10 +75,6 @@ SBPARM ACTIV=COND
 
 ## Summary
 
-### COBOL Programs Executed
-
-- [IEFBR14](../programs/IEFBR14.md)
-- [DFSRRC00](../programs/DFSRRC00.md)
 
 ### Input Datasets
 
@@ -94,4 +90,4 @@ SBPARM ACTIV=COND
 
 ---
 
-*Generated 2026-04-28 20:00*
+*Generated 2026-04-29 10:56*
