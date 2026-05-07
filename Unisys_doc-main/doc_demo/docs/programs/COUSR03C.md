@@ -21,11 +21,11 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `COUSR03C` |
+| `WS-PGMNAME` | `COUSR03C` |
 | `WS-TRANID` | `CU03` |
-| `WS-MESSAGE` | `USRSEC  ` |
+| `WS-USRSEC-FILE` | `USRSEC` |
 | `WS-ERR-FLG` | `N` |
-| `WS-REAS-CD` | `N` |
+| `WS-USR-MODIFIED` | `N` |
 
 
 ## Business Purpose
@@ -350,8 +350,19 @@ flowchart TD
     CLEAR_CURRENT_SCREEN["CLEAR-CURRENT-SCREEN"]
     INITIALIZE_ALL_FIELDS["INITIALIZE-ALL-FIELDS"]
     START --> MAIN_PARA
-    SEND_USRDEL_SCREEN --> INLINE
-    CLEAR_CURRENT_SCREEN --> INLINE
+    MAIN_PARA --> RETURN_TO_PREV_SCREEN
+    MAIN_PARA --> PROCESS_ENTER_KEY
+    MAIN_PARA --> SEND_USRDEL_SCREEN
+    MAIN_PARA --> RECEIVE_USRDEL_SCREEN
+    MAIN_PARA --> CLEAR_CURRENT_SCREEN
+    MAIN_PARA --> DELETE_USER_INFO
+    PROCESS_ENTER_KEY --> SEND_USRDEL_SCREEN
+    PROCESS_ENTER_KEY --> READ_USER_SEC_FILE
+    DELETE_USER_INFO --> SEND_USRDEL_SCREEN
+    DELETE_USER_INFO --> READ_USER_SEC_FILE
+    DELETE_USER_INFO --> DELETE_USER_SEC_FILE
+    SEND_USRDEL_SCREEN --> POPULATE_HEADER_INFO
+    READ_USER_SEC_FILE --> SEND_USRDEL_SCREEN
 ```
 
 ## Paragraphs
@@ -785,9 +796,21 @@ review each one before re-implementing in a modern stack.
 
 | Severity | Category | Title | Paragraph | Line |
 |----------|----------|-------|-----------|------|
+| **WARNING** | LOGIC | `PERFORM DELETE-USER-SEC-FILE` runs unconditionally after `PERFORM READ-USER-SEC-FILE` in `DELETE-USER-INFO` | DELETE-USER-INFO | 190 |
 | **NOTICE** | DEAD_CODE | Variable `WS-USR-MODIFIED` is declared but never referenced | None | 45 |
 | **NOTICE** | DEAD_CODE | Variable `LK-COMMAREA` is declared but never referenced | None | 75 |
 
+### WARNING — `PERFORM DELETE-USER-SEC-FILE` runs unconditionally after `PERFORM READ-USER-SEC-FILE` in `DELETE-USER-INFO`
+
+There is no IF / EVALUATE check between the read-style `READ-USER-SEC-FILE` and the mutating `DELETE-USER-SEC-FILE`. If `READ-USER-SEC-FILE` encounters an error (NOTFND, IO failure, etc.) without setting STOP RUN or PERFORM-aborting, `DELETE-USER-SEC-FILE` will execute anyway — potentially deleting/updating against stale or invalid state. Verify `READ-USER-SEC-FILE` aborts the program on failure or that `DELETE-USER-SEC-FILE` checks a status flag set by `READ-USER-SEC-FILE`.
+**Source excerpt** (line 190):
+```cobol
+               PERFORM READ-USER-SEC-FILE
+               PERFORM DELETE-USER-SEC-FILE
+```
+
+**Recommendation:** Add an `IF <status-flag> = 'OK'` guard around `PERFORM DELETE-USER-SEC-FILE` or have `READ-USER-SEC-FILE` set ERR-FLG-ON / call ABEND on failure.
+---
 ### NOTICE — Variable `WS-USR-MODIFIED` is declared but never referenced
 
 `WS-USR-MODIFIED` is declared at line 45 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
@@ -875,6 +898,79 @@ This program uses the following EXEC CICS commands:
 | `DELETE` | DELETE-USER-SEC-FILE | 307 | {"details": {"dataset": "WS-USRSEC-FILE", "resp": "WS-RESP-CD"}} |
 
 **Summary:** 6 CICS command(s) — RETURN (1), XCTL (1), SEND (1), RECEIVE (1), READ (1), DELETE (1)
+
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### Program transfers use XCTL, not a soft return
+
+`EXEC CICS XCTL` transfers control to another program and does not return to the current program like a subroutine call. Document PF-key navigation that reaches this paragraph as a CICS transfer, not as an in-place screen redisplay.
+
+Evidence:
+- L205 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Initial entry without COMMAREA transfers to sign-on
+
+When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows the return/transfer path. It does not display its own BMS map on that entry path.
+
+Evidence:
+- L90: `IF EIBCALEN = 0`
+- L91: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L200: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L205 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF3 navigation resolves through RETURN-TO-PREV-SCREEN
+
+PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, so PF3 is a transfer to the target program held in the COMMAREA routing fields.
+
+Evidence:
+- L111: `WHEN DFHPF3`
+- L92: `PERFORM RETURN-TO-PREV-SCREEN`
+- L118: `PERFORM RETURN-TO-PREV-SCREEN`
+- L125: `PERFORM RETURN-TO-PREV-SCREEN`
+- L205 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF5 delete is a two-step user flow
+
+The screen label says `F5=Delete`, but the COBOL flow first validates/fetches the user record. On a successful read, the program displays a message telling the user to press PF5. The actual delete is then executed through `DELETE-USER-INFO` and `DELETE-USER-SEC-FILE`.
+
+Evidence:
+- L121: `WHEN DFHPF5`
+- L122: `PERFORM DELETE-USER-INFO`
+- L283: `MOVE 'Press PF5 key to delete this user ...' TO`
+- L269 in `READ-USER-SEC-FILE`: EXEC CICS READ {"details": {"dataset": "WS-USRSEC-FILE", "into": "SEC-USER-DATA", "length": "LENGTH OF SEC-USER-DATA", "ridfld": "SEC-USR-ID", "resp": "WS-RESP-CD"}}
+- L307 in `DELETE-USER-SEC-FILE`: EXEC CICS DELETE {"details": {"dataset": "WS-USRSEC-FILE", "resp": "WS-RESP-CD"}}
+
+### Error/message text is written to the BMS output field
+
+`ERRMSGI` exists in the input copybook area, but this program displays messages by moving `WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when describing rendered error or status messages.
+
+Evidence:
+- L217: `MOVE WS-MESSAGE TO ERRMSGO OF COUSR3AO`
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L84: `SET ERR-FLG-OFF     TO TRUE`
+- L41: `88 ERR-FLG-ON                         VALUE 'Y'.`
+- L156: `IF NOT ERR-FLG-ON`
+- L164: `IF NOT ERR-FLG-ON`
+- L188: `IF NOT ERR-FLG-ON`
+
+### The BMS map can be sent from multiple paths
+
+Screen output is centralized in the send paragraph, but several routines can perform it. If a read routine sends the map and its caller also sends the map, a modern UI migration must preserve or deliberately remove that duplicate response behavior.
+
+Evidence:
+- L286: `READ-USER-SEC-FILE` performs `SEND-USRDEL-SCREEN`
+- L292: `READ-USER-SEC-FILE` performs `SEND-USRDEL-SCREEN`
+- L299: `READ-USER-SEC-FILE` performs `SEND-USRDEL-SCREEN`
+- L219 in `SEND-USRDEL-SCREEN`: EXEC CICS SEND {"details": {"map": "COUSR3A", "mapset": "COUSR03", "from": "COUSR3AO"}}
+
 
 ## Modernization Review Findings
 
@@ -976,4 +1072,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

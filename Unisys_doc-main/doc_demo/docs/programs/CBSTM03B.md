@@ -525,6 +525,7 @@ source of truth for migrators converting to modern storage layers.
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -662,4 +663,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

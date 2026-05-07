@@ -22,11 +22,10 @@
 | Data Item | Literal Value |
 |-----------|---------------|
 | `WS-PGMNAME` | `IMSUNLOD` |
-| `WS-NO-DTL-DELETED` | `N` |
+| `WS-ERR-FLG` | `N` |
 | `WS-END-OF-AUTHDB-FLAG` | `N` |
 | `WS-MORE-AUTHS-FLAG` | `N` |
-| `WS-CUSTID-STATUS` | `10` |
-| `WS-IMS-PSB-SCHD-FLG` | `Y` |
+| `END-OF-FILE` | `10` |
 
 Status conditions found in source:
 - `PAUT-PCB-STATUS = SPACES`
@@ -653,6 +652,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `WS-NO-SUMRY-DELETED` is declared but never referenced | None | 71 |
 | **NOTICE** | DEAD_CODE | Variable `WS-NO-DTL-READ` is declared but never referenced | None | 72 |
 | **NOTICE** | LOGIC | Paragraph `2000-FIND-NEXT-AUTH-SUMMARY` terminates the program on error | 2000-FIND-NEXT-AUTH-SUMMARY | 216 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CBLTDLI` (not in this codebase) | None | 222 |
 | **NOTICE** | LOGIC | Paragraph `3000-FIND-NEXT-AUTH-DTL` terminates the program on error | 3000-FIND-NEXT-AUTH-DTL | 263 |
 | **NOTICE** | LOGIC | Paragraph `3100-INSERT-PARENT-SEG-GSAM` terminates the program on error | 3100-INSERT-PARENT-SEG-GSAM | 300 |
 | **NOTICE** | LOGIC | Paragraph `3200-INSERT-CHILD-SEG-GSAM` terminates the program on error | 3200-INSERT-CHILD-SEG-GSAM | 319 |
@@ -773,6 +773,16 @@ The program identifier is `DBUNLDGS` but the source sets `WS-PGMNAME` to `'IMSUN
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CBLTDLI` (not in this codebase)
+
+`CALL 'CBLTDLI'` appears in the source but `CBLTDLI` is not a program in the loaded codebase. IMS DL/I database call interface.
+**Source excerpt** (line 222):
+```cobol
+CALL 'CBLTDLI'            USING  FUNC-GN                    01970000
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 ### NOTICE — Paragraph `3000-FIND-NEXT-AUTH-DTL` terminates the program on error
 
 `3000-FIND-NEXT-AUTH-DTL` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
@@ -815,6 +825,7 @@ source of truth for migrators converting to modern storage layers.
 | File | Operation | Mode | Paragraph | Line |
 |------|-----------|------|-----------|------|
 | `THRU` | CLOSE | None | MAIN-PARA | 175 |
+
 
 
 
@@ -907,4 +918,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

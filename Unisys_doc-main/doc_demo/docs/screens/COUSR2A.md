@@ -69,4 +69,4 @@ Row 24: ENTER=Fetch  F3=Save&&Exit  F4=Clear  F5=Save F12=Cancel
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

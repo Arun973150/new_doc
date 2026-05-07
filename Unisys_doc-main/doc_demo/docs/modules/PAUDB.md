@@ -1,7 +1,7 @@
 # Module: Initialize (PAUDB)
 
 > **Module ID:** `PAUDB`  
-> **Programs:** 2
+> **Programs:** 0
 
 ---
 
@@ -13,20 +13,10 @@ Initialize (PAUDB)
 
 | Program | Type | Lines | Business Purpose |
 |---------|------|-------|-----------------|
-| [PAUDBLOD](../programs/PAUDBLOD.md) | BATCH | 370 |  |
-| [PAUDBUNL](../programs/PAUDBUNL.md) | BATCH | 318 |  |
 
 
 
-## Data Files Used
-
-| File | Type | Access | Program |
-|------|------|--------|---------|
-| `INFILE1` | SEQUENTIAL | SEQUENTIAL | PAUDBLOD |
-| `INFILE2` | SEQUENTIAL | SEQUENTIAL | PAUDBLOD |
-| `OPFILE1` | SEQUENTIAL | SEQUENTIAL | PAUDBUNL |
-| `OPFILE2` | SEQUENTIAL | SEQUENTIAL | PAUDBUNL |
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

@@ -19,6 +19,9 @@
 
 ## Source Grounding Facts
 
+| Data Item | Literal Value |
+|-----------|---------------|
+| `END-OF-FILE` | `N` |
 
 Status conditions found in source:
 - `CUSTFILE-STATUS = '00'`
@@ -199,6 +202,12 @@ flowchart TD
     Z_ABEND_PROGRAM["Z-ABEND-PROGRAM"]
     Z_DISPLAY_IO_STATUS["Z-DISPLAY-IO-STATUS"]
     START --> 1000_CUSTFILE_GET_NEXT
+    1000_CUSTFILE_GET_NEXT --> Z_DISPLAY_IO_STATUS
+    1000_CUSTFILE_GET_NEXT --> Z_ABEND_PROGRAM
+    0000_CUSTFILE_OPEN --> Z_DISPLAY_IO_STATUS
+    0000_CUSTFILE_OPEN --> Z_ABEND_PROGRAM
+    9000_CUSTFILE_CLOSE --> Z_DISPLAY_IO_STATUS
+    9000_CUSTFILE_CLOSE --> Z_ABEND_PROGRAM
 ```
 
 ## Paragraphs
@@ -351,6 +360,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `1000-CUSTFILE-GET-NEXT` terminates the program on error | 1000-CUSTFILE-GET-NEXT | 92 |
 | **NOTICE** | LOGIC | Paragraph `0000-CUSTFILE-OPEN` terminates the program on error | 0000-CUSTFILE-OPEN | 118 |
 | **NOTICE** | LOGIC | Paragraph `9000-CUSTFILE-CLOSE` terminates the program on error | 9000-CUSTFILE-CLOSE | 136 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 158 |
 
 ### NOTICE — Variable `FD-CUST-DATA` is declared but never referenced
 
@@ -420,6 +430,16 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 158):
+```cobol
+CALL 'CEE3ABD' USING ABCODE, TIMING.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -432,6 +452,7 @@ source of truth for migrators converting to modern storage layers.
 |------|-----------|------|-----------|------|
 | `CUSTFILE-FILE` | OPEN | INPUT | 0000-CUSTFILE-OPEN | 120 |
 | `CUSTFILE-FILE` | CLOSE | None | 9000-CUSTFILE-CLOSE | 138 |
+
 
 
 
@@ -517,4 +538,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

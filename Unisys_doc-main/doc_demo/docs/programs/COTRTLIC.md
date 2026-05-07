@@ -21,14 +21,18 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-CONSTANTS` | `COTRTLIC` |
-| `WS-EDIT-TYPE-FLAG` | `0` |
-| `WS-EDIT-DESC-FLAG` | `0` |
-| `WS-DATACHANGED-FLAG` | `0` |
-| `WS-ROW-TRTSELECT-ERROR` | `1` |
+| `WS-ROW-SELECT-ERROR` | `1` |
 | `WS-INFORM-REC-ACTIONS` | `Type U to update, D to delete any record` |
 | `WS-INFORM-DELETE` | `Delete HIGHLIGHTED row ? Press F10 to confirm` |
 | `WS-INFORM-UPDATE` | `Update HIGHLIGHTED row. Press F10 to save` |
+| `WS-INFORM-DELETE-SUCCESS` | `HIGHLIGHTED row deleted.Hit Enter to continue` |
+| `WS-INFORM-UPDATE-SUCCESS` | `HIGHLIGHTED row was updated` |
+| `WS-EXIT-MESSAGE` | `PF03 pressed. Exiting` |
+| `WS-MESG-NO-RECORDS-FOUND` | `No records found for this search condition.` |
+| `WS-MESG-NO-MORE-RECORDS` | `No more pages for these search conditions` |
+| `WS-MESG-MORE-THAN-1-ACTION` | `Please select only 1 action` |
+| `WS-MESG-INVALID-ACTION-CODE` | `Action code selected is invalid` |
+| `WS-MESG-NO-CHANGES-DETECTED` | `No change detected with respect to database values.` |
 
 
 ## Business Purpose
@@ -394,6 +398,7 @@ flowchart TD
     MAIN --> 1000_RECEIVE_MAP
     MAIN --> 9998_PRIMING_QUERY
     MAIN --> SEND_LONG_TEXT
+    0000_MAIN --> SEND_LONG_TEXT
     MAIN --> 8000_READ_FORWARD
     MAIN --> 2000_SEND_MAP
     MAIN --> 8100_READ_BACKWARDS
@@ -1652,6 +1657,7 @@ to streaming queries or paginated REST endpoints.
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1671,4 +1677,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

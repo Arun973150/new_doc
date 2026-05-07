@@ -21,14 +21,17 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-CUSTOMER-STATUS` | `10` |
+| `WS-CUSTOMER-EOF` | `10` |
 | `WS-CUSTOMER-OK` | `00` |
-| `WS-ACCOUNT-STATUS` | `10` |
+| `WS-ACCOUNT-EOF` | `10` |
 | `WS-ACCOUNT-OK` | `00` |
-| `WS-XREF-STATUS` | `10` |
+| `WS-XREF-EOF` | `10` |
 | `WS-XREF-OK` | `00` |
-| `WS-TRANSACTION-STATUS` | `10` |
+| `WS-TRANSACTION-EOF` | `10` |
 | `WS-TRANSACTION-OK` | `00` |
+| `WS-CARD-EOF` | `10` |
+| `WS-CARD-OK` | `00` |
+| `WS-EXPORT-OK` | `00` |
 
 
 ## Business Purpose
@@ -914,6 +917,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `5200-CREATE-TRAN-EXP-REC` terminates the program on error | 5200-CREATE-TRAN-EXP-REC | 457 |
 | **NOTICE** | LOGIC | Paragraph `5600-READ-CARD-RECORD` terminates the program on error | 5600-READ-CARD-RECORD | 511 |
 | **NOTICE** | LOGIC | Paragraph `5700-CREATE-CARD-EXPORT-RECORD` terminates the program on error | 5700-CREATE-CARD-EXPORT-RECORD | 522 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 579 |
 
 ### NOTICE — Paragraph `1100-OPEN-FILES` terminates the program on error
 
@@ -981,6 +985,16 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 579):
+```cobol
+CALL 'CEE3ABD'.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -1003,6 +1017,7 @@ source of truth for migrators converting to modern storage layers.
 | `TRANSACTION-INPUT` | CLOSE | None | 6000-FINALIZE | 559 |
 | `CARD-INPUT` | CLOSE | None | 6000-FINALIZE | 560 |
 | `EXPORT-OUTPUT` | CLOSE | None | 6000-FINALIZE | 561 |
+
 
 
 
@@ -1127,4 +1142,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

@@ -8,6 +8,7 @@ CardDemo is a comprehensive mainframe application that simulates a credit card m
 
 ## Table of Contents
 - [Description](#description)
+- [Documentation Hub Integration](#documentation-hub-integration)
 - [Technologies](#technologies)
 - [Optional Features](#optional-features)
 - [Installation](#installation)
@@ -36,6 +37,35 @@ CardDemo is a mainframe application designed to test and showcase AWS and partne
 - Test creation and automation
 
 The application intentionally incorporates various coding styles and patterns to exercise analysis, transformation, and migration tooling across different mainframe programming paradigms.
+
+## Documentation Hub Integration
+
+This copy of CardDemo is also used as the source repository for the COBOL Migration Documentation Hub in the parent `doc_demo/` folder. Recent updates add parser-backed and agent-assisted documentation workflows around this application while preserving the original CardDemo source layout.
+
+The documentation hub now includes:
+
+- A Streamlit dashboard named **COBOL Migration Hub** for exploring programs, modules, call graphs, data flow, JCL jobs, CICS commands, SQL usage, business rules, and generated documentation.
+- A SQLite knowledge base at `../data/cobol_knowledge.db` populated from COBOL programs, copybooks, BMS maps, and JCL.
+- Generated Markdown documentation under `../docs/`, including system overview, module pages, program walkthroughs, screen docs, JCL docs, data dictionary, copybook reference, diagrams, and validation output.
+- Standalone JCL and BMS artifact documentation under `../docs/standalone-artifacts/`.
+- A context-packaging layer for large documentation prompts, including chunk metadata and coverage ledgers for generated docs.
+- Validation checks in `../src/doc_validator.py` to catch missing docs, broken links, factual mismatches, and coverage gaps.
+
+To run the dashboard from the parent folder:
+
+```powershell
+cd ..
+streamlit run src/app.py
+```
+
+To regenerate the knowledge base and documentation:
+
+```powershell
+cd ..
+python run_pipeline.py
+```
+
+For the full tooling guide, see `../README.md`.
 
 ## Technologies
 
@@ -391,8 +421,8 @@ The CardDemo application has been enhanced with optional features that extend it
 - Account Extractions using MQ and VSAM
 - Additional JCL Utilities
 - Enhanced Data and Copybook Features
+- COBOL Migration Documentation Hub integration for generated Markdown docs, SQLite-backed analysis, Streamlit exploration, and standalone JCL/BMS artifact documentation
 
 These optional features make CardDemo an even more useful resource for customers looking to modernize their mainframe applications. With modules for DB2, MQ, IMS DB, JCL utilities, and more data formats now available, customers can leverage CardDemo to test a wider array of mainframe migration, refactoring, replatforming, and augmentation scenarios.
 
-Last updated: April 2025
-
+Last updated: May 2026

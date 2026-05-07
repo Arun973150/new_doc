@@ -1,6 +1,6 @@
 # Program Call Hierarchy
 
-> Inter-program call relationships across the entire CardDemo application.
+> Inter-program call relationships across the entire Carddemo application.
 
 ## Visual Call Graph
 
@@ -128,4 +128,4 @@ Programs that don't call any other program (utility or terminal logic):
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

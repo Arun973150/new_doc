@@ -251,6 +251,7 @@ def run_pipeline(
     # Step 4: Generate Documentation
     # ========================================
     console.print(Panel("[bold]Step 4: Generating Swimm-Style Documentation[/bold]", style="blue"))
+    artifact_doc_counts = {"jcl": 0, "bms": 0}
 
     # Derive system name from repo path basename if not explicitly provided.
     # Falls back to "Application" if the basename is empty.
@@ -262,6 +263,20 @@ def run_pipeline(
         system_name=derived_name,
     )
     generator.generate_all()
+
+    # ========================================
+    # Step 4a: Generate standalone JCL/BMS English docs
+    # ========================================
+    console.print(Panel("[bold]Step 4a: Generating Standalone JCL/BMS English Documentation[/bold]", style="blue"))
+    try:
+        from artifact_doc_agent import StandaloneArtifactDocGenerator
+        artifact_generator = StandaloneArtifactDocGenerator(
+            db_loader=loader,
+            output_dir=Path(output_dir) / "standalone-artifacts",
+        )
+        artifact_doc_counts = artifact_generator.generate_all()
+    except Exception as e:
+        console.print(f"[yellow]Standalone JCL/BMS documentation skipped: {e}[/yellow]")
 
     doc_files = list(Path(output_dir).rglob("*.md"))
     console.print(f"[green]OK - Generated {len(doc_files)} documentation files[/green]")
@@ -311,10 +326,12 @@ Documentation: {output_dir}/
   Programs: {output_dir}/programs/
   Business Rules: {output_dir}/business-rules/
   Screens: {output_dir}/screens/
+  Standalone JCL/BMS: {output_dir}/standalone-artifacts/
   Diagrams: {output_dir}/diagrams/
 
 Database: {db_path}
   {len(programs)} programs | {len(rules)} rules | {len(screens)} screens | {len(modules)} modules
+  Standalone artifact docs: {artifact_doc_counts.get("jcl", 0)} JCL | {artifact_doc_counts.get("bms", 0)} BMS
 
 Total time: {elapsed.total_seconds():.1f}s
     """, style="green"))
@@ -322,6 +339,8 @@ Total time: {elapsed.total_seconds():.1f}s
     return {
         "programs": len(programs), "rules": len(rules),
         "screens": len(screens), "modules": len(modules),
+        "artifact_jcl_docs": artifact_doc_counts.get("jcl", 0),
+        "artifact_bms_docs": artifact_doc_counts.get("bms", 0),
         "doc_files": len(doc_files), "elapsed": elapsed.total_seconds()
     }
 

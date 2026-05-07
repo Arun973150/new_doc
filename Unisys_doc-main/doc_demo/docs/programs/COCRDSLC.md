@@ -21,11 +21,9 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-EDIT-ACCT-FLAG` | `0` |
-| `WS-EDIT-CARD-FLAG` | `0` |
-| `WS-RETURN-FLAG-OFF` | `1` |
+| `WS-RETURN-FLAG-ON` | `1` |
 | `WS-PROMPT-FOR-INPUT` | `Please enter Account and Card Number` |
-| `WS-RETURN-MSG-OFF` | `PF03 pressed.Exiting              ` |
+| `WS-EXIT-MESSAGE` | `PF03 pressed.Exiting` |
 | `WS-PROMPT-FOR-ACCT` | `Account number not provided` |
 | `WS-PROMPT-FOR-CARD` | `Card number not provided` |
 
@@ -1329,6 +1327,7 @@ modern stack should map these to try / catch handlers or middleware filters.
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1348,4 +1347,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

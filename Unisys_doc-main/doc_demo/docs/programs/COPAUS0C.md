@@ -25,10 +25,16 @@
 | `WS-PGM-AUTH-DTL` | `COPAUS1C` |
 | `WS-PGM-MENU` | `COMEN01C` |
 | `WS-CICS-TRANID` | `CPVS` |
-| `WS-ACCTFILENAME` | `ACCTDAT ` |
-| `WS-CUSTFILENAME` | `CUSTDAT ` |
-| `WS-CARDFILENAME` | `CARDDAT ` |
-| `WS-CARDXREFNAME-ACCT-PATH` | `CXACAIX ` |
+| `WS-ACCTFILENAME` | `ACCTDAT` |
+| `WS-CUSTFILENAME` | `CUSTDAT` |
+| `WS-CARDFILENAME` | `CARDDAT` |
+| `WS-CARDXREFNAME-ACCT-PATH` | `CXACAIX` |
+| `WS-CCXREF-FILE` | `CCXREF` |
+| `WS-AUTH-DATE` | `00/00/00` |
+| `WS-AUTH-TIME` | `00:00:00` |
+| `WS-ERR-FLG` | `N` |
+| `WS-AUTHS-EOF` | `N` |
+| `WS-SEND-ERASE-FLG` | `Y` |
 
 
 ## Business Purpose
@@ -1392,6 +1398,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1413,4 +1420,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

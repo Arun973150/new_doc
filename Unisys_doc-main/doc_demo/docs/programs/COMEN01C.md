@@ -21,9 +21,9 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `COMEN01C` |
+| `WS-PGMNAME` | `COMEN01C` |
 | `WS-TRANID` | `CM00` |
-| `WS-MESSAGE` | `USRSEC  ` |
+| `WS-USRSEC-FILE` | `USRSEC` |
 | `WS-ERR-FLG` | `N` |
 
 
@@ -396,6 +396,13 @@ flowchart TD
     POPULATE_HEADER_INFO["POPULATE-HEADER-INFO"]
     BUILD_MENU_OPTIONS["BUILD-MENU-OPTIONS"]
     START --> MAIN_PARA
+    MAIN_PARA --> RETURN_TO_SIGNON_SCREEN
+    MAIN_PARA --> SEND_MENU_SCREEN
+    MAIN_PARA --> RECEIVE_MENU_SCREEN
+    MAIN_PARA --> PROCESS_ENTER_KEY
+    PROCESS_ENTER_KEY --> SEND_MENU_SCREEN
+    SEND_MENU_SCREEN --> POPULATE_HEADER_INFO
+    SEND_MENU_SCREEN --> BUILD_MENU_OPTIONS
     PROCESS_ENTER_KEY --> INLINE
     SEND_MENU_SCREEN --> INLINE
     BUILD_MENU_OPTIONS --> INLINE
@@ -891,6 +898,68 @@ This program uses the following EXEC CICS commands:
 
 **Summary:** 7 CICS command(s) — RETURN (1), INQUIRE (1), XCTL (3), SEND (1), RECEIVE (1)
 
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### Program transfers use XCTL, not a soft return
+
+`EXEC CICS XCTL` transfers control to another program and does not return to the current program like a subroutine call. Document PF-key navigation that reaches this paragraph as a CICS transfer, not as an in-place screen redisplay.
+
+Evidence:
+- L156 in `PROCESS-ENTER-KEY`: EXEC CICS XCTL {"details": {"program": "CDEMO-MENU-OPT-PGMNAME(WS-OPTION", "commarea": "CARDDEMO-COMMAREA"}}
+- L184 in `PROCESS-ENTER-KEY`: EXEC CICS XCTL {"details": {"program": "CDEMO-MENU-OPT-PGMNAME(WS-OPTION", "commarea": "CARDDEMO-COMMAREA"}}
+- L201 in `RETURN-TO-SIGNON-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM"}}
+
+### Initial entry without COMMAREA transfers to sign-on
+
+When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows the return/transfer path. It does not display its own BMS map on that entry path.
+
+Evidence:
+- L82: `IF EIBCALEN = 0`
+- L97: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L199: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L156 in `PROCESS-ENTER-KEY`: EXEC CICS XCTL {"details": {"program": "CDEMO-MENU-OPT-PGMNAME(WS-OPTION", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF3 navigation resolves through RETURN-TO-PREV-SCREEN
+
+PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, so PF3 is a transfer to the target program held in the COMMAREA routing fields.
+
+Evidence:
+- L96: `WHEN DFHPF3`
+- L156 in `PROCESS-ENTER-KEY`: EXEC CICS XCTL {"details": {"program": "CDEMO-MENU-OPT-PGMNAME(WS-OPTION", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Error/message text is written to the BMS output field
+
+`ERRMSGI` exists in the input copybook area, but this program displays messages by moving `WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when describing rendered error or status messages.
+
+Evidence:
+- L213: `MOVE WS-MESSAGE TO ERRMSGO OF COMEN1AO`
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L77: `SET ERR-FLG-OFF TO TRUE`
+- L41: `88 ERR-FLG-ON                         VALUE 'Y'.`
+- L138: `SET ERR-FLG-ON          TO TRUE`
+- L145: `IF NOT ERR-FLG-ON`
+
+### The BMS map can be sent from multiple paths
+
+Screen output is centralized in the send paragraph, but several routines can perform it. If a read routine sends the map and its caller also sends the map, a modern UI migration must preserve or deliberately remove that duplicate response behavior.
+
+Evidence:
+- L90: `MAIN-PARA` performs `SEND-MENU-SCREEN`
+- L102: `MAIN-PARA` performs `SEND-MENU-SCREEN`
+- L133: `PROCESS-ENTER-KEY` performs `SEND-MENU-SCREEN`
+- L142: `PROCESS-ENTER-KEY` performs `SEND-MENU-SCREEN`
+- L190: `PROCESS-ENTER-KEY` performs `SEND-MENU-SCREEN`
+- L215 in `SEND-MENU-SCREEN`: EXEC CICS SEND {"details": {"map": "COMEN1A", "mapset": "COMEN01", "from": "COMEN1AO"}}
+
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -964,4 +1033,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

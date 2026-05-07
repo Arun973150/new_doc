@@ -22,11 +22,10 @@
 | Data Item | Literal Value |
 |-----------|---------------|
 | `WS-PGMNAME` | `COPAUS2C` |
-| `WS-AUTH-SSS` | `000` |
 | `WS-ERR-FLG` | `N` |
-| `WS-FRD-ACTION` | `F` |
+| `WS-REPORT-FRAUD` | `F` |
 | `WS-REMOVE-FRAUD` | `R` |
-| `WS-FRD-UPDATE-STATUS` | `S` |
+| `WS-FRD-UPDT-SUCCESS` | `S` |
 | `WS-FRD-UPDT-FAILED` | `F` |
 
 
@@ -200,6 +199,7 @@ flowchart TD
     MAIN_PARA["MAIN-PARA"]
     FRAUD_UPDATE["FRAUD-UPDATE"]
     START --> MAIN_PARA
+    MAIN_PARA --> FRAUD_UPDATE
 ```
 
 ## Paragraphs
@@ -405,6 +405,19 @@ This program uses the following EXEC CICS commands:
 
 **Summary:** 3 CICS command(s) — ASKTIME (1), FORMATTIME (1), RETURN (1)
 
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L53: `88 ERR-FLG-ON                        VALUE 'Y'.`
+
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -473,4 +486,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

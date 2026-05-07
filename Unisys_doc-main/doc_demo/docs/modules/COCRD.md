@@ -1,7 +1,7 @@
 # Module: Receive
 
 > **Module ID:** `COCRD`  
-> **Programs:** 3
+> **Programs:** 0
 
 ---
 
@@ -13,20 +13,10 @@ Receive
 
 | Program | Type | Lines | Business Purpose |
 |---------|------|-------|-----------------|
-| [COCRDLIC](../programs/COCRDLIC.md) | ONLINE | 1460 |  |
-| [COCRDSLC](../programs/COCRDSLC.md) | ONLINE | 888 |  |
-| [COCRDUPC](../programs/COCRDUPC.md) | ONLINE | 1561 |  |
 
 
-## Associated Screens
-
-| Screen | Map | Mapset | Program |
-|--------|-----|--------|---------|
-| [CCRDLIA](../screens/CCRDLIA.md) | CCRDLIA | COCRDLI | [COCRDLIC](../programs/COCRDLIC.md) |
-| [CCRDSLA](../screens/CCRDSLA.md) | CCRDSLA | COCRDSL | [COCRDSLC](../programs/COCRDSLC.md) |
-| [CCRDUPA](../screens/CCRDUPA.md) | CCRDUPA | COCRDUP | [COCRDUPC](../programs/COCRDUPC.md) |
 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

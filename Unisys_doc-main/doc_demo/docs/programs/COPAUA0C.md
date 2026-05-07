@@ -23,12 +23,20 @@
 |-----------|---------------|
 | `WS-PGM-AUTH` | `COPAUA0C` |
 | `WS-CICS-TRANID` | `CP00` |
-| `WS-ACCTFILENAME` | `ACCTDAT ` |
-| `WS-CUSTFILENAME` | `CUSTDAT ` |
-| `WS-CARDFILENAME` | `CARDDAT ` |
-| `WS-CARDFILENAME-ACCT-PATH` | `CARDAIX ` |
-| `WS-CCXREF-FILE` | `CCXREF  ` |
-| `WS-IMS-VARIABLES` | `PSBPAUTB` |
+| `WS-ACCTFILENAME` | `ACCTDAT` |
+| `WS-CUSTFILENAME` | `CUSTDAT` |
+| `WS-CARDFILENAME` | `CARDDAT` |
+| `WS-CARDFILENAME-ACCT-PATH` | `CARDAIX` |
+| `WS-CCXREF-FILE` | `CCXREF` |
+| `WS-MSG-LOOP-FLG` | `N` |
+| `WS-LOOP-END` | `E` |
+| `WS-MSG-AVAILABLE-FLG` | `M` |
+| `WS-REQUEST-MQ-FLG` | `C` |
+| `WS-REQUEST-MQ-OPEN` | `O` |
+| `WS-REQUEST-MQ-CLSE` | `C` |
+| `WS-REPLY-MQ-FLG` | `C` |
+| `WS-REPLY-MQ-OPEN` | `O` |
+| `WS-REPLY-MQ-CLSE` | `C` |
 
 
 ## Business Purpose
@@ -1151,6 +1159,10 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `WS-REPLY-MQ-FLG` is declared but never referenced | None | 122 |
 | **NOTICE** | DEAD_CODE | Variable `WS-XREF-READ-FLG` is declared but never referenced | None | 125 |
 | **NOTICE** | DEAD_CODE | Variable `WS-ACCT-MASTER-READ-FLG` is declared but never referenced | None | 128 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQOPEN` (not in this codebase) | None | 262 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQGET` (not in this codebase) | None | 400 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQPUT1` (not in this codebase) | None | 758 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQCLOSE` (not in this codebase) | None | 956 |
 
 ### NOTICE — Variable `WS-CARDFILENAME-ACCT-PATH` is declared but never referenced
 
@@ -1252,6 +1264,46 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
 ---
+### NOTICE — Static CALL to external `MQOPEN` (not in this codebase)
+
+`CALL 'MQOPEN'` appears in the source but `MQOPEN` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 262):
+```cobol
+CALL 'MQOPEN' USING W01-HCONN-REQUEST
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQGET` (not in this codebase)
+
+`CALL 'MQGET'` appears in the source but `MQGET` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 400):
+```cobol
+CALL 'MQGET' USING W01-HCONN-REQUEST
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQPUT1` (not in this codebase)
+
+`CALL 'MQPUT1'` appears in the source but `MQPUT1` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 758):
+```cobol
+CALL 'MQPUT1' USING W02-HCONN-REPLY
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQCLOSE` (not in this codebase)
+
+`CALL 'MQCLOSE'` appears in the source but `MQCLOSE` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 956):
+```cobol
+CALL 'MQCLOSE' USING W01-HCONN-REQUEST
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -1332,6 +1384,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1352,4 +1405,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

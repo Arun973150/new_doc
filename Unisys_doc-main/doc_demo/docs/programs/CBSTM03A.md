@@ -21,9 +21,8 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-TOTAL-AMT` | `TRNXFILE` |
-| `WS-SAVE-CARD` | `N` |
-| `WS-M03B-DD` | `O` |
+| `WS-FL-DD` | `TRNXFILE` |
+| `END-OF-FILE` | `N` |
 
 
 ## Business Purpose
@@ -797,6 +796,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `ALIGN-PSA` is declared but never referenced | None | 240 |
 | **NOTICE** | DEAD_CODE | Variable `TIOTPSTP` is declared but never referenced | None | 250 |
 | **NOTICE** | LOGIC | Paragraph `1000-XREFFILE-GET-NEXT` terminates the program on error | 1000-XREFFILE-GET-NEXT | 345 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CBSTM03B` (not in this codebase) | None | 351 |
 | **NOTICE** | LOGIC | Paragraph `2000-CUSTFILE-GET` terminates the program on error | 2000-CUSTFILE-GET | 368 |
 | **NOTICE** | LOGIC | Paragraph `3000-ACCTFILE-GET` terminates the program on error | 3000-ACCTFILE-GET | 392 |
 | **NOTICE** | LOGIC | Paragraph `8100-TRNXFILE-OPEN` terminates the program on error | 8100-TRNXFILE-OPEN | 730 |
@@ -808,6 +808,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `9200-XREFFILE-CLOSE` terminates the program on error | 9200-XREFFILE-CLOSE | 873 |
 | **NOTICE** | LOGIC | Paragraph `9300-CUSTFILE-CLOSE` terminates the program on error | 9300-CUSTFILE-CLOSE | 889 |
 | **NOTICE** | LOGIC | Paragraph `9400-ACCTFILE-CLOSE` terminates the program on error | 9400-ACCTFILE-CLOSE | 905 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 923 |
 
 ### NOTICE — Variable `WS-M03B-OPER` is declared but never referenced
 
@@ -844,6 +845,16 @@ review each one before re-implementing in a modern stack.
 `1000-XREFFILE-GET-NEXT` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
+---
+### NOTICE — Static CALL to external `CBSTM03B` (not in this codebase)
+
+`CALL 'CBSTM03B'` appears in the source but `CBSTM03B` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 351):
+```cobol
+CALL 'CBSTM03B' USING WS-M03B-AREA.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
 ---
 ### NOTICE — Paragraph `2000-CUSTFILE-GET` terminates the program on error
 
@@ -911,6 +922,16 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 923):
+```cobol
+CALL 'CEE3ABD'.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -970,6 +991,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 | **WHEN OTHER** | DISPLAY 'ERROR READING TRNXFILE' |
 | `'00'` | MOVE WS-M03B-FLDT TO TRNX-RECORD |
 | `'10'` | GO TO 8599-EXIT |
+
 
 
 
@@ -1090,4 +1112,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

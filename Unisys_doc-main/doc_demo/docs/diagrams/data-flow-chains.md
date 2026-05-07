@@ -1,6 +1,6 @@
 # End-to-End Data Flow Chains
 
-> Auto-generated 2026-04-29 10:56
+> Auto-generated 2026-05-02 17:07
 
 Each chain traces how data flows: a JCL job triggers a program, which writes a file/dataset, which is then read by another program, and so on. Use this to decide migration units that must move together.
 

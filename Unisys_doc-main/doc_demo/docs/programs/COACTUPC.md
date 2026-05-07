@@ -21,14 +21,17 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-EDIT-YES-NO` | `N` |
-| `WS-EDIT-US-PHONE-NUM-FLGS` | `000` |
-| `WS-EDIT-US-SSN-FLGS` | `000` |
-| `WS-DATACHANGED-FLAG` | `0` |
-| `WS-INPUT-FLAG` | `0` |
-| `WS-RETURN-FLAG-OFF` | `1` |
-| `WS-PFK-FLAG` | `0` |
-| `WS-EDIT-ACCT-FLAG` | `1` |
+| `WS-EDIT-US-PHONE-IS-INVALID` | `000` |
+| `WS-EDIT-US-SSN-IS-INVALID` | `000` |
+| `WS-RETURN-FLAG-ON` | `1` |
+| `WS-EDIT-DT-OF-BIRTH-INVALID` | `000` |
+| `WS-EDIT-OPEN-DATE-IS-INVALID` | `000` |
+| `WS-EDIT-EXPIRY-IS-INVALID` | `000` |
+| `WS-EDIT-REISSUE-DATE-INVALID` | `000` |
+| `WS-EXIT-MESSAGE` | `PF03 pressed.Exiting` |
+| `WS-PROMPT-FOR-ACCT` | `Account number not provided` |
+| `WS-PROMPT-FOR-LASTNAME` | `Last name not provided` |
+| `WS-NAME-MUST-BE-ALPHA` | `Name can only contain alphabets and spaces` |
 
 Status conditions found in source:
 - `ACCT-ACTIVE-STATUS EQUAL ACUP-OLD-ACTIVE-STATUS`
@@ -2097,6 +2100,7 @@ modern stack should map these to try / catch handlers or middleware filters.
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -2117,4 +2121,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

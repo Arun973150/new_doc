@@ -1,13 +1,13 @@
-# CardDemo - System Overview
+# Carddemo - System Overview
 
-> **Auto-generated documentation** | 2026-04-29 10:56  
+> **Auto-generated documentation** | 2026-05-02 17:07  
 > Analyzed from 44 COBOL programs across 16 functional modules
 
 ---
 
-## What is CardDemo?
+## What is Carddemo?
 
-CardDemo is a mainframe COBOL application composed of 44 programs
+Carddemo is a mainframe COBOL application composed of 44 programs
 across 16 functional modules. It exposes 21 BMS screens for
 online (CICS) interaction and is orchestrated by 55 JCL batch
 jobs. The sections below summarize its structure, dependencies, and modernization-relevant
@@ -70,10 +70,6 @@ Module CB
 
 | Programs | Type |
 |----------|------|
-| [CBCUS01C](programs/CBCUS01C.md) | BATCH |
-| [CBEXPORT](programs/CBEXPORT.md) | BATCH |
-| [CBIMPORT](programs/CBIMPORT.md) | BATCH |
-| [CBPAUP0C](programs/CBPAUP0C.md) | BATCH |
 
 ### [Program](modules/CBACT.md)
 
@@ -81,19 +77,13 @@ Program
 
 | Programs | Type |
 |----------|------|
-| [CBACT01C](programs/CBACT01C.md) | BATCH |
-| [CBACT02C](programs/CBACT02C.md) | BATCH |
-| [CBACT03C](programs/CBACT03C.md) | BATCH |
-| [CBACT04C](programs/CBACT04C.md) | BATCH |
 
-### [Trnxfile](modules/CBSTM.md)
+### [Xreffile](modules/CBSTM.md)
 
-Trnxfile
+Xreffile
 
 | Programs | Type |
 |----------|------|
-| [CBSTM03A](programs/CBSTM03A.md) | BATCH |
-| [CBSTM03B](programs/CBSTM03B.md) | BATCH |
 
 ### [Tranfile](modules/CBTRN.md)
 
@@ -101,9 +91,6 @@ Tranfile
 
 | Programs | Type |
 |----------|------|
-| [CBTRN01C](programs/CBTRN01C.md) | BATCH |
-| [CBTRN02C](programs/CBTRN02C.md) | BATCH |
-| [CBTRN03C](programs/CBTRN03C.md) | BATCH |
 
 ### [Module CO](modules/CO.md)
 
@@ -111,18 +98,13 @@ Module CO
 
 | Programs | Type |
 |----------|------|
-| [CODATE01](programs/CODATE01.md) | ONLINE |
-| [COMEN01C](programs/COMEN01C.md) | ONLINE |
-| [CORPT00C](programs/CORPT00C.md) | ONLINE |
-| [COSGN00C](programs/COSGN00C.md) | ONLINE |
 
-### [Populate](modules/COA.md)
+### [Pgmiderr](modules/COA.md)
 
-Populate
+Pgmiderr
 
 | Programs | Type |
 |----------|------|
-| [COADM01C](programs/COADM01C.md) | ONLINE |
 
 ### [Termination](modules/COAC.md)
 
@@ -130,16 +112,13 @@ Termination
 
 | Programs | Type |
 |----------|------|
-| [COACCT01](programs/COACCT01.md) | ONLINE |
 
-### [Getcardxref](modules/COACT.md)
+### [Getcustdata](modules/COACT.md)
 
-Getcardxref
+Getcustdata
 
 | Programs | Type |
 |----------|------|
-| [COACTUPC](programs/COACTUPC.md) | ONLINE |
-| [COACTVWC](programs/COACTVWC.md) | ONLINE |
 
 ### [Update](modules/COB.md)
 
@@ -147,9 +126,6 @@ Update
 
 | Programs | Type |
 |----------|------|
-| [COBIL00C](programs/COBIL00C.md) | ONLINE |
-| [COBSWAIT](programs/COBSWAIT.md) | BATCH |
-| [COBTUPDT](programs/COBTUPDT.md) | DB2 |
 
 ### [Receive](modules/COCRD.md)
 
@@ -157,9 +133,6 @@ Receive
 
 | Programs | Type |
 |----------|------|
-| [COCRDLIC](programs/COCRDLIC.md) | ONLINE |
-| [COCRDSLC](programs/COCRDSLC.md) | ONLINE |
-| [COCRDUPC](programs/COCRDUPC.md) | ONLINE |
 
 ### [Para](modules/COPAU.md)
 
@@ -167,10 +140,6 @@ Para
 
 | Programs | Type |
 |----------|------|
-| [COPAUA0C](programs/COPAUA0C.md) | ONLINE |
-| [COPAUS0C](programs/COPAUS0C.md) | ONLINE |
-| [COPAUS1C](programs/COPAUS1C.md) | ONLINE |
-| [COPAUS2C](programs/COPAUS2C.md) | ONLINE |
 
 ### [Initialize (COTRN)](modules/COTRN.md)
 
@@ -178,9 +147,6 @@ Initialize (COTRN)
 
 | Programs | Type |
 |----------|------|
-| [COTRN00C](programs/COTRN00C.md) | ONLINE |
-| [COTRN01C](programs/COTRN01C.md) | ONLINE |
-| [COTRN02C](programs/COTRN02C.md) | ONLINE |
 
 ### [Alphanum](modules/COTRT.md)
 
@@ -188,8 +154,6 @@ Alphanum
 
 | Programs | Type |
 |----------|------|
-| [COTRTLIC](programs/COTRTLIC.md) | ONLINE |
-| [COTRTUPC](programs/COTRTUPC.md) | ONLINE |
 
 ### [Initialize (COUSR)](modules/COUSR.md)
 
@@ -197,10 +161,6 @@ Initialize (COUSR)
 
 | Programs | Type |
 |----------|------|
-| [COUSR00C](programs/COUSR00C.md) | ONLINE |
-| [COUSR01C](programs/COUSR01C.md) | ONLINE |
-| [COUSR02C](programs/COUSR02C.md) | ONLINE |
-| [COUSR03C](programs/COUSR03C.md) | ONLINE |
 
 ### [Initialize](modules/OTHER.md)
 
@@ -208,8 +168,6 @@ Initialize
 
 | Programs | Type |
 |----------|------|
-| [CSUTLDTC](programs/CSUTLDTC.md) | BATCH |
-| [DBUNLDGS](programs/DBUNLDGS.md) | BATCH |
 
 ### [Initialize (PAUDB)](modules/PAUDB.md)
 
@@ -217,8 +175,6 @@ Initialize (PAUDB)
 
 | Programs | Type |
 |----------|------|
-| [PAUDBLOD](programs/PAUDBLOD.md) | BATCH |
-| [PAUDBUNL](programs/PAUDBUNL.md) | BATCH |
 
 
 ## Entry Points

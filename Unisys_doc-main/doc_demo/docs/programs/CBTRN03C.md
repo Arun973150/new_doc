@@ -21,7 +21,8 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-REPORT-VARS` | `Y` |
+| `WS-FIRST-TIME` | `Y` |
+| `END-OF-FILE` | `N` |
 
 Status conditions found in source:
 - `TRANREPT-STATUS = '00'`
@@ -894,6 +895,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `9300-TRANTYPE-CLOSE` terminates the program on error | 9300-TRANTYPE-CLOSE | 569 |
 | **NOTICE** | LOGIC | Paragraph `9400-TRANCATG-CLOSE` terminates the program on error | 9400-TRANCATG-CLOSE | 587 |
 | **NOTICE** | LOGIC | Paragraph `9500-DATEPARM-CLOSE` terminates the program on error | 9500-DATEPARM-CLOSE | 605 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 630 |
 
 ### WARNING — DISPLAY message in `0300-TRANTYPE-OPEN` says "TRANSACTION TYPE" but the OPEN is on `TRANTYPE-FILE`
 
@@ -1123,6 +1125,16 @@ DISPLAY 'ERROR OPENING TRANSACTION CATG FILE'
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 630):
+```cobol
+CALL 'CEE3ABD' USING ABCODE, TIMING.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -1167,6 +1179,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 | **WHEN OTHER** | MOVE 12 TO APPL-RESULT |
 | `'00'` | MOVE 0 TO APPL-RESULT |
 | `'10'` | MOVE 16 TO APPL-RESULT |
+
 
 
 
@@ -1323,4 +1336,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

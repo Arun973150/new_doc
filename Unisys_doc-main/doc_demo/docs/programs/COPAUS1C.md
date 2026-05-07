@@ -29,6 +29,11 @@
 | `WS-AUTHS-EOF` | `N` |
 | `WS-SEND-ERASE-FLG` | `Y` |
 | `WS-AUTH-DATE` | `00/00/00` |
+| `WS-AUTH-TIME` | `00:00:00` |
+| `WS-REPORT-FRAUD` | `F` |
+| `WS-REMOVE-FRAUD` | `R` |
+| `WS-FRD-UPDT-SUCCESS` | `S` |
+| `WS-FRD-UPDT-FAILED` | `F` |
 
 
 ## Business Purpose
@@ -1115,6 +1120,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1136,4 +1142,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

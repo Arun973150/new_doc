@@ -125,6 +125,26 @@ flow that the migration team can use to trace how data is reshaped and routed.
 | `PARM-VALUE` | `MVSWAIT-TIME` | None | 37 |
 
 
+## Known Issues & Code Anomalies
+
+Static analysis flagged the following items in this program. Migration teams should
+review each one before re-implementing in a modern stack.
+
+| Severity | Category | Title | Paragraph | Line |
+|----------|----------|-------|-----------|------|
+| **NOTICE** | DEPENDENCY | Static CALL to external `MVSWAIT` (not in this codebase) | None | 38 |
+
+### NOTICE — Static CALL to external `MVSWAIT` (not in this codebase)
+
+`CALL 'MVSWAIT'` appears in the source but `MVSWAIT` is not a program in the loaded codebase. Custom MVS wait subroutine.
+**Source excerpt** (line 38):
+```cobol
+CALL 'MVSWAIT'       USING MVSWAIT-TIME.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+
 
 
 
@@ -147,4 +167,4 @@ flow that the migration team can use to trace how data is reshaped and routed.
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

@@ -21,6 +21,7 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
+| `END-OF-FILE` | `N` |
 | `WS-FIRST-TIME` | `Y` |
 
 Status conditions found in source:
@@ -365,6 +366,7 @@ flowchart TD
     1400_COMPUTE_FEES["1400-COMPUTE-FEES"]
     9000_TCATBALF_CLOSE["9000-TCATBALF-CLOSE"]
     START --> 0000_TCATBALF_OPEN
+    1300_B_WRITE_TX --> Z_GET_DB2_FORMAT_TIMESTAMP
     9100_XREFFILE_CLOSE --> INLINE
     9200_DISCGRP_CLOSE --> INLINE
 ```
@@ -838,6 +840,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `9200-DISCGRP-CLOSE` terminates the program on error | 9200-DISCGRP-CLOSE | 559 |
 | **NOTICE** | LOGIC | Paragraph `9300-ACCTFILE-CLOSE` terminates the program on error | 9300-ACCTFILE-CLOSE | 577 |
 | **NOTICE** | LOGIC | Paragraph `9400-TRANFILE-CLOSE` terminates the program on error | 9400-TRANFILE-CLOSE | 595 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 632 |
 
 ### WARNING — DISPLAY message in `0200-DISCGRP-OPEN` says "DALY REJECTS" but the OPEN is on `DISCGRP-FILE`
 
@@ -1085,6 +1088,16 @@ IF TRANCAT-ACCT-ID NOT= WS-LAST-ACCT-NUM
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 632):
+```cobol
+CALL 'CEE3ABD' USING ABCODE, TIMING.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 ## External Runtime Parameters
 
@@ -1115,6 +1128,7 @@ source of truth for migrators converting to modern storage layers.
 | `DISCGRP-FILE` | CLOSE | None | 9200-DISCGRP-CLOSE | 561 |
 | `ACCOUNT-FILE` | CLOSE | None | 9300-ACCTFILE-CLOSE | 579 |
 | `TRANSACT-FILE` | CLOSE | None | 9400-TRANFILE-CLOSE | 597 |
+
 
 
 
@@ -1281,4 +1295,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

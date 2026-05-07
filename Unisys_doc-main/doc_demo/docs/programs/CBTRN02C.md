@@ -21,6 +21,7 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
+| `END-OF-FILE` | `N` |
 | `WS-CREATE-TRANCAT-REC` | `N` |
 
 Status conditions found in source:
@@ -379,6 +380,7 @@ flowchart TD
     2700_A_CREATE_TCATBAL_REC["2700-A-CREATE-TCATBAL-REC"]
     2700_B_UPDATE_TCATBAL_REC["2700-B-UPDATE-TCATBAL-REC"]
     START --> 0000_DALYTRAN_OPEN
+    2000_POST_TRANSACTION --> Z_GET_DB2_FORMAT_TIMESTAMP
     2500_WRITE_REJECT_REC --> INLINE
     2700_A_CREATE_TCATBAL_REC --> INLINE
     2700_B_UPDATE_TCATBAL_REC --> INLINE
@@ -875,6 +877,7 @@ review each one before re-implementing in a modern stack.
 |----------|----------|-------|-----------|------|
 | **WARNING** | NAMING | DISPLAY message in `0300-DALYREJS-OPEN` says "DALY REJECTS" but the OPEN is on `DALYREJS-FILE` | 0300-DALYREJS-OPEN | 291 |
 | **WARNING** | NAMING | DISPLAY message in `0500-TCATBALF-OPEN` says "TRANSACTION BALANCE" but the OPEN is on `TCATBAL-FILE` | 0500-TCATBALF-OPEN | 327 |
+| **WARNING** | LOGIC | `PERFORM 2700-UPDATE-TCATBAL` runs unconditionally after `PERFORM Z-GET-DB2-FORMAT-TIMESTAMP` in `2000-POST-TRANSACTION` | 2000-POST-TRANSACTION | 437 |
 | **NOTICE** | DEAD_CODE | Variable `FD-TRAN-ID` is declared but never referenced | None | 68 |
 | **NOTICE** | DEAD_CODE | Variable `FD-CUST-DATA` is declared but never referenced | None | 69 |
 | **NOTICE** | DEAD_CODE | Variable `FD-XREF-DATA` is declared but never referenced | None | 79 |
@@ -903,6 +906,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `9300-DALYREJS-CLOSE` terminates the program on error | 9300-DALYREJS-CLOSE | 637 |
 | **NOTICE** | LOGIC | Paragraph `9400-ACCTFILE-CLOSE` terminates the program on error | 9400-ACCTFILE-CLOSE | 655 |
 | **NOTICE** | LOGIC | Paragraph `9500-TCATBALF-CLOSE` terminates the program on error | 9500-TCATBALF-CLOSE | 674 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 711 |
 
 ### WARNING — DISPLAY message in `0300-DALYREJS-OPEN` says "DALY REJECTS" but the OPEN is on `DALYREJS-FILE`
 
@@ -923,6 +927,19 @@ DISPLAY 'ERROR OPENING TRANSACTION BALANCE FILE'
 ```
 
 **Recommendation:** Update the DISPLAY string to mention `TCATBAL-FILE`.
+---
+### WARNING — `PERFORM 2700-UPDATE-TCATBAL` runs unconditionally after `PERFORM Z-GET-DB2-FORMAT-TIMESTAMP` in `2000-POST-TRANSACTION`
+
+There is no IF / EVALUATE check between the read-style `Z-GET-DB2-FORMAT-TIMESTAMP` and the mutating `2700-UPDATE-TCATBAL`. If `Z-GET-DB2-FORMAT-TIMESTAMP` encounters an error (NOTFND, IO failure, etc.) without setting STOP RUN or PERFORM-aborting, `2700-UPDATE-TCATBAL` will execute anyway — potentially deleting/updating against stale or invalid state. Verify `Z-GET-DB2-FORMAT-TIMESTAMP` aborts the program on failure or that `2700-UPDATE-TCATBAL` checks a status flag set by `Z-GET-DB2-FORMAT-TIMESTAMP`.
+**Source excerpt** (line 437):
+```cobol
+           PERFORM Z-GET-DB2-FORMAT-TIMESTAMP
+           MOVE  DB2-FORMAT-TS          TO    TRAN-PROC-TS
+
+           PERFORM 2700-UPDATE-TCATBAL
+```
+
+**Recommendation:** Add an `IF <status-flag> = 'OK'` guard around `PERFORM 2700-UPDATE-TCATBAL` or have `Z-GET-DB2-FORMAT-TIMESTAMP` set ERR-FLG-ON / call ABEND on failure.
 ---
 ### NOTICE — Variable `FD-TRAN-ID` is declared but never referenced
 
@@ -1132,6 +1149,16 @@ DISPLAY 'ERROR OPENING TRANSACTION BALANCE FILE'
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 711):
+```cobol
+CALL 'CEE3ABD' USING ABCODE, TIMING.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -1154,6 +1181,7 @@ source of truth for migrators converting to modern storage layers.
 | `DALYREJS-FILE` | CLOSE | None | 9300-DALYREJS-CLOSE | 639 |
 | `ACCOUNT-FILE` | CLOSE | None | 9400-ACCTFILE-CLOSE | 657 |
 | `TCATBAL-FILE` | CLOSE | None | 9500-TCATBALF-CLOSE | 676 |
+
 
 
 
@@ -1338,4 +1366,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

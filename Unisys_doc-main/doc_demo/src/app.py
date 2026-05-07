@@ -32,6 +32,7 @@ os.environ.setdefault("GRPC_DNS_RESOLVER", "native")
 from orchestrator import run_pipeline
 from sqlite_loader import SQLiteLoader
 from doc_agent_pipeline import run_doc_pipeline
+from context_engine import build_context_package
 
 st.set_page_config(
     page_title="COBOL Migration Hub",
@@ -375,6 +376,14 @@ def render_sidebar():
                 st.rerun()
             if is_active:
                 st.markdown("</div>", unsafe_allow_html=True)
+
+        if current == "JCL/BMS Docs":
+            st.markdown('<div class="nav-active">', unsafe_allow_html=True)
+        if st.button("DOC  JCL/BMS Docs", key="nav_JCL_BMS_Docs", use_container_width=True):
+            st.session_state.current_page = "JCL/BMS Docs"
+            st.rerun()
+        if current == "JCL/BMS Docs":
+            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown('<div style="height:1px;background:#2d2d2d;margin:8px 0;"></div>',
                     unsafe_allow_html=True)
@@ -1869,8 +1878,209 @@ def page_jcl():
                     st.code("\n".join(step["sysin_data"]), language=None)
 
 
+#
+# Tab 6: Standalone JCL/BMS English Docs
+#
+
+def _artifact_docs_dir(output_dir: str) -> Path:
+    """Find the standalone artifact docs directory for Streamlit display."""
+    candidates = [
+        Path(output_dir) / "standalone-artifacts",
+        Path("docs") / "standalone-artifacts",
+        Path(__file__).parent.parent / "docs" / "standalone-artifacts",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def page_artifact_docs(output_dir: str):
+    st.header("Standalone JCL/BMS English Documentation")
+    st.markdown("Generate an individual English narrative document for a JCL job, a whole BMS file, or a single BMS screen using the artifact agent pipeline.")
+
+    docs_dir = _artifact_docs_dir(output_dir)
+    jcl_dir = docs_dir / "jcl"
+    bms_dir = docs_dir / "bms"
+
+    try:
+        loader = db_connect()
+        jobs = loader.get_all_jcl_jobs()
+        screens = loader.get_all_screens()
+        bms_files = sorted({s.get("file_path") for s in screens if s.get("file_path")}, key=lambda p: str(p).lower())
+    except Exception as e:
+        st.error(f"Database not ready. ({e})")
+        return
+
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 2])
+    c1.metric("Parsed JCL Jobs", len(jobs))
+    c2.metric("Parsed BMS Screens", len(screens))
+    c3.metric("Parsed BMS Files", len(bms_files))
+    c4.markdown(f"**Saved docs folder:** `{docs_dir}`")
+
+    col_mode, col_subject = st.columns([1, 2])
+    with col_mode:
+        artifact_choice = st.radio("Artifact Type", ["JCL", "BMS File", "BMS Screen"], horizontal=True)
+
+    artifact_type = {"JCL": "JCL", "BMS File": "BMS_FILE", "BMS Screen": "BMS"}[artifact_choice]
+
+    with col_subject:
+        if artifact_type == "JCL":
+            subjects = [j.get("job_name") for j in jobs if j.get("job_name")]
+            subject = st.selectbox("Select JCL Job", subjects, key="artifact_doc_jcl_subject")
+        elif artifact_type == "BMS_FILE":
+            subject = st.selectbox(
+                "Select BMS File",
+                bms_files,
+                key="artifact_doc_bms_file_subject",
+                format_func=lambda p: f"{Path(str(p)).name}  [{p}]",
+            )
+        else:
+            subjects = [s.get("screen_name") for s in screens if s.get("screen_name")]
+            subject = st.selectbox("Select BMS Screen", subjects, key="artifact_doc_bms_subject")
+
+    if not subject:
+        loader.close()
+        st.warning("No artifact found for this type.")
+        return
+
+    saved_doc = loader.get_generated_doc(artifact_type, subject)
+    cache_key = f"artifact_doc_{artifact_type}_{subject}"
+
+    col_btn, col_regen, col_clear = st.columns([2, 1, 1])
+    with col_btn:
+        generate = st.button(
+            "Generate Documentation" if not saved_doc else "Documentation Ready",
+            type="primary",
+            use_container_width=True,
+            disabled=bool(saved_doc),
+        )
+    with col_regen:
+        regenerate = st.button("Regenerate", use_container_width=True)
+    with col_clear:
+        if st.button("Clear Cache", use_container_width=True):
+            if cache_key in st.session_state:
+                del st.session_state[cache_key]
+            st.rerun()
+
+    run_agent = (generate and not saved_doc) or regenerate
+
+    if run_agent or saved_doc or cache_key in st.session_state:
+        if run_agent:
+            if cache_key in st.session_state:
+                del st.session_state[cache_key]
+
+            with st.spinner(f"Running artifact agent for {artifact_type} {subject} (Writer -> Critique -> Formatter -> Grounding -> Save)..."):
+                try:
+                    from artifact_doc_agent import (
+                        build_bms_file_agent_context,
+                        build_bms_file_artifact,
+                        build_bms_agent_context,
+                        build_jcl_agent_context,
+                        run_artifact_doc_pipeline,
+                    )
+
+                    if artifact_type == "JCL":
+                        raw = loader.get_jcl_job_details(subject)
+                        if not raw:
+                            st.error("Could not load artifact details from the database.")
+                            loader.close()
+                            return
+                        context = build_jcl_agent_context(raw, loader)
+                        out_path = jcl_dir / f"{subject}.md"
+                    elif artifact_type == "BMS_FILE":
+                        raw = build_bms_file_artifact(loader, subject)
+                        if not raw:
+                            st.error("Could not load BMS file details from the database.")
+                            loader.close()
+                            return
+                        context = build_bms_file_agent_context(raw)
+                        safe_subject = (
+                            str(subject)
+                            .replace("\\", "_")
+                            .replace("/", "_")
+                            .replace(":", "_")
+                        )
+                        out_path = bms_dir / f"{safe_subject}.md"
+                    else:
+                        selected_screen = next((s for s in screens if s.get("screen_name") == subject), None)
+                        raw = loader.get_screen_details(selected_screen.get("id")) if selected_screen else None
+                        if not raw:
+                            st.error("Could not load artifact details from the database.")
+                            loader.close()
+                            return
+                        context = build_bms_agent_context(raw)
+                        out_path = bms_dir / f"{subject}.md"
+
+                    db_path = os.getenv("DB_PATH", "data/cobol_knowledge.db")
+                    doc_text = run_artifact_doc_pipeline(
+                        artifact_type=artifact_type,
+                        subject=subject,
+                        context=context,
+                        db_path=db_path,
+                        output_path=out_path,
+                    )
+                    st.session_state[cache_key] = doc_text
+                    st.session_state[f"{cache_key}_context"] = context
+                    st.success("Artifact documentation generated via Writer -> Critique -> Formatter -> Grounding.")
+                except Exception as e:
+                    st.error(f"Artifact agent failed: {e}")
+                    loader.close()
+                    return
+
+        doc_text = st.session_state.get(cache_key) or loader.get_generated_doc(artifact_type, subject)
+        if doc_text:
+            st.divider()
+            left, right = st.columns([2, 1])
+            with left:
+                st.caption(f"Generated artifact document: {artifact_type} / {subject}")
+            with right:
+                with st.expander("View Agent Context", expanded=False):
+                    context_text = st.session_state.get(f"{cache_key}_context")
+                    if not context_text:
+                        try:
+                            if artifact_type == "JCL":
+                                from artifact_doc_agent import build_jcl_agent_context
+                                context_text = build_jcl_agent_context(loader.get_jcl_job_details(subject), loader)
+                            elif artifact_type == "BMS_FILE":
+                                from artifact_doc_agent import build_bms_file_agent_context, build_bms_file_artifact
+                                raw = build_bms_file_artifact(loader, subject)
+                                context_text = build_bms_file_agent_context(raw) if raw else "(context unavailable)"
+                            else:
+                                from artifact_doc_agent import build_bms_agent_context
+                                selected_screen = next((s for s in screens if s.get("screen_name") == subject), None)
+                                context_text = build_bms_agent_context(loader.get_screen_details(selected_screen.get("id")))
+                        except Exception:
+                            context_text = "(context unavailable)"
+                    st.code(context_text, language="markdown")
+
+            st.markdown(doc_text, unsafe_allow_html=False)
+            st.download_button(
+                "Download Markdown",
+                data=doc_text.encode("utf-8"),
+                file_name=f"{artifact_type}_{Path(str(subject)).name if artifact_type == 'BMS_FILE' else subject}_documentation.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
+
+    with st.expander("Artifact Agent Framework", expanded=False):
+        st.markdown("""
+This page follows the same generation structure as the COBOL English Documentation Generator:
+
+1. Build a source-grounded context package for the selected JCL job, BMS file, or BMS screen.
+2. Send that context to the artifact Writer agent.
+3. Send the draft to the Critique agent.
+4. Revise if critique fails.
+5. Format the final document.
+6. Run grounding checks.
+7. Save the generated document and render it here.
+""")
+
+    loader.close()
+
+
 # 
-# Tab 6 (was 5): Migration Readiness
+# Tab 7 (was 5): Migration Readiness
 # 
 
 def page_migration():
@@ -2085,7 +2295,7 @@ def _fetch_program_subgraph(loader, program_id: str, depth: int) -> list:
     return programs
 
 
-def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> str:
+def _build_llm_context(programs: list, mode: str, subject: str, loader=None, include_metadata: bool = False):
     """Build a rich context string combining enriched English + BMS screens + CICS + JCL for each program."""
     lines = []
     lines.append(f"# COBOL System Documentation Context")
@@ -2167,20 +2377,22 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                     cb = m.group(1).upper()
                     if cb not in source_copybooks:
                         source_copybooks.append(cb)
-                # Generic literal-value extractor: any WS-* / PGM* identifier
-                # with a VALUE clause. Surfaces hard-coded program names,
-                # status flags, and similar constants without app-specific lists.
+                # Generic literal-value extractor: any WS-* / PGM* / *-FILE / *-DSN
+                # identifier paired with its VALUE clause WITHIN THE SAME
+                # declaration (i.e. no period between the name and the VALUE).
+                # COBOL declarations are period-terminated, so we forbid `.` in
+                # the gap to prevent attributing one field's VALUE to another.
                 for m in _re_source.finditer(
-                    r"\b(WS-[A-Z][A-Z0-9-]{0,28}|PGM[A-Z0-9-]{0,15})\b"
-                    r"[\s\S]{0,90}?\bVALUE\s+['\"]([^'\"]+)['\"]",
-                    source_body, _re_source.IGNORECASE,
+                    r"\b(WS-[A-Z][A-Z0-9-]{0,28}|PGM[A-Z0-9-]{0,15}|[A-Z][A-Z0-9-]{0,28}-FILE-?(?:NAME)?|[A-Z][A-Z0-9-]{0,28}-DSN)\b"
+                    r"[^.\n]{0,200}?\bVALUE\s+(?:IS\s+)?['\"]([^'\"]+)['\"]",
+                    source_body, _re_source.IGNORECASE | _re_source.DOTALL,
                 ):
                     nm = m.group(1).upper()
-                    val = m.group(2)
+                    val = m.group(2).strip()
                     entry = f"{nm} VALUE '{val}'"
                     if entry not in source_values:
                         source_values.append(entry)
-                    if len(source_values) >= 8:
+                    if len(source_values) >= 16:
                         break
         except Exception:
             pass
@@ -2257,6 +2469,31 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                             lines.append(f"    {src} -> {dst}   [{para}:L{line}]")
                     if len(moves) > 25:
                         lines.append(f"    ... +{len(moves) - 25} more movements")
+            except Exception:
+                pass
+
+        # ── REDEFINES patterns (binary/alpha views over the same storage) ───
+        if loader:
+            try:
+                cur_rd = loader.conn.cursor()
+                cur_rd.execute("""
+                    SELECT field_name, level_number, picture, parent_name, redefines_target
+                    FROM copybook_fields
+                    WHERE redefines_target IS NOT NULL
+                      AND copybook_name IN (
+                        SELECT copybook_name FROM copybook_usage WHERE program_id = ?
+                      )
+                    LIMIT 12
+                """, (pid,))
+                redefs = [dict(r) for r in cur_rd.fetchall()]
+                if redefs:
+                    lines.append(f"- REDEFINES Views ({len(redefs)} alternate views over shared storage):")
+                    for rd in redefs:
+                        pic = rd.get("picture") or "?"
+                        lines.append(
+                            f"    `{rd['field_name']}` (level {rd['level_number']}, PIC {pic}) "
+                            f"REDEFINES `{rd['redefines_target']}` — alternate view of the same bytes"
+                        )
             except Exception:
                 pass
 
@@ -2409,27 +2646,37 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
                 pass
 
         # ── CICS Commands ────────────────────────────────────────────────────
+        # Pull from the rich exec_cics table (which has parsed details like
+        # MAP, MAPSET, RIDFLD, COMMAREA, etc.) so the LLM can quote them
+        # verbatim. The absence of a parameter (e.g. no RIDFLD on DELETE) is
+        # significant — surface "no RIDFLD" rather than dropping the row.
         if loader:
             try:
-                cics_stmts = loader.get_program_statements(pid, "EXEC_CICS")
-                if cics_stmts:
-                    lines.append(f"- CICS Commands ({len(cics_stmts)} total):")
-                    for cs in cics_stmts[:15]:
-                        import json as _json
+                cur_cics = loader.conn.cursor()
+                cur_cics.execute("""
+                    SELECT command, paragraph_name, line_number, details_json
+                    FROM exec_cics WHERE program_id = ?
+                    ORDER BY line_number
+                """, (pid,))
+                cics_rows = [dict(r) for r in cur_cics.fetchall()]
+                if cics_rows:
+                    import json as _json
+                    lines.append(f"- CICS Commands ({len(cics_rows)} total) — use parameters EXACTLY as shown; absence of a parameter (e.g. no RIDFLD) is significant:")
+                    for cs in cics_rows[:25]:
+                        cmd = cs.get("command", "UNKNOWN")
                         try:
                             det = _json.loads(cs.get("details_json") or "{}")
                         except Exception:
                             det = {}
-                        cmd = det.get("cics_command", "UNKNOWN")
-                        details = det.get("details", {})
-                        detail_str = ", ".join(f"{k}={v}" for k, v in details.items()) if details else ""
-                        para = cs.get("paragraph_name", "")
-                        line = cs.get("line_number", "")
-                        entry = f"EXEC CICS {cmd}"
-                        if detail_str:
-                            entry += f" ({detail_str})"
-                        if para:
-                            entry += f" [in {para}, line {line}]"
+                        # details may be the inner dict OR a wrapper
+                        inner = det.get("details") if isinstance(det.get("details"), dict) else det
+                        para = cs.get("paragraph_name", "?")
+                        line = cs.get("line_number", "?")
+                        if inner:
+                            param_str = " ".join(f"{k.upper()}({v})" for k, v in inner.items())
+                            entry = f"EXEC CICS {cmd} {param_str}  [in {para}, line {line}]"
+                        else:
+                            entry = f"EXEC CICS {cmd} (no parameters captured)  [in {para}, line {line}]"
                         lines.append(f"  * {entry}")
             except Exception:
                 pass
@@ -2692,7 +2939,8 @@ def _build_llm_context(programs: list, mode: str, subject: str, loader=None) -> 
 
         lines.append("")
 
-    return "\n".join(lines)
+    package = build_context_package("\n".join(lines), mode, subject)
+    return package if include_metadata else package["context"]
 
 
 def _call_vertex_for_doc(context: str, mode: str, subject: str) -> str:
@@ -2980,7 +3228,7 @@ def _fetch_application_subgraph(loader) -> dict:
     }
 
 
-def _build_application_llm_context(data: dict) -> str:
+def _build_application_llm_context(data: dict, include_metadata: bool = False):
     """Build a compact but rich context string for the entire application."""
     import json as _json
     from collections import Counter
@@ -3166,7 +3414,8 @@ def _build_application_llm_context(data: dict) -> str:
                 p.get("business_name") or p.get("paragraph_name", "") for p in paras[:6]
             ))
 
-    return "\n".join(lines)
+    package = build_context_package("\n".join(lines), "Application", "Full Application")
+    return package if include_metadata else package["context"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3859,9 +4108,14 @@ def page_doc_generator():
             )
             with st.spinner(spinner_label):
                 # Build context
+                context_meta = {}
+                coverage_ledger = {}
                 if mode == "Program":
                     prog_data  = _fetch_program_subgraph(loader, subject, depth)
-                    context    = _build_llm_context(prog_data, mode, subject, loader=loader)
+                    package    = _build_llm_context(prog_data, mode, subject, loader=loader, include_metadata=True)
+                    context    = package["context"]
+                    context_meta = package.get("metadata", {})
+                    coverage_ledger = package.get("coverage_ledger", {})
                     prog_count = len(prog_data)
 
                 elif mode == "Module":
@@ -3871,17 +4125,30 @@ def page_doc_generator():
                             details = loader.get_program_details(p["program_id"])
                             if details:
                                 prog_data.append(details)
-                    context    = _build_llm_context(prog_data, mode, subject, loader=loader)
+                    package    = _build_llm_context(prog_data, mode, subject, loader=loader, include_metadata=True)
+                    context    = package["context"]
+                    context_meta = package.get("metadata", {})
+                    coverage_ledger = package.get("coverage_ledger", {})
                     prog_count = len(prog_data)
 
                 else:  # Application
                     app_data   = _fetch_application_subgraph(loader)
-                    context    = _build_application_llm_context(app_data)
+                    package    = _build_application_llm_context(app_data, include_metadata=True)
+                    context    = package["context"]
+                    context_meta = package.get("metadata", {})
+                    coverage_ledger = package.get("coverage_ledger", {})
                     prog_count = app_data["stats"]["total_programs"]
 
                 # Run the full agent pipeline — saves to DB internally
                 try:
-                    doc_text = run_doc_pipeline(mode, subject, context, db_path)
+                    doc_text = run_doc_pipeline(
+                        mode,
+                        subject,
+                        context,
+                        db_path,
+                        context_metadata=context_meta,
+                        coverage_ledger=coverage_ledger,
+                    )
                 except Exception as exc:
                     msg = str(exc)
                     if "127.0.0.1:9" in msg or "tcp handshaker shutdown" in msg:
@@ -3896,18 +4163,25 @@ def page_doc_generator():
             st.session_state[cache_key]                  = doc_text
             st.session_state[f"{cache_key}_prog_count"]  = prog_count
             st.session_state[f"{cache_key}_from_agents"] = True
+            st.session_state[f"{cache_key}_context_meta"] = context_meta
+            st.session_state[f"{cache_key}_coverage_ledger"] = coverage_ledger
 
         elif saved_doc and cache_key not in st.session_state:
             # Serve from DB — no LLM call needed
             doc_text   = saved_doc
             prog_count = 0
+            saved_meta = loader.get_generated_doc_metadata(mode, subject)
             st.session_state[cache_key]                  = doc_text
             st.session_state[f"{cache_key}_prog_count"]  = prog_count
             st.session_state[f"{cache_key}_from_agents"] = False
+            st.session_state[f"{cache_key}_context_meta"] = saved_meta.get("context_metadata", {})
+            st.session_state[f"{cache_key}_coverage_ledger"] = saved_meta.get("coverage_ledger", {})
 
         doc_text   = st.session_state.get(cache_key, "")
         prog_count = st.session_state.get(f"{cache_key}_prog_count", 0)
         from_agents = st.session_state.get(f"{cache_key}_from_agents", False)
+        context_meta = st.session_state.get(f"{cache_key}_context_meta", {})
+        coverage_ledger = st.session_state.get(f"{cache_key}_coverage_ledger", {})
 
         # ── Status banner ──────────────────────────────────────────────────────
         if from_agents:
@@ -3922,6 +4196,17 @@ def page_doc_generator():
                 )
         else:
             st.info("Loaded from saved documentation database. Click Regenerate to refresh.")
+        if context_meta:
+            expected = int((coverage_ledger or {}).get("expected_count", 0))
+            prompt_count = int((coverage_ledger or {}).get("prompt_count", 0))
+            prompt_pct = float((coverage_ledger or {}).get("prompt_coverage_pct", 100.0))
+            st.caption(
+                "Context assembly: "
+                f"{context_meta.get('final_tokens_est', 0)} est. tokens "
+                f"(raw {context_meta.get('raw_tokens_est', 0)}), "
+                f"{context_meta.get('used_chunk_count', 0)}/{context_meta.get('chunk_count', 0)} chunks used, "
+                f"prompt coverage {prompt_count}/{expected} facts ({prompt_pct:.1f}%)."
+            )
 
         # ── Simple Diagrams ────────────────────────────────────────────────────
         with st.expander("Flowchart Diagram", expanded=True):
@@ -4063,6 +4348,7 @@ elif _page == "Data Flow":         page_data_flow()
 elif _page == "Modules":           page_modules()
 elif _page == "Explorer":          page_explorer()
 elif _page == "Doc Generator":     page_doc_generator()
+elif _page == "JCL/BMS Docs":      page_artifact_docs(output_dir)
 elif _page == "JCL Jobs":          page_jcl()
 elif _page == "CICS Commands":     page_cics()
 elif _page == "SQL Operations":    page_sql()

@@ -21,14 +21,12 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-EDIT-ACCT-FLAG` | `0` |
-| `WS-EDIT-CARD-FLAG` | `0` |
-| `WS-EDIT-CARDNAME-FLAG` | `0` |
-| `WS-EDIT-CARDSTATUS-FLAG` | `0` |
-| `WS-EDIT-CARDEXPMON-FLAG` | `0` |
-| `WS-EDIT-CARDEXPYEAR-FLAG` | `0` |
-| `WS-RETURN-FLAG-OFF` | `1` |
-| `WS-RETURN-MSG-OFF` | `PF03 pressed.Exiting              ` |
+| `WS-RETURN-FLAG-ON` | `1` |
+| `WS-EXIT-MESSAGE` | `PF03 pressed.Exiting` |
+| `WS-PROMPT-FOR-ACCT` | `Account number not provided` |
+| `WS-PROMPT-FOR-CARD` | `Card number not provided` |
+| `WS-PROMPT-FOR-NAME` | `Card name not provided` |
+| `WS-NAME-MUST-BE-ALPHA` | `Card name can only contain alphabets and spaces` |
 
 
 ## Business Purpose
@@ -1554,6 +1552,7 @@ modern stack should map these to try / catch handlers or middleware filters.
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1573,4 +1572,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

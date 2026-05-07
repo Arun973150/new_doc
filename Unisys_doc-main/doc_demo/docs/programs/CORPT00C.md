@@ -21,14 +21,15 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `CORPT00C` |
+| `WS-PGMNAME` | `CORPT00C` |
 | `WS-TRANID` | `CR00` |
-| `WS-MESSAGE` | `TRANSACT` |
+| `WS-TRANSACT-FILE` | `TRANSACT` |
 | `WS-ERR-FLG` | `N` |
 | `WS-TRANSACT-EOF` | `N` |
 | `WS-SEND-ERASE-FLG` | `Y` |
 | `WS-END-LOOP` | `N` |
-| `WS-START-DATE-YYYY` | `-` |
+| `WS-DATE-FORMAT` | `YYYY-MM-DD` |
+| `WS-TRAN-DATE` | `00/00/00` |
 
 
 ## Business Purpose
@@ -388,7 +389,12 @@ flowchart TD
     POPULATE_HEADER_INFO["POPULATE-HEADER-INFO"]
     INITIALIZE_ALL_FIELDS["INITIALIZE-ALL-FIELDS"]
     START --> MAIN_PARA
-    SEND_TRNRPT_SCREEN --> INLINE
+    MAIN_PARA --> RETURN_TO_PREV_SCREEN
+    MAIN_PARA --> SEND_TRNRPT_SCREEN
+    MAIN_PARA --> RECEIVE_TRNRPT_SCREEN
+    MAIN_PARA --> PROCESS_ENTER_KEY
+    PROCESS_ENTER_KEY --> SUBMIT_JOB_TO_INTRDR
+    PROCESS_ENTER_KEY --> SEND_TRNRPT_SCREEN
 ```
 
 ## Paragraphs
@@ -827,6 +833,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `WS-TRAN-AMT` is declared but never referenced | None | 77 |
 | **NOTICE** | DEAD_CODE | Variable `WS-TRAN-DATE` is declared but never referenced | None | 78 |
 | **NOTICE** | DEAD_CODE | Variable `LK-COMMAREA` is declared but never referenced | None | 156 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CSUTLDTC` (not in this codebase) | None | 392 |
 
 ### NOTICE — Variable `WS-TRANSACT-FILE` is declared but never referenced
 
@@ -908,6 +915,16 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
 ---
+### NOTICE — Static CALL to external `CSUTLDTC` (not in this codebase)
+
+`CALL 'CSUTLDTC'` appears in the source but `CSUTLDTC` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 392):
+```cobol
+CALL 'CSUTLDTC' USING   CSUTLDTC-DATE
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 
@@ -979,6 +996,72 @@ This program uses the following EXEC CICS commands:
 | `RECEIVE` | RECEIVE-TRNRPT-SCREEN | 598 | {"details": {"map": "CORPT0A", "mapset": "CORPT00", "into": "CORPT0AI", "resp": ... |
 
 **Summary:** 7 CICS command(s) — RETURN (2), WRITEQ (1), XCTL (1), SEND (2), RECEIVE (1)
+
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### Program transfers use XCTL, not a soft return
+
+`EXEC CICS XCTL` transfers control to another program and does not return to the current program like a subroutine call. Document PF-key navigation that reaches this paragraph as a CICS transfer, not as an in-place screen redisplay.
+
+Evidence:
+- L548 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Initial entry without COMMAREA transfers to sign-on
+
+When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows the return/transfer path. It does not display its own BMS map on that entry path.
+
+Evidence:
+- L172: `IF EIBCALEN = 0`
+- L173: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L543: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L548 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF3 navigation resolves through RETURN-TO-PREV-SCREEN
+
+PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, so PF3 is a transfer to the target program held in the COMMAREA routing fields.
+
+Evidence:
+- L187: `WHEN DFHPF3`
+- L174: `PERFORM RETURN-TO-PREV-SCREEN`
+- L189: `PERFORM RETURN-TO-PREV-SCREEN`
+- L548 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Error/message text is written to the BMS output field
+
+`ERRMSGI` exists in the input copybook area, but this program displays messages by moving `WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when describing rendered error or status messages.
+
+Evidence:
+- L560: `MOVE WS-MESSAGE TO ERRMSGO OF CORPT0AO`
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L165: `SET ERR-FLG-OFF TO TRUE`
+- L42: `88 ERR-FLG-ON                         VALUE 'Y'.`
+- L434: `IF NOT ERR-FLG-ON`
+- L445: `IF NOT ERR-FLG-ON`
+- L476: `IF NOT ERR-FLG-ON`
+
+### The BMS map can be sent from multiple paths
+
+Screen output is centralized in the send paragraph, but several routines can perform it. If a read routine sends the map and its caller also sends the map, a modern UI migration must preserve or deliberately remove that duplicate response behavior.
+
+Evidence:
+- L181: `MAIN-PARA` performs `SEND-TRNRPT-SCREEN`
+- L194: `MAIN-PARA` performs `SEND-TRNRPT-SCREEN`
+- L265: `PROCESS-ENTER-KEY` performs `SEND-TRNRPT-SCREEN`
+- L272: `PROCESS-ENTER-KEY` performs `SEND-TRNRPT-SCREEN`
+- L279: `PROCESS-ENTER-KEY` performs `SEND-TRNRPT-SCREEN`
+- L286: `PROCESS-ENTER-KEY` performs `SEND-TRNRPT-SCREEN`
+- L293: `PROCESS-ENTER-KEY` performs `SEND-TRNRPT-SCREEN`
+- L300: `PROCESS-ENTER-KEY` performs `SEND-TRNRPT-SCREEN`
+- L563 in `SEND-TRNRPT-SCREEN`: EXEC CICS SEND {"details": {"map": "CORPT0A", "mapset": "CORPT00", "from": "CORPT0AO"}}
+
 
 ## Modernization Review Findings
 
@@ -1071,4 +1154,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*
