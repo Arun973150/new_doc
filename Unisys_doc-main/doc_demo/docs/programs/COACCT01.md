@@ -25,10 +25,17 @@
 | `WS-RESP-QUEUE-STS` | `N` |
 | `WS-ERR-QUEUE-STS` | `N` |
 | `WS-REPLY-QUEUE-STS` | `N` |
-| `WS-ACCT-LBL` | `ACCOUNT ID : ` |
-| `WS-STATUS-LBL` | `ACCOUNT STATUS : ` |
-| `WS-ACCT-ACTIVE-STATUS` | `BALANCE : ` |
-| `WS-CRDT-LMT-LBL` | `CREDIT LIMIT : ` |
+| `WS-ACCT-LBL` | `ACCOUNT ID :` |
+| `WS-STATUS-LBL` | `ACCOUNT STATUS :` |
+| `WS-CURR-BAL-LBL` | `BALANCE :` |
+| `WS-CRDT-LMT-LBL` | `CREDIT LIMIT :` |
+| `WS-CASH-LIMIT-LBL` | `CASH LIMIT :` |
+| `WS-OPEN-DATE-LBL` | `OPEN DATE :` |
+| `WS-EXPR-DATE-LBL` | `EXPR DATE :` |
+| `WS-REISSUE-DT-LBL` | `REIS DATE :` |
+| `WS-CURR-CYC-CREDIT-LBL` | `CREDIT BAL :` |
+| `WS-CURR-CYC-DEBIT-LBL` | `DEBIT BAL :` |
+| `WS-ACCT-GRP-LBL` | `GROUP ID :` |
 
 
 ## Business Purpose
@@ -550,6 +557,10 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `WS-CRDT-LMT-LBL` is declared but never referenced | None | 142 |
 | **NOTICE** | DEAD_CODE | Variable `WS-CASH-LIMIT-LBL` is declared but never referenced | None | 146 |
 | **NOTICE** | DEAD_CODE | Variable `WS-OPEN-DATE-LBL` is declared but never referenced | None | 150 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQOPEN` (not in this codebase) | None | 233 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQGET` (not in this codebase) | None | 352 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQPUT` (not in this codebase) | None | 479 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQCLOSE` (not in this codebase) | None | 557 |
 
 ### NOTICE — Variable `WS-MQ-MSG-FLAG` is declared but never referenced
 
@@ -651,6 +662,46 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
 ---
+### NOTICE — Static CALL to external `MQOPEN` (not in this codebase)
+
+`CALL 'MQOPEN'` appears in the source but `MQOPEN` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 233):
+```cobol
+CALL 'MQOPEN' USING QMGR-HANDLE-CONN                         01990000
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQGET` (not in this codebase)
+
+`CALL 'MQGET'` appears in the source but `MQGET` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 352):
+```cobol
+CALL 'MQGET'  USING MQ-HCONN                                 03290000
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQPUT` (not in this codebase)
+
+`CALL 'MQPUT'` appears in the source but `MQPUT` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 479):
+```cobol
+CALL 'MQPUT'  USING MQ-HCONN                                 04070000
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQCLOSE` (not in this codebase)
+
+`CALL 'MQCLOSE'` appears in the source but `MQCLOSE` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 557):
+```cobol
+CALL 'MQCLOSE' USING MQ-HCONN                                04890000
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 
@@ -744,6 +795,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -763,4 +815,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

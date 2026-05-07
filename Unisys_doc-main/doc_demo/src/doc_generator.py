@@ -836,6 +836,27 @@ This program uses the following EXEC CICS commands:
 
 {% endif %}
 
+{% if cics_workflow_notes %}
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+{% for note in cics_workflow_notes %}
+### {{ note.title }}
+
+{{ note.detail }}
+
+{% if note.evidence %}
+Evidence:
+{% for ev in note.evidence %}
+- {{ ev }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% endif %}
+
 {% if modernization_findings %}
 ## Modernization Review Findings
 
@@ -1782,6 +1803,199 @@ class DocGenerator:
             })
         return moves[:30]
 
+    @staticmethod
+    def _find_paragraph_for_line(details: Dict[str, Any], line_number: int) -> Optional[str]:
+        for para in details.get("paragraphs", []) or []:
+            start = para.get("line_start") or 0
+            end = para.get("line_end") or 0
+            if start and end and start <= line_number <= end:
+                return para.get("paragraph_name") or para.get("name")
+        return None
+
+    @staticmethod
+    def _extract_performs_from_source(details: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract simple PERFORM paragraph edges directly from source."""
+        source_path = Path(details.get("file_path") or "")
+        if not source_path.exists():
+            return []
+        try:
+            rows = DocGenerator._cobol_source_rows(source_path.read_text(encoding="utf-8", errors="ignore"))
+        except Exception:
+            return []
+
+        paragraph_names = {
+            (p.get("paragraph_name") or p.get("name") or "").upper()
+            for p in details.get("paragraphs", []) or []
+            if p.get("paragraph_name") or p.get("name")
+        }
+        if not paragraph_names:
+            return []
+
+        reserved = {"UNTIL", "VARYING", "TIMES", "WITH", "AFTER", "BEFORE", "TEST"}
+        performs = []
+        for row in rows:
+            text = row["text"].strip()
+            if "PERFORM" not in text.upper():
+                continue
+            for match in re.finditer(r"\bPERFORM\s+([A-Z][A-Z0-9-]+)\b", text, re.IGNORECASE):
+                target = match.group(1).upper()
+                if target in reserved or target not in paragraph_names:
+                    continue
+                source = DocGenerator._find_paragraph_for_line(details, row["line_number"])
+                if not source:
+                    continue
+                performs.append({
+                    "program_id": details.get("program_id"),
+                    "source_paragraph": source,
+                    "target_paragraph": target,
+                    "perform_type": "SIMPLE",
+                    "line_number": row["line_number"],
+                    "condition": None,
+                })
+        return performs
+
+    @staticmethod
+    def _merge_performs(existing: List[Dict[str, Any]], source_performs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        merged = []
+        seen = set()
+        for perf in (existing or []) + (source_performs or []):
+            key = (
+                perf.get("source_paragraph"),
+                perf.get("target_paragraph"),
+                perf.get("line_number"),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(perf)
+        return sorted(merged, key=lambda p: p.get("line_number") or 0)
+
+    @staticmethod
+    def _build_cics_workflow_notes(details: Dict[str, Any], performs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Build deterministic CICS workflow notes for screen-driven programs."""
+        exec_cics = details.get("exec_cics") or []
+        if not exec_cics:
+            return []
+
+        source_path = Path(details.get("file_path") or "")
+        rows = []
+        if source_path.exists():
+            try:
+                rows = DocGenerator._cobol_source_rows(source_path.read_text(encoding="utf-8", errors="ignore"))
+            except Exception:
+                rows = []
+
+        def source_hits(pattern: str, limit: int = 6) -> List[str]:
+            hits = []
+            regex = re.compile(pattern, re.IGNORECASE)
+            for row in rows:
+                if regex.search(row["text"]):
+                    hits.append(f"L{row['line_number']}: `{row['text'].strip()}`")
+                    if len(hits) >= limit:
+                        break
+            return hits
+
+        def cics_hits(command: str) -> List[str]:
+            hits = []
+            for c in exec_cics:
+                if (c.get("command") or "").upper() == command:
+                    para = c.get("paragraph_name") or "-"
+                    line = c.get("line_number") or "-"
+                    details_json = c.get("details_json") or "-"
+                    hits.append(f"L{line} in `{para}`: EXEC CICS {command} {details_json}")
+            return hits
+
+        notes = []
+        commands = {(c.get("command") or "").upper() for c in exec_cics}
+
+        if "XCTL" in commands:
+            notes.append({
+                "title": "Program transfers use XCTL, not a soft return",
+                "detail": (
+                    "`EXEC CICS XCTL` transfers control to another program and does not return to the "
+                    "current program like a subroutine call. Document PF-key navigation that reaches this "
+                    "paragraph as a CICS transfer, not as an in-place screen redisplay."
+                ),
+                "evidence": cics_hits("XCTL"),
+            })
+
+        no_commarea_evidence = source_hits(r"\bIF\s+EIBCALEN\s*=\s*0\b") + source_hits(r"\bMOVE\s+'COSGN00C'\s+TO\s+CDEMO-TO-PROGRAM\b")
+        if no_commarea_evidence and "XCTL" in commands:
+            notes.append({
+                "title": "Initial entry without COMMAREA transfers to sign-on",
+                "detail": (
+                    "When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows "
+                    "the return/transfer path. It does not display its own BMS map on that entry path."
+                ),
+                "evidence": no_commarea_evidence + cics_hits("XCTL")[:1],
+            })
+
+        pf3_evidence = source_hits(r"\bWHEN\s+DFHPF3\b") + source_hits(r"\bPERFORM\s+RETURN-TO-PREV-SCREEN\b")
+        if pf3_evidence and "XCTL" in commands:
+            notes.append({
+                "title": "PF3 navigation resolves through RETURN-TO-PREV-SCREEN",
+                "detail": (
+                    "PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, "
+                    "so PF3 is a transfer to the target program held in the COMMAREA routing fields."
+                ),
+                "evidence": pf3_evidence[:5] + cics_hits("XCTL")[:1],
+            })
+
+        pf5_evidence = source_hits(r"\bWHEN\s+DFHPF5\b") + source_hits(r"\bPERFORM\s+DELETE-USER-INFO\b")
+        fetch_prompt = source_hits(r"Press\s+PF5\s+key\s+to\s+delete", limit=2)
+        if pf5_evidence or fetch_prompt:
+            notes.append({
+                "title": "PF5 delete is a two-step user flow",
+                "detail": (
+                    "The screen label says `F5=Delete`, but the COBOL flow first validates/fetches the user "
+                    "record. On a successful read, the program displays a message telling the user to press PF5. "
+                    "The actual delete is then executed through `DELETE-USER-INFO` and `DELETE-USER-SEC-FILE`."
+                ),
+                "evidence": pf5_evidence[:4] + fetch_prompt + cics_hits("READ")[:1] + cics_hits("DELETE")[:1],
+            })
+
+        msg_evidence = source_hits(r"\bMOVE\s+.+\s+TO\s+ERRMSGO\b") + source_hits(r"\bERRMSGI\b", limit=2)
+        if msg_evidence:
+            notes.append({
+                "title": "Error/message text is written to the BMS output field",
+                "detail": (
+                    "`ERRMSGI` exists in the input copybook area, but this program displays messages by moving "
+                    "`WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when "
+                    "describing rendered error or status messages."
+                ),
+                "evidence": msg_evidence[:5],
+            })
+
+        err_flag_evidence = source_hits(r"\bSET\s+ERR-FLG-OFF\s+TO\s+TRUE\b") + source_hits(r"\bERR-FLG-ON\b", limit=4)
+        if err_flag_evidence:
+            notes.append({
+                "title": "ERR-FLG is reset at the start of each run",
+                "detail": (
+                    "`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. "
+                    "Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing."
+                ),
+                "evidence": err_flag_evidence[:6],
+            })
+
+        send_edges = [
+            f"L{p.get('line_number')}: `{p.get('source_paragraph')}` performs `{p.get('target_paragraph')}`"
+            for p in performs
+            if (p.get("target_paragraph") or "").upper().startswith("SEND-")
+        ]
+        read_sends = [edge for edge in send_edges if "READ-" in edge.upper()]
+        if len(send_edges) > 1 and "SEND" in commands:
+            notes.append({
+                "title": "The BMS map can be sent from multiple paths",
+                "detail": (
+                    "Screen output is centralized in the send paragraph, but several routines can perform it. "
+                    "If a read routine sends the map and its caller also sends the map, a modern UI migration "
+                    "must preserve or deliberately remove that duplicate response behavior."
+                ),
+                "evidence": (read_sends or send_edges)[:8] + cics_hits("SEND")[:1],
+            })
+
+        return notes
+
     def _build_modernization_findings(
         self,
         details: Dict[str, Any],
@@ -2094,18 +2308,21 @@ class DocGenerator:
                                 body = raw_line[6:] if len(raw_line) > 6 else raw_line
                                 body_lines.append(body[:66] if len(body) > 66 else body)
                             body = "\n".join(body_lines)
-                            # Generic: extract any WS-*-NAME / PROGRAM-* literal value
-                            # so the LLM can quote the actual VALUE without hallucinating.
+                            # Generic: extract any WS-*-NAME / PROGRAM-* / *-FILE / *-DSN
+                            # literal value paired with its VALUE clause within the
+                            # same period-terminated declaration. Forbidding '.'
+                            # in the gap prevents one field's VALUE leaking onto
+                            # another field's name.
                             for m in re.finditer(
-                                r"\b(WS-[A-Z][A-Z0-9-]{0,28}|PGM[A-Z0-9-]{0,15})\b"
-                                r"[\s\S]{0,90}?\bVALUE\s+['\"]([^'\"]+)['\"]",
-                                body, re.IGNORECASE,
+                                r"\b(WS-[A-Z][A-Z0-9-]{0,28}|PGM[A-Z0-9-]{0,15}|[A-Z][A-Z0-9-]{0,28}-FILE-?(?:NAME)?|[A-Z][A-Z0-9-]{0,28}-DSN)\b"
+                                r"[^.\n]{0,200}?\bVALUE\s+(?:IS\s+)?['\"]([^'\"]+)['\"]",
+                                body, re.IGNORECASE | re.DOTALL,
                             ):
                                 nm = m.group(1).upper()
-                                val = m.group(2)
+                                val = m.group(2).strip()
                                 if not any(s["name"] == nm for s in source_literals):
                                     source_literals.append({"name": nm, "value": val})
-                                if len(source_literals) >= 8:
+                                if len(source_literals) >= 16:
                                     break
                             # Generic: any *-STATUS reference inside an IF condition
                             for m in re.finditer(
@@ -2123,6 +2340,9 @@ class DocGenerator:
                             pass
 
                     data_contracts_detail = self._build_data_contracts(details)
+                    source_performs = self._extract_performs_from_source(details)
+                    details["performs"] = self._merge_performs(details.get("performs", []), source_performs)
+                    cics_workflow_notes = self._build_cics_workflow_notes(details, details.get("performs", []))
                     modernization_findings = self._build_modernization_findings(
                         details,
                         data_contracts_detail,
@@ -2192,6 +2412,7 @@ class DocGenerator:
                         file_records=file_records,
                         data_movements=movements,
                         code_anomalies=anomalies,
+                        cics_workflow_notes=cics_workflow_notes,
                         mq_calls=mq_calls,
                         evaluate_branches=evaluate_branches,
                         cics_handles=cics_handles,

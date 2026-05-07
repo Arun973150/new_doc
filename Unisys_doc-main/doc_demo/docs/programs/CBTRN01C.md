@@ -19,6 +19,9 @@
 
 ## Source Grounding Facts
 
+| Data Item | Literal Value |
+|-----------|---------------|
+| `END-OF-DAILY-TRANS-FILE` | `N` |
 
 Status conditions found in source:
 - `WS-XREF-READ-STATUS = 0`
@@ -412,9 +415,17 @@ flowchart TD
     9300_CARDFILE_CLOSE["9300-CARDFILE-CLOSE"]
     9400_ACCTFILE_CLOSE["9400-ACCTFILE-CLOSE"]
     START --> MAIN_PARA
+    1000_DALYTRAN_GET_NEXT --> Z_DISPLAY_IO_STATUS
+    1000_DALYTRAN_GET_NEXT --> Z_ABEND_PROGRAM
+    0000_DALYTRAN_OPEN --> Z_DISPLAY_IO_STATUS
+    0000_DALYTRAN_OPEN --> Z_ABEND_PROGRAM
     0000_DALYTRAN_OPEN --> INLINE
     0100_CUSTFILE_OPEN --> INLINE
+    0100_CUSTFILE_OPEN --> Z_DISPLAY_IO_STATUS
+    0100_CUSTFILE_OPEN --> Z_ABEND_PROGRAM
     0200_XREFFILE_OPEN --> INLINE
+    0200_XREFFILE_OPEN --> Z_DISPLAY_IO_STATUS
+    0200_XREFFILE_OPEN --> Z_ABEND_PROGRAM
 ```
 
 ## Paragraphs
@@ -863,6 +874,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `9300-CARDFILE-CLOSE` terminates the program on error | 9300-CARDFILE-CLOSE | 415 |
 | **NOTICE** | LOGIC | Paragraph `9400-ACCTFILE-CLOSE` terminates the program on error | 9400-ACCTFILE-CLOSE | 433 |
 | **NOTICE** | LOGIC | Paragraph `9500-TRANFILE-CLOSE` terminates the program on error | 9500-TRANFILE-CLOSE | 451 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 473 |
 
 ### WARNING — DISPLAY message in `0000-DALYTRAN-OPEN` says "DAILY TRANSACTION" but the OPEN is on `DALYTRAN-FILE`
 
@@ -1052,6 +1064,16 @@ DISPLAY 'ERROR OPENING DAILY TRANSACTION FILE'
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 473):
+```cobol
+CALL 'CEE3ABD' USING ABCODE, TIMING.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -1074,6 +1096,7 @@ source of truth for migrators converting to modern storage layers.
 | `CARD-FILE` | CLOSE | None | 9300-CARDFILE-CLOSE | 417 |
 | `ACCOUNT-FILE` | CLOSE | None | 9400-ACCTFILE-CLOSE | 435 |
 | `TRANSACT-FILE` | CLOSE | None | 9500-TRANFILE-CLOSE | 453 |
+
 
 
 
@@ -1222,4 +1245,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

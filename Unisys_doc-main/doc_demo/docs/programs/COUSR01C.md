@@ -21,9 +21,9 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `COUSR01C` |
+| `WS-PGMNAME` | `COUSR01C` |
 | `WS-TRANID` | `CU01` |
-| `WS-MESSAGE` | `USRSEC  ` |
+| `WS-USRSEC-FILE` | `USRSEC` |
 | `WS-ERR-FLG` | `N` |
 
 
@@ -345,8 +345,18 @@ flowchart TD
     CLEAR_CURRENT_SCREEN["CLEAR-CURRENT-SCREEN"]
     INITIALIZE_ALL_FIELDS["INITIALIZE-ALL-FIELDS"]
     START --> MAIN_PARA
-    SEND_USRADD_SCREEN --> INLINE
-    CLEAR_CURRENT_SCREEN --> INLINE
+    MAIN_PARA --> RETURN_TO_PREV_SCREEN
+    MAIN_PARA --> SEND_USRADD_SCREEN
+    MAIN_PARA --> RECEIVE_USRADD_SCREEN
+    MAIN_PARA --> PROCESS_ENTER_KEY
+    MAIN_PARA --> CLEAR_CURRENT_SCREEN
+    PROCESS_ENTER_KEY --> SEND_USRADD_SCREEN
+    PROCESS_ENTER_KEY --> WRITE_USER_SEC_FILE
+    SEND_USRADD_SCREEN --> POPULATE_HEADER_INFO
+    WRITE_USER_SEC_FILE --> INITIALIZE_ALL_FIELDS
+    WRITE_USER_SEC_FILE --> SEND_USRADD_SCREEN
+    CLEAR_CURRENT_SCREEN --> INITIALIZE_ALL_FIELDS
+    CLEAR_CURRENT_SCREEN --> SEND_USRADD_SCREEN
 ```
 
 ## Paragraphs
@@ -827,6 +837,70 @@ This program uses the following EXEC CICS commands:
 
 **Summary:** 5 CICS command(s) — RETURN (1), XCTL (1), SEND (1), RECEIVE (1), WRITE (1)
 
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### Program transfers use XCTL, not a soft return
+
+`EXEC CICS XCTL` transfers control to another program and does not return to the current program like a subroutine call. Document PF-key navigation that reaches this paragraph as a CICS transfer, not as an in-place screen redisplay.
+
+Evidence:
+- L175 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Initial entry without COMMAREA transfers to sign-on
+
+When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows the return/transfer path. It does not display its own BMS map on that entry path.
+
+Evidence:
+- L78: `IF EIBCALEN = 0`
+- L79: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L168: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L175 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF3 navigation resolves through RETURN-TO-PREV-SCREEN
+
+PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, so PF3 is a transfer to the target program held in the COMMAREA routing fields.
+
+Evidence:
+- L93: `WHEN DFHPF3`
+- L80: `PERFORM RETURN-TO-PREV-SCREEN`
+- L95: `PERFORM RETURN-TO-PREV-SCREEN`
+- L175 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Error/message text is written to the BMS output field
+
+`ERRMSGI` exists in the input copybook area, but this program displays messages by moving `WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when describing rendered error or status messages.
+
+Evidence:
+- L188: `MOVE WS-MESSAGE TO ERRMSGO OF COUSR1AO`
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L73: `SET ERR-FLG-OFF TO TRUE`
+- L41: `88 ERR-FLG-ON                         VALUE 'Y'.`
+- L153: `IF NOT ERR-FLG-ON`
+
+### The BMS map can be sent from multiple paths
+
+Screen output is centralized in the send paragraph, but several routines can perform it. If a read routine sends the map and its caller also sends the map, a modern UI migration must preserve or deliberately remove that duplicate response behavior.
+
+Evidence:
+- L87: `MAIN-PARA` performs `SEND-USRADD-SCREEN`
+- L102: `MAIN-PARA` performs `SEND-USRADD-SCREEN`
+- L123: `PROCESS-ENTER-KEY` performs `SEND-USRADD-SCREEN`
+- L129: `PROCESS-ENTER-KEY` performs `SEND-USRADD-SCREEN`
+- L135: `PROCESS-ENTER-KEY` performs `SEND-USRADD-SCREEN`
+- L141: `PROCESS-ENTER-KEY` performs `SEND-USRADD-SCREEN`
+- L147: `PROCESS-ENTER-KEY` performs `SEND-USRADD-SCREEN`
+- L259: `WRITE-USER-SEC-FILE` performs `SEND-USRADD-SCREEN`
+- L190 in `SEND-USRADD-SCREEN`: EXEC CICS SEND {"details": {"map": "COUSR1A", "mapset": "COUSR01", "from": "COUSR1AO"}}
+
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -909,4 +983,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

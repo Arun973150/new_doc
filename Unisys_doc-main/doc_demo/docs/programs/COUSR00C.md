@@ -21,9 +21,9 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `COUSR00C` |
+| `WS-PGMNAME` | `COUSR00C` |
 | `WS-TRANID` | `CU00` |
-| `WS-MESSAGE` | `USRSEC  ` |
+| `WS-USRSEC-FILE` | `USRSEC` |
 | `WS-ERR-FLG` | `N` |
 | `WS-USER-SEC-EOF` | `N` |
 | `WS-SEND-ERASE-FLG` | `Y` |
@@ -352,10 +352,21 @@ flowchart TD
     READNEXT_USER_SEC_FILE["READNEXT-USER-SEC-FILE"]
     READPREV_USER_SEC_FILE["READPREV-USER-SEC-FILE"]
     START --> MAIN_PARA
-    PROCESS_ENTER_KEY --> INLINE
-    PROCESS_PAGE_FORWARD --> INLINE
-    PROCESS_PAGE_BACKWARD --> INLINE
-    SEND_USRLST_SCREEN --> INLINE
+    MAIN_PARA --> RETURN_TO_PREV_SCREEN
+    MAIN_PARA --> PROCESS_ENTER_KEY
+    MAIN_PARA --> SEND_USRLST_SCREEN
+    MAIN_PARA --> RECEIVE_USRLST_SCREEN
+    MAIN_PARA --> PROCESS_PF7_KEY
+    MAIN_PARA --> PROCESS_PF8_KEY
+    PROCESS_ENTER_KEY --> PROCESS_PAGE_FORWARD
+    PROCESS_PF7_KEY --> PROCESS_PAGE_BACKWARD
+    PROCESS_PF7_KEY --> SEND_USRLST_SCREEN
+    PROCESS_PF8_KEY --> PROCESS_PAGE_FORWARD
+    PROCESS_PF8_KEY --> SEND_USRLST_SCREEN
+    PROCESS_PAGE_FORWARD --> STARTBR_USER_SEC_FILE
+    PROCESS_PAGE_FORWARD --> READNEXT_USER_SEC_FILE
+    PROCESS_PAGE_FORWARD --> INITIALIZE_USER_DATA
+    PROCESS_PAGE_FORWARD --> POPULATE_USER_DATA
 ```
 
 ## Paragraphs
@@ -1063,6 +1074,74 @@ This program uses the following EXEC CICS commands:
 
 **Summary:** 11 CICS command(s) — RETURN (1), XCTL (3), SEND (2), RECEIVE (1), STARTBR (1), READNEXT (1), READPREV (1), ENDBR (1)
 
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### Program transfers use XCTL, not a soft return
+
+`EXEC CICS XCTL` transfers control to another program and does not return to the current program like a subroutine call. Document PF-key navigation that reaches this paragraph as a CICS transfer, not as an in-place screen redisplay.
+
+Evidence:
+- L196 in `PROCESS-ENTER-KEY`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+- L206 in `PROCESS-ENTER-KEY`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+- L514 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Initial entry without COMMAREA transfers to sign-on
+
+When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows the return/transfer path. It does not display its own BMS map on that entry path.
+
+Evidence:
+- L110: `IF EIBCALEN = 0`
+- L111: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L509: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L196 in `PROCESS-ENTER-KEY`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF3 navigation resolves through RETURN-TO-PREV-SCREEN
+
+PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, so PF3 is a transfer to the target program held in the COMMAREA routing fields.
+
+Evidence:
+- L125: `WHEN DFHPF3`
+- L112: `PERFORM RETURN-TO-PREV-SCREEN`
+- L127: `PERFORM RETURN-TO-PREV-SCREEN`
+- L196 in `PROCESS-ENTER-KEY`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Error/message text is written to the BMS output field
+
+`ERRMSGI` exists in the input copybook area, but this program displays messages by moving `WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when describing rendered error or status messages.
+
+Evidence:
+- L526: `MOVE WS-MESSAGE TO ERRMSGO OF COUSR0AO`
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L100: `SET ERR-FLG-OFF TO TRUE`
+- L41: `88 ERR-FLG-ON                         VALUE 'Y'.`
+- L230: `IF NOT ERR-FLG-ON`
+- L286: `IF NOT ERR-FLG-ON`
+- L300: `PERFORM UNTIL WS-IDX >= 11 OR USER-SEC-EOF OR ERR-FLG-ON`
+
+### The BMS map can be sent from multiple paths
+
+Screen output is centralized in the send paragraph, but several routines can perform it. If a read routine sends the map and its caller also sends the map, a modern UI migration must preserve or deliberately remove that duplicate response behavior.
+
+Evidence:
+- L119: `MAIN-PARA` performs `SEND-USRLST-SCREEN`
+- L136: `MAIN-PARA` performs `SEND-USRLST-SCREEN`
+- L254: `PROCESS-PF7-KEY` performs `SEND-USRLST-SCREEN`
+- L276: `PROCESS-PF8-KEY` performs `SEND-USRLST-SCREEN`
+- L329: `PROCESS-PAGE-FORWARD` performs `SEND-USRLST-SCREEN`
+- L377: `PROCESS-PAGE-BACKWARD` performs `SEND-USRLST-SCREEN`
+- L606: `STARTBR-USER-SEC-FILE` performs `SEND-USRLST-SCREEN`
+- L613: `STARTBR-USER-SEC-FILE` performs `SEND-USRLST-SCREEN`
+- L529 in `SEND-USRLST-SCREEN`: EXEC CICS SEND {"details": {"map": "COUSR0A", "mapset": "COUSR00", "from": "COUSR0AO"}}
+
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1199,4 +1278,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

@@ -21,13 +21,9 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-EDIT-ACCT-FLAG` | `0` |
-| `WS-EDIT-CUST-FLAG` | `0` |
-| `WS-ACCOUNT-MASTER-READ-FLAG` | `1` |
-| `WS-CUST-MASTER-READ-FLAG` | `1` |
 | `WS-PROMPT-FOR-INPUT` | `Enter or update id of account to display` |
 | `WS-INFORM-OUTPUT` | `Displaying details of given Account` |
-| `WS-RETURN-MSG-OFF` | `PF03 pressed.Exiting              ` |
+| `WS-EXIT-MESSAGE` | `PF03 pressed.Exiting` |
 | `WS-PROMPT-FOR-ACCT` | `Account number not provided` |
 
 
@@ -1465,6 +1461,7 @@ modern stack should map these to try / catch handlers or middleware filters.
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1484,4 +1481,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

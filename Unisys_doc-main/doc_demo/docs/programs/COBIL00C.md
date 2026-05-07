@@ -21,14 +21,15 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `COBIL00C` |
+| `WS-PGMNAME` | `COBIL00C` |
 | `WS-TRANID` | `CB00` |
-| `WS-MESSAGE` | `TRANSACT` |
-| `WS-ACCTDAT-FILE` | `ACCTDAT ` |
-| `WS-CXACAIX-FILE` | `CXACAIX ` |
+| `WS-TRANSACT-FILE` | `TRANSACT` |
+| `WS-ACCTDAT-FILE` | `ACCTDAT` |
+| `WS-CXACAIX-FILE` | `CXACAIX` |
 | `WS-ERR-FLG` | `N` |
-| `WS-REAS-CD` | `N` |
+| `WS-USR-MODIFIED` | `N` |
 | `WS-CONF-PAY-FLG` | `N` |
+| `WS-TRAN-DATE` | `00/00/00` |
 
 
 ## Business Purpose
@@ -412,8 +413,20 @@ flowchart TD
     WRITE_TRANSACT_FILE["WRITE-TRANSACT-FILE"]
     CLEAR_CURRENT_SCREEN["CLEAR-CURRENT-SCREEN"]
     START --> MAIN_PARA
-    SEND_BILLPAY_SCREEN --> INLINE
-    CLEAR_CURRENT_SCREEN --> INLINE
+    MAIN_PARA --> RETURN_TO_PREV_SCREEN
+    MAIN_PARA --> PROCESS_ENTER_KEY
+    MAIN_PARA --> SEND_BILLPAY_SCREEN
+    MAIN_PARA --> RECEIVE_BILLPAY_SCREEN
+    MAIN_PARA --> CLEAR_CURRENT_SCREEN
+    PROCESS_ENTER_KEY --> SEND_BILLPAY_SCREEN
+    PROCESS_ENTER_KEY --> READ_ACCTDAT_FILE
+    PROCESS_ENTER_KEY --> CLEAR_CURRENT_SCREEN
+    PROCESS_ENTER_KEY --> READ_CXACAIX_FILE
+    PROCESS_ENTER_KEY --> STARTBR_TRANSACT_FILE
+    PROCESS_ENTER_KEY --> READPREV_TRANSACT_FILE
+    PROCESS_ENTER_KEY --> ENDBR_TRANSACT_FILE
+    PROCESS_ENTER_KEY --> GET_CURRENT_TIMESTAMP
+    PROCESS_ENTER_KEY --> WRITE_TRANSACT_FILE
 ```
 
 ## Paragraphs
@@ -931,12 +944,26 @@ review each one before re-implementing in a modern stack.
 
 | Severity | Category | Title | Paragraph | Line |
 |----------|----------|-------|-----------|------|
+| **WARNING** | LOGIC | `PERFORM WRITE-TRANSACT-FILE` runs unconditionally after `PERFORM GET-CURRENT-TIMESTAMP` in `PROCESS-ENTER-KEY` | PROCESS-ENTER-KEY | 230 |
 | **NOTICE** | DEAD_CODE | Variable `WS-USR-MODIFIED` is declared but never referenced | None | 48 |
 | **NOTICE** | DEAD_CODE | Variable `WS-CONF-PAY-FLG` is declared but never referenced | None | 51 |
 | **NOTICE** | DEAD_CODE | Variable `WS-TRAN-AMT` is declared but never referenced | None | 55 |
 | **NOTICE** | DEAD_CODE | Variable `WS-TRAN-DATE` is declared but never referenced | None | 58 |
 | **NOTICE** | DEAD_CODE | Variable `LK-COMMAREA` is declared but never referenced | None | 92 |
 
+### WARNING — `PERFORM WRITE-TRANSACT-FILE` runs unconditionally after `PERFORM GET-CURRENT-TIMESTAMP` in `PROCESS-ENTER-KEY`
+
+There is no IF / EVALUATE check between the read-style `GET-CURRENT-TIMESTAMP` and the mutating `WRITE-TRANSACT-FILE`. If `GET-CURRENT-TIMESTAMP` encounters an error (NOTFND, IO failure, etc.) without setting STOP RUN or PERFORM-aborting, `WRITE-TRANSACT-FILE` will execute anyway — potentially deleting/updating against stale or invalid state. Verify `GET-CURRENT-TIMESTAMP` aborts the program on failure or that `WRITE-TRANSACT-FILE` checks a status flag set by `GET-CURRENT-TIMESTAMP`.
+**Source excerpt** (line 230):
+```cobol
+                   PERFORM GET-CURRENT-TIMESTAMP
+                   MOVE WS-TIMESTAMP         TO TRAN-ORIG-TS
+                                                TRAN-PROC-TS
+                   PERFORM WRITE-TRANSACT-FILE
+```
+
+**Recommendation:** Add an `IF <status-flag> = 'OK'` guard around `PERFORM WRITE-TRANSACT-FILE` or have `GET-CURRENT-TIMESTAMP` set ERR-FLG-ON / call ABEND on failure.
+---
 ### NOTICE — Variable `WS-USR-MODIFIED` is declared but never referenced
 
 `WS-USR-MODIFIED` is declared at line 48 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
@@ -1098,6 +1125,68 @@ This program uses the following EXEC CICS commands:
 
 **Summary:** 13 CICS command(s) — RETURN (1), ASKTIME (1), FORMATTIME (1), XCTL (1), SEND (1), RECEIVE (1), READ (2), REWRITE (1), STARTBR (1), READPREV (1), ENDBR (1), WRITE (1)
 
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### Program transfers use XCTL, not a soft return
+
+`EXEC CICS XCTL` transfers control to another program and does not return to the current program like a subroutine call. Document PF-key navigation that reaches this paragraph as a CICS transfer, not as an in-place screen redisplay.
+
+Evidence:
+- L281 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Initial entry without COMMAREA transfers to sign-on
+
+When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows the return/transfer path. It does not display its own BMS map on that entry path.
+
+Evidence:
+- L107: `IF EIBCALEN = 0`
+- L108: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L276: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L281 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF3 navigation resolves through RETURN-TO-PREV-SCREEN
+
+PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, so PF3 is a transfer to the target program held in the COMMAREA routing fields.
+
+Evidence:
+- L128: `WHEN DFHPF3`
+- L109: `PERFORM RETURN-TO-PREV-SCREEN`
+- L135: `PERFORM RETURN-TO-PREV-SCREEN`
+- L281 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Error/message text is written to the BMS output field
+
+`ERRMSGI` exists in the input copybook area, but this program displays messages by moving `WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when describing rendered error or status messages.
+
+Evidence:
+- L293: `MOVE WS-MESSAGE TO ERRMSGO OF COBIL0AO`
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L101: `SET ERR-FLG-OFF     TO TRUE`
+- L44: `88 ERR-FLG-ON                         VALUE 'Y'.`
+- L169: `IF NOT ERR-FLG-ON`
+- L197: `IF NOT ERR-FLG-ON`
+- L208: `IF NOT ERR-FLG-ON`
+
+### The BMS map can be sent from multiple paths
+
+Screen output is centralized in the send paragraph, but several routines can perform it. If a read routine sends the map and its caller also sends the map, a modern UI migration must preserve or deliberately remove that duplicate response behavior.
+
+Evidence:
+- L364: `READ-ACCTDAT-FILE` performs `SEND-BILLPAY-SCREEN`
+- L371: `READ-ACCTDAT-FILE` performs `SEND-BILLPAY-SCREEN`
+- L428: `READ-CXACAIX-FILE` performs `SEND-BILLPAY-SCREEN`
+- L435: `READ-CXACAIX-FILE` performs `SEND-BILLPAY-SCREEN`
+- L295 in `SEND-BILLPAY-SCREEN`: EXEC CICS SEND {"details": {"map": "COBIL0A", "mapset": "COBIL00", "from": "COBIL0AO"}}
+
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1198,4 +1287,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

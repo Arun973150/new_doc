@@ -64,4 +64,4 @@ Row 24: ENTER=Process F3=Exit  F4=Delete  F5=Save  F6=Add  F12=Cancel
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

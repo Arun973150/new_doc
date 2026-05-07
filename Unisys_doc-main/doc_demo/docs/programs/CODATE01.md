@@ -483,6 +483,10 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `LIT-ACCTFILENAME` is declared but never referenced | None | 115 |
 | **NOTICE** | DEAD_CODE | Variable `WS-RESP-CD` is declared but never referenced | None | 117 |
 | **NOTICE** | DEAD_CODE | Variable `WS-REAS-CD` is declared but never referenced | None | 119 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQOPEN` (not in this codebase) | None | 182 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQGET` (not in this codebase) | None | 301 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQPUT` (not in this codebase) | None | 383 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `MQCLOSE` (not in this codebase) | None | 461 |
 
 ### NOTICE — Variable `WS-MQ-MSG-FLAG` is declared but never referenced
 
@@ -553,6 +557,46 @@ review each one before re-implementing in a modern stack.
 ```
 
 **Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Static CALL to external `MQOPEN` (not in this codebase)
+
+`CALL 'MQOPEN'` appears in the source but `MQOPEN` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 182):
+```cobol
+CALL 'MQOPEN' USING QMGR-HANDLE-CONN                         01820012
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQGET` (not in this codebase)
+
+`CALL 'MQGET'` appears in the source but `MQGET` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 301):
+```cobol
+CALL 'MQGET'  USING MQ-HCONN                                 03010012
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQPUT` (not in this codebase)
+
+`CALL 'MQPUT'` appears in the source but `MQPUT` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 383):
+```cobol
+CALL 'MQPUT'  USING MQ-HCONN                                 03830012
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
+### NOTICE — Static CALL to external `MQCLOSE` (not in this codebase)
+
+`CALL 'MQCLOSE'` appears in the source but `MQCLOSE` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 461):
+```cobol
+CALL 'MQCLOSE' USING MQ-HCONN                                04610012
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
 ---
 
 
@@ -639,6 +683,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -658,4 +703,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

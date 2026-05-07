@@ -22,11 +22,10 @@
 | Data Item | Literal Value |
 |-----------|---------------|
 | `WS-PGMNAME` | `IMSUNLOD` |
-| `WS-NO-DTL-DELETED` | `N` |
+| `WS-ERR-FLG` | `N` |
 | `WS-END-OF-AUTHDB-FLAG` | `N` |
 | `WS-MORE-AUTHS-FLAG` | `N` |
-| `WS-CUSTID-STATUS` | `10` |
-| `WS-IMS-PSB-SCHD-FLG` | `Y` |
+| `END-OF-FILE` | `10` |
 
 Status conditions found in source:
 - `WS-OUTFL1-STATUS = SPACES`
@@ -582,6 +581,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `WS-NO-DTL-READ` is declared but never referenced | None | 68 |
 | **NOTICE** | LOGIC | Paragraph `1000-INITIALIZE` terminates the program on error | 1000-INITIALIZE | 173 |
 | **NOTICE** | LOGIC | Paragraph `2000-FIND-NEXT-AUTH-SUMMARY` terminates the program on error | 2000-FIND-NEXT-AUTH-SUMMARY | 207 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CBLTDLI` (not in this codebase) | None | 213 |
 | **NOTICE** | LOGIC | Paragraph `3000-FIND-NEXT-AUTH-DTL` terminates the program on error | 3000-FIND-NEXT-AUTH-DTL | 253 |
 
 ### WARNING — WS-PGMNAME literal does not match the actual PROGRAM-ID
@@ -706,6 +706,16 @@ The program identifier is `PAUDBUNL` but the source sets `WS-PGMNAME` to `'IMSUN
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CBLTDLI` (not in this codebase)
+
+`CALL 'CBLTDLI'` appears in the source but `CBLTDLI` is not a program in the loaded codebase. IMS DL/I database call interface.
+**Source excerpt** (line 213):
+```cobol
+CALL 'CBLTDLI'            USING  FUNC-GN                    02070034
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 ### NOTICE — Paragraph `3000-FIND-NEXT-AUTH-DTL` terminates the program on error
 
 `3000-FIND-NEXT-AUTH-DTL` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
@@ -738,6 +748,7 @@ source of truth for migrators converting to modern storage layers.
 | `OPFILE2` | OPEN | OUTPUT | 1000-INITIALIZE | 194 |
 | `OPFILE1` | CLOSE | None | 4000-FILE-CLOSE | 291 |
 | `OPFILE2` | CLOSE | None | 4000-FILE-CLOSE | 298 |
+
 
 
 
@@ -839,4 +850,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

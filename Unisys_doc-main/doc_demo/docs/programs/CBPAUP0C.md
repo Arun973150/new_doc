@@ -21,14 +21,12 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `CBPAUP0C` |
-| `WS-NO-DTL-DELETED` | `N` |
+| `WS-PGMNAME` | `CBPAUP0C` |
+| `WS-ERR-FLG` | `N` |
 | `WS-END-OF-AUTHDB-FLAG` | `N` |
 | `WS-MORE-AUTHS-FLAG` | `N` |
 | `WS-QUALIFY-DELETE-FLAG` | `N` |
-| `WS-CUSTID-STATUS` | `10` |
-| `WS-IMS-VARIABLES` | `PSBPAUTB` |
-| `WS-IMS-PSB-SCHD-FLG` | `Y` |
+| `END-OF-FILE` | `10` |
 
 
 ## Business Purpose
@@ -696,6 +694,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -717,4 +716,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

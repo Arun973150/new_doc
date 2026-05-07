@@ -1,7 +1,7 @@
 # Module: Alphanum
 
 > **Module ID:** `COTRT`  
-> **Programs:** 2
+> **Programs:** 0
 
 ---
 
@@ -13,18 +13,10 @@ Alphanum
 
 | Program | Type | Lines | Business Purpose |
 |---------|------|-------|-----------------|
-| [COTRTLIC](../programs/COTRTLIC.md) | ONLINE | 2099 |  |
-| [COTRTUPC](../programs/COTRTUPC.md) | ONLINE | 1703 |  |
 
 
-## Associated Screens
-
-| Screen | Map | Mapset | Program |
-|--------|-----|--------|---------|
-| [CTRTLIA](../screens/CTRTLIA.md) | CTRTLIA | COTRTLI | [COTRTLIC](../programs/COTRTLIC.md) |
-| [CTRTUPA](../screens/CTRTUPA.md) | CTRTUPA | COTRTUP | [COTRTUPC](../programs/COTRTUPC.md) |
 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

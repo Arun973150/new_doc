@@ -21,14 +21,16 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `COTRN02C` |
+| `WS-PGMNAME` | `COTRN02C` |
 | `WS-TRANID` | `CT02` |
-| `WS-MESSAGE` | `TRANSACT` |
-| `WS-ACCTDAT-FILE` | `ACCTDAT ` |
-| `WS-CCXREF-FILE` | `CCXREF  ` |
-| `WS-CXACAIX-FILE` | `CXACAIX ` |
+| `WS-TRANSACT-FILE` | `TRANSACT` |
+| `WS-ACCTDAT-FILE` | `ACCTDAT` |
+| `WS-CCXREF-FILE` | `CCXREF` |
+| `WS-CXACAIX-FILE` | `CXACAIX` |
 | `WS-ERR-FLG` | `N` |
-| `WS-REAS-CD` | `N` |
+| `WS-USR-MODIFIED` | `N` |
+| `WS-TRAN-DATE` | `00/00/00` |
+| `WS-DATE-FORMAT` | `YYYY-MM-DD` |
 
 
 ## Business Purpose
@@ -431,11 +433,20 @@ flowchart TD
     READPREV_TRANSACT_FILE["READPREV-TRANSACT-FILE"]
     ENDBR_TRANSACT_FILE["ENDBR-TRANSACT-FILE"]
     START --> MAIN_PARA
-    WRITE_TRANSACT_FILE --> INLINE
-    ADD_TRANSACTION --> INLINE
-    COPY_LAST_TRAN_DATA --> INLINE
-    SEND_TRNADD_SCREEN --> INLINE
-    CLEAR_CURRENT_SCREEN --> INLINE
+    MAIN_PARA --> RETURN_TO_PREV_SCREEN
+    MAIN_PARA --> PROCESS_ENTER_KEY
+    MAIN_PARA --> SEND_TRNADD_SCREEN
+    MAIN_PARA --> RECEIVE_TRNADD_SCREEN
+    MAIN_PARA --> CLEAR_CURRENT_SCREEN
+    MAIN_PARA --> COPY_LAST_TRAN_DATA
+    PROCESS_ENTER_KEY --> VALIDATE_INPUT_KEY_FIELDS
+    PROCESS_ENTER_KEY --> VALIDATE_INPUT_DATA_FIELDS
+    PROCESS_ENTER_KEY --> ADD_TRANSACTION
+    PROCESS_ENTER_KEY --> SEND_TRNADD_SCREEN
+    VALIDATE_INPUT_KEY_FIELDS --> SEND_TRNADD_SCREEN
+    VALIDATE_INPUT_KEY_FIELDS --> READ_CXACAIX_FILE
+    VALIDATE_INPUT_KEY_FIELDS --> READ_CCXREF_FILE
+    VALIDATE_INPUT_DATA_FIELDS --> SEND_TRNADD_SCREEN
 ```
 
 ## Paragraphs
@@ -977,6 +988,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `WS-USR-MODIFIED` is declared but never referenced | None | 49 |
 | **NOTICE** | DEAD_CODE | Variable `WS-TRAN-DATE` is declared but never referenced | None | 54 |
 | **NOTICE** | DEAD_CODE | Variable `LK-COMMAREA` is declared but never referenced | None | 100 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CSUTLDTC` (not in this codebase) | None | 393 |
 
 ### NOTICE — Variable `WS-ACCTDAT-FILE` is declared but never referenced
 
@@ -1017,6 +1029,16 @@ review each one before re-implementing in a modern stack.
 ```
 
 **Recommendation:** Remove the declaration or wire it into the logic that was originally intended.
+---
+### NOTICE — Static CALL to external `CSUTLDTC` (not in this codebase)
+
+`CALL 'CSUTLDTC'` appears in the source but `CSUTLDTC` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 393):
+```cobol
+CALL 'CSUTLDTC' USING   CSUTLDTC-DATE
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
 ---
 
 
@@ -1178,6 +1200,75 @@ This program uses the following EXEC CICS commands:
 
 **Summary:** 11 CICS command(s) — RETURN (2), XCTL (1), SEND (1), RECEIVE (1), READ (2), STARTBR (1), READPREV (1), ENDBR (1), WRITE (1)
 
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### Program transfers use XCTL, not a soft return
+
+`EXEC CICS XCTL` transfers control to another program and does not return to the current program like a subroutine call. Document PF-key navigation that reaches this paragraph as a CICS transfer, not as an in-place screen redisplay.
+
+Evidence:
+- L508 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Initial entry without COMMAREA transfers to sign-on
+
+When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows the return/transfer path. It does not display its own BMS map on that entry path.
+
+Evidence:
+- L115: `IF EIBCALEN = 0`
+- L116: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L503: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L508 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF3 navigation resolves through RETURN-TO-PREV-SCREEN
+
+PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, so PF3 is a transfer to the target program held in the COMMAREA routing fields.
+
+Evidence:
+- L136: `WHEN DFHPF3`
+- L117: `PERFORM RETURN-TO-PREV-SCREEN`
+- L143: `PERFORM RETURN-TO-PREV-SCREEN`
+- L508 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF5 delete is a two-step user flow
+
+The screen label says `F5=Delete`, but the COBOL flow first validates/fetches the user record. On a successful read, the program displays a message telling the user to press PF5. The actual delete is then executed through `DELETE-USER-INFO` and `DELETE-USER-SEC-FILE`.
+
+Evidence:
+- L146: `WHEN DFHPF5`
+- L578 in `READ-CXACAIX-FILE`: EXEC CICS READ {"details": {"dataset": "WS-CXACAIX-FILE", "into": "CARD-XREF-RECORD", "length": "LENGTH OF CARD-XREF-RECORD", "ridfld": "XREF-ACCT-ID", "resp": "WS-RESP-CD"}}
+
+### Error/message text is written to the BMS output field
+
+`ERRMSGI` exists in the input copybook area, but this program displays messages by moving `WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when describing rendered error or status messages.
+
+Evidence:
+- L520: `MOVE WS-MESSAGE TO ERRMSGO OF COTRN2AO`
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L109: `SET ERR-FLG-OFF     TO TRUE`
+- L45: `88 ERR-FLG-ON                         VALUE 'Y'.`
+- L237: `IF ERR-FLG-ON`
+- L480: `IF NOT ERR-FLG-ON`
+
+### The BMS map can be sent from multiple paths
+
+Screen output is centralized in the send paragraph, but several routines can perform it. If a read routine sends the map and its caller also sends the map, a modern UI migration must preserve or deliberately remove that duplicate response behavior.
+
+Evidence:
+- L596: `READ-CXACAIX-FILE` performs `SEND-TRNADD-SCREEN`
+- L603: `READ-CXACAIX-FILE` performs `SEND-TRNADD-SCREEN`
+- L629: `READ-CCXREF-FILE` performs `SEND-TRNADD-SCREEN`
+- L636: `READ-CCXREF-FILE` performs `SEND-TRNADD-SCREEN`
+- L522 in `SEND-TRNADD-SCREEN`: EXEC CICS SEND {"details": {"map": "COTRN2A", "mapset": "COTRN02", "from": "COTRN2AO"}}
+
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1317,4 +1408,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

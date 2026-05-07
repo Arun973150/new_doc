@@ -1,7 +1,7 @@
 # Module: Initialize
 
 > **Module ID:** `OTHER`  
-> **Programs:** 2
+> **Programs:** 0
 
 ---
 
@@ -13,12 +13,10 @@ Initialize
 
 | Program | Type | Lines | Business Purpose |
 |---------|------|-------|-----------------|
-| [CSUTLDTC](../programs/CSUTLDTC.md) | BATCH | 158 |  |
-| [DBUNLDGS](../programs/DBUNLDGS.md) | BATCH | 367 |  |
 
 
 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

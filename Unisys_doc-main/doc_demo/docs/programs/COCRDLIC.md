@@ -21,14 +21,17 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-EDIT-ACCT-FLAG` | `0` |
-| `WS-EDIT-CARD-FLAG` | `0` |
-| `WS-ROW-CRDSELECT-ERROR` | `1` |
+| `WS-ROW-SELECT-ERROR` | `1` |
 | `WS-INFORM-REC-ACTIONS` | `TYPE S FOR DETAIL, U TO UPDATE ANY RECORD` |
-| `WS-ERROR-MSG-OFF` | `PF03 PRESSED.EXITING` |
+| `WS-EXIT-MESSAGE` | `PF03 PRESSED.EXITING` |
 | `WS-NO-RECORDS-FOUND` | `NO RECORDS FOUND FOR THIS SEARCH CONDITION.` |
 | `WS-MORE-THAN-1-ACTION` | `PLEASE SELECT ONLY ONE RECORD TO VIEW OR UPDATE` |
 | `WS-INVALID-ACTION-CODE` | `INVALID ACTION CODE` |
+| `WS-CONTEXT-FRESH-START` | `0` |
+| `WS-CONTEXT-FRESH-START-NO` | `1` |
+| `WS-EXCLUDE-THIS-RECORD` | `0` |
+| `WS-DONOT-EXCLUDE-THIS-RECORD` | `1` |
+| `WS-RETURN-FLAG-ON` | `1` |
 
 
 ## Business Purpose
@@ -1392,6 +1395,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 
 
 
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -1411,4 +1415,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

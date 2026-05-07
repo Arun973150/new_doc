@@ -43,9 +43,10 @@ class ValidationReport:
     structural_warnings: List[str] = field(default_factory=list)
     factual_errors: List[str] = field(default_factory=list)
     coverage_gaps: List[str] = field(default_factory=list)
+    prompt_coverage_warnings: List[str] = field(default_factory=list)
     citation_errors: List[str] = field(default_factory=list)
     citation_warnings: List[str] = field(default_factory=list)
-    stats: Dict[str, int] = field(default_factory=dict)
+    stats: Dict[str, object] = field(default_factory=dict)
 
     @property
     def passed(self) -> bool:
@@ -60,6 +61,7 @@ class ValidationReport:
             "structural_warnings": self.structural_warnings,
             "factual_errors": self.factual_errors,
             "coverage_gaps": self.coverage_gaps,
+            "prompt_coverage_warnings": self.prompt_coverage_warnings,
             "citation_errors": self.citation_errors,
             "citation_warnings": self.citation_warnings,
         }
@@ -522,6 +524,58 @@ def _check_coverage(relations: Dict[str, Dict[str, Set[str]]], docs_dir: Path,
     report.stats["coverage_missing_refs"] = total_missing
 
 
+def _check_prompt_coverage(db_path: str, report: ValidationReport) -> None:
+    """Inspect saved prompt / document coverage ledgers when available."""
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    try:
+        cur.execute("SELECT mode, subject, coverage_ledger_json FROM generated_docs")
+    except Exception:
+        conn.close()
+        return
+
+    docs_checked = 0
+    expected_total = 0
+    prompt_total = 0
+    document_total = 0
+
+    for row in cur.fetchall():
+        raw = row["coverage_ledger_json"]
+        if not raw:
+            continue
+        try:
+            ledger = json.loads(raw)
+        except Exception:
+            continue
+
+        docs_checked += 1
+        expected = int(ledger.get("expected_count", 0) or 0)
+        prompt = int(ledger.get("prompt_count", 0) or 0)
+        document = int(ledger.get("document_count", 0) or 0)
+        expected_total += expected
+        prompt_total += prompt
+        document_total += document
+
+        prompt_missing = ledger.get("prompt_missing_fact_ids") or []
+        doc_missing = ledger.get("document_missing_fact_ids") or []
+        if prompt_missing:
+            report.prompt_coverage_warnings.append(
+                f"{row['mode']} / {row['subject']}: {len(prompt_missing)} fact(s) omitted from prompt assembly"
+            )
+        if doc_missing:
+            report.prompt_coverage_warnings.append(
+                f"{row['mode']} / {row['subject']}: {len(doc_missing)} fact(s) still not referenced in generated document"
+            )
+
+    conn.close()
+    report.stats["prompt_ledgers_checked"] = docs_checked
+    report.stats["prompt_expected_facts"] = expected_total
+    report.stats["prompt_facts_in_context"] = prompt_total
+    report.stats["prompt_facts_in_document"] = document_total
+
+
 # ───────────────────────────────────────────────────────────────────────────────
 # Check 4: Paragraph citation check (LLM-generated docs only)
 # ───────────────────────────────────────────────────────────────────────────────
@@ -822,6 +876,9 @@ def validate_docs(db_path: str, docs_dir: str) -> ValidationReport:
     console.print("[cyan]Running coverage check...[/cyan]")
     _check_coverage(relations, docs_path, report)
 
+    console.print("[cyan]Running prompt coverage check...[/cyan]")
+    _check_prompt_coverage(db_path, report)
+
     return report
 
 
@@ -857,6 +914,27 @@ def print_report(report: ValidationReport) -> None:
         "Coverage",
         f"[green]{c_status}[/green]" if c_status == "PASS" else f"[red]{c_status}[/red]",
         f"{expected - missing}/{expected} references covered ({pct:.1f}%)",
+    )
+
+    prompt_docs = int(report.stats.get("prompt_ledgers_checked", 0) or 0)
+    prompt_expected = int(report.stats.get("prompt_expected_facts", 0) or 0)
+    prompt_in_context = int(report.stats.get("prompt_facts_in_context", 0) or 0)
+    prompt_in_doc = int(report.stats.get("prompt_facts_in_document", 0) or 0)
+    if prompt_docs == 0:
+        prompt_status = "SKIP"
+        prompt_color = "yellow"
+        prompt_detail = "no saved prompt coverage ledgers yet"
+    else:
+        prompt_status = "WARN" if report.prompt_coverage_warnings else "PASS"
+        prompt_color = "yellow" if report.prompt_coverage_warnings else "green"
+        prompt_detail = (
+            f"{prompt_docs} doc(s) · context {prompt_in_context}/{prompt_expected} facts · "
+            f"document {prompt_in_doc}/{prompt_expected} facts"
+        )
+    table.add_row(
+        "Prompt Coverage",
+        f"[{prompt_color}]{prompt_status}[/{prompt_color}]",
+        prompt_detail,
     )
 
     cit_checked = report.stats.get("citations_docs_checked", 0)
@@ -899,6 +977,10 @@ def print_report(report: ValidationReport) -> None:
         console.print(f"\n[yellow]Coverage Gaps ({len(report.coverage_gaps)}):[/yellow]")
         for g in report.coverage_gaps[:10]:
             console.print(f"  - {g}")
+    if report.prompt_coverage_warnings:
+        console.print(f"\n[yellow]Prompt Coverage Warnings ({len(report.prompt_coverage_warnings)}):[/yellow]")
+        for w in report.prompt_coverage_warnings[:10]:
+            console.print(f"  - {w}")
     if report.citation_errors:
         console.print(f"\n[red]Citation Errors ({len(report.citation_errors)}):[/red]")
         for e in report.citation_errors[:10]:

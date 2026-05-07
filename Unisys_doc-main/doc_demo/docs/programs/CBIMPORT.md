@@ -21,14 +21,14 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-EXPORT-STATUS` | `10` |
+| `WS-EXPORT-EOF` | `10` |
 | `WS-EXPORT-OK` | `00` |
-| `WS-CUSTOMER-STATUS` | `00` |
-| `WS-ACCOUNT-STATUS` | `00` |
-| `WS-XREF-STATUS` | `00` |
-| `WS-TRANSACTION-STATUS` | `00` |
-| `WS-CARD-STATUS` | `00` |
-| `WS-ERROR-STATUS` | `00` |
+| `WS-CUSTOMER-OK` | `00` |
+| `WS-ACCOUNT-OK` | `00` |
+| `WS-XREF-OK` | `00` |
+| `WS-TRANSACTION-OK` | `00` |
+| `WS-CARD-OK` | `00` |
+| `WS-ERROR-OK` | `00` |
 
 
 ## Business Purpose
@@ -869,6 +869,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `2500-PROCESS-XREF-RECORD` terminates the program on error | 2500-PROCESS-XREF-RECORD | 352 |
 | **NOTICE** | LOGIC | Paragraph `2600-PROCESS-TRAN-RECORD` terminates the program on error | 2600-PROCESS-TRAN-RECORD | 372 |
 | **NOTICE** | LOGIC | Paragraph `2650-PROCESS-CARD-RECORD` terminates the program on error | 2650-PROCESS-CARD-RECORD | 402 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 484 |
 
 ### NOTICE — Variable `EXPORT-INPUT-RECORD` is declared but never referenced
 
@@ -922,6 +923,16 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 484):
+```cobol
+CALL 'CEE3ABD'.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -963,6 +974,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 | `'X'` | PERFORM 2500-PROCESS-XREF-RECORD |
 | `'T'` | PERFORM 2600-PROCESS-TRAN-RECORD |
 | `'D'` | PERFORM 2650-PROCESS-CARD-RECORD |
+
 
 
 
@@ -1092,4 +1104,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

@@ -21,12 +21,12 @@
 
 | Data Item | Literal Value |
 |-----------|---------------|
-| `WS-VARIABLES` | `COTRN01C` |
+| `WS-PGMNAME` | `COTRN01C` |
 | `WS-TRANID` | `CT01` |
-| `WS-MESSAGE` | `TRANSACT` |
+| `WS-TRANSACT-FILE` | `TRANSACT` |
 | `WS-ERR-FLG` | `N` |
-| `WS-REAS-CD` | `N` |
-| `WS-TRAN-AMT` | `00/00/00` |
+| `WS-USR-MODIFIED` | `N` |
+| `WS-TRAN-DATE` | `00/00/00` |
 
 
 ## Business Purpose
@@ -362,6 +362,17 @@ flowchart TD
     CLEAR_CURRENT_SCREEN["CLEAR-CURRENT-SCREEN"]
     INITIALIZE_ALL_FIELDS["INITIALIZE-ALL-FIELDS"]
     START --> MAIN_PARA
+    MAIN_PARA --> RETURN_TO_PREV_SCREEN
+    MAIN_PARA --> PROCESS_ENTER_KEY
+    MAIN_PARA --> SEND_TRNVIEW_SCREEN
+    MAIN_PARA --> RECEIVE_TRNVIEW_SCREEN
+    MAIN_PARA --> CLEAR_CURRENT_SCREEN
+    PROCESS_ENTER_KEY --> SEND_TRNVIEW_SCREEN
+    PROCESS_ENTER_KEY --> READ_TRANSACT_FILE
+    SEND_TRNVIEW_SCREEN --> POPULATE_HEADER_INFO
+    READ_TRANSACT_FILE --> SEND_TRNVIEW_SCREEN
+    CLEAR_CURRENT_SCREEN --> INITIALIZE_ALL_FIELDS
+    CLEAR_CURRENT_SCREEN --> SEND_TRNVIEW_SCREEN
     SEND_TRNVIEW_SCREEN --> INLINE
     CLEAR_CURRENT_SCREEN --> INLINE
 ```
@@ -869,6 +880,74 @@ This program uses the following EXEC CICS commands:
 
 **Summary:** 5 CICS command(s) — RETURN (1), XCTL (1), SEND (1), RECEIVE (1), READ (1)
 
+## CICS Screen Workflow Notes
+
+These notes are derived directly from the COBOL source and BMS map usage. They are intended
+to prevent migration errors where a PF key label is mistaken for the full transaction flow.
+
+### Program transfers use XCTL, not a soft return
+
+`EXEC CICS XCTL` transfers control to another program and does not return to the current program like a subroutine call. Document PF-key navigation that reaches this paragraph as a CICS transfer, not as an in-place screen redisplay.
+
+Evidence:
+- L205 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### Initial entry without COMMAREA transfers to sign-on
+
+When `EIBCALEN = 0`, this program prepares `COSGN00C` as the target and follows the return/transfer path. It does not display its own BMS map on that entry path.
+
+Evidence:
+- L94: `IF EIBCALEN = 0`
+- L95: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L200: `MOVE 'COSGN00C' TO CDEMO-TO-PROGRAM`
+- L205 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF3 navigation resolves through RETURN-TO-PREV-SCREEN
+
+PF3 selects the `RETURN-TO-PREV-SCREEN` path. That paragraph ends in `EXEC CICS XCTL`, so PF3 is a transfer to the target program held in the COMMAREA routing fields.
+
+Evidence:
+- L115: `WHEN DFHPF3`
+- L96: `PERFORM RETURN-TO-PREV-SCREEN`
+- L122: `PERFORM RETURN-TO-PREV-SCREEN`
+- L127: `PERFORM RETURN-TO-PREV-SCREEN`
+- L205 in `RETURN-TO-PREV-SCREEN`: EXEC CICS XCTL {"details": {"program": "CDEMO-TO-PROGRAM", "commarea": "CARDDEMO-COMMAREA"}}
+
+### PF5 delete is a two-step user flow
+
+The screen label says `F5=Delete`, but the COBOL flow first validates/fetches the user record. On a successful read, the program displays a message telling the user to press PF5. The actual delete is then executed through `DELETE-USER-INFO` and `DELETE-USER-SEC-FILE`.
+
+Evidence:
+- L125: `WHEN DFHPF5`
+- L269 in `READ-TRANSACT-FILE`: EXEC CICS READ {"details": {"dataset": "WS-TRANSACT-FILE", "into": "TRAN-RECORD", "length": "LENGTH OF TRAN-RECORD", "ridfld": "TRAN-ID", "resp": "WS-RESP-CD"}}
+
+### Error/message text is written to the BMS output field
+
+`ERRMSGI` exists in the input copybook area, but this program displays messages by moving `WS-MESSAGE` to `ERRMSGO OF COUSR3AO`. Documentation should refer to `ERRMSGO` when describing rendered error or status messages.
+
+Evidence:
+- L217: `MOVE WS-MESSAGE TO ERRMSGO OF COTRN1AO`
+
+### ERR-FLG is reset at the start of each run
+
+`ERR-FLG` starts each invocation on the off path via `SET ERR-FLG-OFF TO TRUE`. Validation and file-error branches set or test `ERR-FLG-ON` to stop later processing.
+
+Evidence:
+- L88: `SET ERR-FLG-OFF     TO TRUE`
+- L41: `88 ERR-FLG-ON                         VALUE 'Y'.`
+- L158: `IF NOT ERR-FLG-ON`
+- L176: `IF NOT ERR-FLG-ON`
+
+### The BMS map can be sent from multiple paths
+
+Screen output is centralized in the send paragraph, but several routines can perform it. If a read routine sends the map and its caller also sends the map, a modern UI migration must preserve or deliberately remove that duplicate response behavior.
+
+Evidence:
+- L288: `READ-TRANSACT-FILE` performs `SEND-TRNVIEW-SCREEN`
+- L295: `READ-TRANSACT-FILE` performs `SEND-TRNVIEW-SCREEN`
+- L219 in `SEND-TRNVIEW-SCREEN`: EXEC CICS SEND {"details": {"map": "COTRN1A", "mapset": "COTRN01", "from": "COTRN1AO"}}
+
+
 ## Modernization Review Findings
 
 These are source-derived review notes that should be checked before translating this program into Java, Spring Boot, SQL, APIs, or batch jobs.
@@ -942,4 +1021,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

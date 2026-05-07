@@ -9,7 +9,7 @@ import os
 import json
 import re
 import functools
-from typing import Literal, TypedDict
+from typing import Any, Dict, Literal, TypedDict
 
 from langchain_google_vertexai import ChatVertexAI
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -17,6 +17,7 @@ from langgraph.graph import StateGraph, START, END
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from rich.console import Console
+from context_engine import apply_document_coverage
 console = Console(force_terminal=True, highlight=False)
 
 
@@ -32,6 +33,8 @@ class DocAgentState(TypedDict):
     formatted_doc:    str   # final cleaned document
     grounding_passed: bool  # True when deterministic grounding checks pass
     grounding_feedback:str  # source-grounding issues, if any
+    context_metadata: Dict[str, Any]
+    coverage_ledger:  Dict[str, Any]
     iteration:        int   # how many write→critique loops have run
     max_iterations:   int   # cap — default 3
     saved:            bool
@@ -49,6 +52,8 @@ class DocRunRequest(BaseModel):
     context: str = Field(min_length=20)
     db_path: str = Field(min_length=1)
     max_iterations: int = Field(default=3, ge=1, le=5)
+    context_metadata: Dict[str, Any] = Field(default_factory=dict)
+    coverage_ledger: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("subject", "context", "db_path")
     @classmethod
@@ -91,6 +96,8 @@ class GeneratedDocRecord(BaseModel):
     mode: Literal["Program", "Module", "Application"]
     subject: str = Field(min_length=1)
     document_text: str = Field(min_length=100)
+    context_metadata: Dict[str, Any] = Field(default_factory=dict)
+    coverage_ledger: Dict[str, Any] = Field(default_factory=dict)
 
 
 def _get_llm():
@@ -173,6 +180,42 @@ GROUNDING RULES (mandatory — violations are treated as errors):
   "[NOTICE] UNIMPLEMENTED FEATURE: <paragraph-name> is a placeholder and
   contains no executable logic". Never describe the stub's behaviour as
   "the specific formula is not detailed" — it has no behaviour.
+
+- ANTI-SPECULATION RULE (mandatory): never use the words "implied", "likely
+  occurs", "may be handled", "might exist", "presumably", "could be" when
+  describing program behaviour. If something is not in SYSTEM DATA, write
+  "(not present in extracted data)" — do NOT speculate that it happens
+  "in a preceding program" or "via CICS transaction security" unless SYSTEM
+  DATA explicitly says so.
+
+- ANTI-COMPRESSION RULE (mandatory): when SYSTEM DATA shows a MOVE statement
+  or assignment guarded by an IF condition, document BOTH the guard AND the
+  action. Do not summarise "X is set to Y" when the source actually says
+  "IF condition THEN X is set to Y" — that strips the conditional logic.
+
+- ARRAY / TABLE RULE: if SYSTEM DATA shows multiple MOVE statements writing
+  different values to the same array (e.g. ARR(1), ARR(2), ARR(3)...), you
+  MUST list ALL slots and their values. Do not stop after the first two.
+
+- LITERAL FILE NAMES: if `Source literal/status facts` lists items like
+  `WS-USRSEC-FILE VALUE 'USRSEC'`, the dataset / VSAM file name IS 'USRSEC'.
+  Document it. Never say "the file name is not present" when a VALUE clause
+  is shown.
+
+- CICS RIDFLD / DATASET parameters: when documenting EXEC CICS READ / WRITE /
+  DELETE commands, quote the exact parameter values from SYSTEM DATA's
+  "Details" column (e.g. "RIDFLD(SEC-USR-ID)" not "RIDFLD(USRIDINI)" — they
+  are different fields). If a command has no RIDFLD, do NOT add one to the
+  description; the absence is significant (it means token-based locking).
+
+- EXTERNAL CALLS: if `STATIC_CALL_EXTERNAL` anomalies are present, list every
+  external program that is CALLed (CEE3ABD, COBDATFT, etc.) under
+  Section 3 (Program Connectivity). Do NOT write "this program calls no
+  external subroutines" if any STATIC_CALL_EXTERNAL appears in SYSTEM DATA.
+
+- OPEN_WITHOUT_CLOSE: if any file is OPENed but not CLOSEd, document it
+  explicitly under "File Lifecycle" or in Migration Notes — do NOT write
+  "all files are closed" when the data shows otherwise.
 """
 
 WRITER_SYSTEM = (
@@ -481,6 +524,10 @@ def _format_node(state: DocAgentState) -> dict:
 
 
 def _grounding_node(state: DocAgentState) -> dict:
+    ledger = apply_document_coverage(
+        state.get("coverage_ledger", {}) or {},
+        state.get("formatted_doc") or state.get("draft", ""),
+    )
     report = _ground_document(
         state["mode"],
         state["subject"],
@@ -498,6 +545,7 @@ def _grounding_node(state: DocAgentState) -> dict:
         "grounding_feedback": "\n".join(f"- {issue}" for issue in report.issues),
         "critique_passed": report.passed,
         "critique_feedback": "\n".join(f"- {issue}" for issue in report.issues),
+        "coverage_ledger": ledger,
     }
 
 
@@ -511,12 +559,30 @@ def _save_node(state: DocAgentState, db_path: str) -> dict:
             mode=state["mode"],
             subject=state["subject"],
             document_text=state["formatted_doc"],
+            context_metadata=state.get("context_metadata", {}) or {},
+            coverage_ledger=state.get("coverage_ledger", {}) or {},
         )
         conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("ALTER TABLE generated_docs ADD COLUMN context_metadata_json TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE generated_docs ADD COLUMN coverage_ledger_json TEXT")
+        except Exception:
+            pass
         conn.execute("""
-            INSERT OR REPLACE INTO generated_docs (mode, subject, document_text, generated_at)
-            VALUES (?, ?, ?, datetime('now'))
-        """, (record.mode, record.subject, record.document_text))
+            INSERT OR REPLACE INTO generated_docs (
+                mode, subject, document_text, context_metadata_json, coverage_ledger_json, generated_at
+            )
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
+        """, (
+            record.mode,
+            record.subject,
+            record.document_text,
+            json.dumps(record.context_metadata, default=str),
+            json.dumps(record.coverage_ledger, default=str),
+        ))
         conn.commit()
         conn.close()
         console.print(f"[green]  Save: stored in DB ({state['mode']} / {state['subject']})[/green]")
@@ -567,13 +633,27 @@ def _build_pipeline(db_path: str):
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-def run_doc_pipeline(mode: str, subject: str, context: str, db_path: str) -> str:
+def run_doc_pipeline(
+    mode: str,
+    subject: str,
+    context: str,
+    db_path: str,
+    context_metadata: Dict[str, Any] | None = None,
+    coverage_ledger: Dict[str, Any] | None = None,
+) -> str:
     """
     Run Writer → Critique → Formatter → Grounding → Save.
     Returns the final formatted document text.
     """
     try:
-        request = DocRunRequest(mode=mode, subject=subject, context=context, db_path=db_path)
+        request = DocRunRequest(
+            mode=mode,
+            subject=subject,
+            context=context,
+            db_path=db_path,
+            context_metadata=context_metadata or {},
+            coverage_ledger=coverage_ledger or {},
+        )
     except ValidationError as exc:
         raise ValueError(f"Invalid documentation pipeline request: {exc}") from exc
 
@@ -591,6 +671,8 @@ def run_doc_pipeline(mode: str, subject: str, context: str, db_path: str) -> str
         "formatted_doc":    "",
         "grounding_passed": True,
         "grounding_feedback":"",
+        "context_metadata": request.context_metadata,
+        "coverage_ledger":  request.coverage_ledger,
         "iteration":        0,
         "max_iterations":   request.max_iterations,
         "saved":            False,

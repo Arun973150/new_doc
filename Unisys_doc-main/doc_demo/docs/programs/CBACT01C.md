@@ -19,6 +19,9 @@
 
 ## Source Grounding Facts
 
+| Data Item | Literal Value |
+|-----------|---------------|
+| `END-OF-FILE` | `N` |
 
 Status conditions found in source:
 - `ACCTFILE-STATUS = '00'`
@@ -676,6 +679,9 @@ review each one before re-implementing in a modern stack.
 
 | Severity | Category | Title | Paragraph | Line |
 |----------|----------|-------|-----------|------|
+| **WARNING** | INCOMPLETE | `OUT-FILE` is OPENed but never CLOSEd | None | 336 |
+| **WARNING** | INCOMPLETE | `ARRY-FILE` is OPENed but never CLOSEd | None | 354 |
+| **WARNING** | INCOMPLETE | `VBRC-FILE` is OPENed but never CLOSEd | None | 372 |
 | **NOTICE** | DEAD_CODE | Variable `FD-ACCT-DATA` is declared but never referenced | None | 55 |
 | **NOTICE** | DEAD_CODE | Variable `ARR-FILLER` is declared but never referenced | None | 78 |
 | **NOTICE** | DEAD_CODE | Variable `ACCTFILE-STAT1` is declared but never referenced | None | 92 |
@@ -687,6 +693,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `VBRCFILE-STAT1` is declared but never referenced | None | 101 |
 | **NOTICE** | DEAD_CODE | Variable `VBRCFILE-STAT2` is declared but never referenced | None | 102 |
 | **NOTICE** | LOGIC | Paragraph `1000-ACCTFILE-GET-NEXT` terminates the program on error | 1000-ACCTFILE-GET-NEXT | 165 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `COBDATFT` (not in this codebase) | None | 231 |
 | **NOTICE** | LOGIC | Paragraph `1350-WRITE-ACCT-RECORD` terminates the program on error | 1350-WRITE-ACCT-RECORD | 242 |
 | **NOTICE** | LOGIC | Paragraph `1450-WRITE-ARRY-RECORD` terminates the program on error | 1450-WRITE-ARRY-RECORD | 263 |
 | **NOTICE** | LOGIC | Paragraph `1550-WRITE-VB1-RECORD` terminates the program on error | 1550-WRITE-VB1-RECORD | 287 |
@@ -696,7 +703,26 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | LOGIC | Paragraph `3000-ARRFILE-OPEN` terminates the program on error | 3000-ARRFILE-OPEN | 352 |
 | **NOTICE** | LOGIC | Paragraph `4000-VBRFILE-OPEN` terminates the program on error | 4000-VBRFILE-OPEN | 370 |
 | **NOTICE** | LOGIC | Paragraph `9000-ACCTFILE-CLOSE` terminates the program on error | 9000-ACCTFILE-CLOSE | 388 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEE3ABD` (not in this codebase) | None | 410 |
 
+### WARNING — `OUT-FILE` is OPENed but never CLOSEd
+
+File `OUT-FILE` is opened (line 336) but no `CLOSE OUT-FILE` statement appears anywhere in the program. The OS will close it on STOP RUN, but explicit CLOSE is best practice and the migration team must mirror this lifecycle.
+
+**Recommendation:** Add an explicit `CLOSE OUT-FILE` (typically in a 9xxx-CLOSE paragraph).
+---
+### WARNING — `ARRY-FILE` is OPENed but never CLOSEd
+
+File `ARRY-FILE` is opened (line 354) but no `CLOSE ARRY-FILE` statement appears anywhere in the program. The OS will close it on STOP RUN, but explicit CLOSE is best practice and the migration team must mirror this lifecycle.
+
+**Recommendation:** Add an explicit `CLOSE ARRY-FILE` (typically in a 9xxx-CLOSE paragraph).
+---
+### WARNING — `VBRC-FILE` is OPENed but never CLOSEd
+
+File `VBRC-FILE` is opened (line 372) but no `CLOSE VBRC-FILE` statement appears anywhere in the program. The OS will close it on STOP RUN, but explicit CLOSE is best practice and the migration team must mirror this lifecycle.
+
+**Recommendation:** Add an explicit `CLOSE VBRC-FILE` (typically in a 9xxx-CLOSE paragraph).
+---
 ### NOTICE — Variable `FD-ACCT-DATA` is declared but never referenced
 
 `FD-ACCT-DATA` is declared at line 55 but no other statement reads or writes it. Likely a leftover from prior refactoring or an incomplete feature.
@@ -803,6 +829,16 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `COBDATFT` (not in this codebase)
+
+`CALL 'COBDATFT'` appears in the source but `COBDATFT` is not a program in the loaded codebase. External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.
+**Source excerpt** (line 231):
+```cobol
+CALL 'COBDATFT'       USING CODATECN-REC.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 ### NOTICE — Paragraph `1350-WRITE-ACCT-RECORD` terminates the program on error
 
 `1350-WRITE-ACCT-RECORD` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
@@ -857,6 +893,16 @@ review each one before re-implementing in a modern stack.
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CEE3ABD` (not in this codebase)
+
+`CALL 'CEE3ABD'` appears in the source but `CEE3ABD` is not a program in the loaded codebase. IBM Language Environment ABEND service (forces program termination with a user code).
+**Source excerpt** (line 410):
+```cobol
+CALL 'CEE3ABD' USING ABCODE, TIMING.
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 
 ## File OPEN / CLOSE Operations
@@ -872,6 +918,7 @@ source of truth for migrators converting to modern storage layers.
 | `ARRY-FILE` | OPEN | OUTPUT | 3000-ARRFILE-OPEN | 354 |
 | `VBRC-FILE` | OPEN | OUTPUT | 4000-VBRFILE-OPEN | 372 |
 | `ACCTFILE-FILE` | CLOSE | None | 9000-ACCTFILE-CLOSE | 390 |
+
 
 
 
@@ -993,4 +1040,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

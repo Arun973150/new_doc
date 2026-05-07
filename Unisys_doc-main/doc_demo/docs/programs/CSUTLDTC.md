@@ -17,12 +17,6 @@
 
 > **View Source:** [Open CSUTLDTC.cbl](../carddemo/CSUTLDTC.cbl#L1)
 
-## Source Grounding Facts
-
-| Data Item | Literal Value |
-|-----------|---------------|
-| `WS-SEVERITY-N` | `Mesg Code:` |
-
 
 ## Business Purpose
 
@@ -184,6 +178,25 @@ flow that the migration team can use to trace how data is reshaped and routed.
 | `'Date is invalid'` | `WS-RESULT` | A000-MAIN | 148 |
 
 
+## Known Issues & Code Anomalies
+
+Static analysis flagged the following items in this program. Migration teams should
+review each one before re-implementing in a modern stack.
+
+| Severity | Category | Title | Paragraph | Line |
+|----------|----------|-------|-----------|------|
+| **NOTICE** | DEPENDENCY | Static CALL to external `CEEDAYS` (not in this codebase) | None | 116 |
+
+### NOTICE — Static CALL to external `CEEDAYS` (not in this codebase)
+
+`CALL 'CEEDAYS'` appears in the source but `CEEDAYS` is not a program in the loaded codebase. IBM Language Environment date conversion (date string → Lilian day count).
+**Source excerpt** (line 116):
+```cobol
+CALL "CEEDAYS" USING
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 
 ## External Runtime Parameters
 
@@ -219,6 +232,7 @@ migration team should turn into either a switch / pattern-match or a rules table
 | `FC-BAD-PIC-STRING` | MOVE 'Bad Pic String '    TO WS-RESULT |
 | `FC-NON-NUMERIC-DATA` | MOVE 'Nonnumeric data'    TO WS-RESULT |
 | `FC-YEAR-IN-ERA-ZERO` | MOVE 'YearInEra is 0 '    TO WS-RESULT |
+
 
 
 
@@ -286,4 +300,4 @@ migration team should turn into either a switch / pattern-match or a rules table
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

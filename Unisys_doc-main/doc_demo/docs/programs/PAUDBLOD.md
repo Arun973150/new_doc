@@ -22,11 +22,10 @@
 | Data Item | Literal Value |
 |-----------|---------------|
 | `WS-PGMNAME` | `IMSUNLOD` |
-| `WS-NO-DTL-DELETED` | `N` |
+| `WS-ERR-FLG` | `N` |
 | `WS-END-OF-AUTHDB-FLAG` | `N` |
 | `WS-MORE-AUTHS-FLAG` | `N` |
-| `WS-CUSTID-STATUS` | `10` |
-| `WS-IMS-PSB-SCHD-FLG` | `Y` |
+| `END-OF-FILE` | `10` |
 
 Status conditions found in source:
 - `WS-INFIL1-STATUS = SPACES`
@@ -653,6 +652,7 @@ review each one before re-implementing in a modern stack.
 | **NOTICE** | DEAD_CODE | Variable `WS-NO-SUMRY-READ` is declared but never referenced | None | 66 |
 | **NOTICE** | LOGIC | Paragraph `1000-INITIALIZE` terminates the program on error | 1000-INITIALIZE | 190 |
 | **NOTICE** | LOGIC | Paragraph `2100-INSERT-ROOT-SEG` terminates the program on error | 2100-INSERT-ROOT-SEG | 242 |
+| **NOTICE** | DEPENDENCY | Static CALL to external `CBLTDLI` (not in this codebase) | None | 244 |
 | **NOTICE** | LOGIC | Paragraph `3100-INSERT-CHILD-SEG` terminates the program on error | 3100-INSERT-CHILD-SEG | 292 |
 | **NOTICE** | LOGIC | Paragraph `3200-INSERT-IMS-CALL` terminates the program on error | 3200-INSERT-IMS-CALL | 318 |
 
@@ -778,6 +778,16 @@ The program identifier is `PAUDBLOD` but the source sets `WS-PGMNAME` to `'IMSUN
 
 **Recommendation:** Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.
 ---
+### NOTICE — Static CALL to external `CBLTDLI` (not in this codebase)
+
+`CALL 'CBLTDLI'` appears in the source but `CBLTDLI` is not a program in the loaded codebase. IMS DL/I database call interface.
+**Source excerpt** (line 244):
+```cobol
+CALL 'CBLTDLI'       USING  FUNC-ISRT                       02070053
+```
+
+**Recommendation:** Document this external dependency in the Migration Notes — the modern equivalent must replicate its behaviour.
+---
 ### NOTICE — Paragraph `3100-INSERT-CHILD-SEG` terminates the program on error
 
 `3100-INSERT-CHILD-SEG` calls an ABEND routine (or STOP RUN) on the failure path. This means an error here ENDS the entire program — it does NOT reject, skip, or log-and-continue. Documentation must use "abend" / "terminate" language, not "reject".
@@ -817,6 +827,7 @@ source of truth for migrators converting to modern storage layers.
 | `INFILE2` | OPEN | INPUT | 1000-INITIALIZE | 209 |
 | `INFILE1` | CLOSE | None | 4000-FILE-CLOSE | 343 |
 | `INFILE2` | CLOSE | None | 4000-FILE-CLOSE | 350 |
+
 
 
 
@@ -921,4 +932,4 @@ These are source-derived review notes that should be checked before translating 
 
 ---
 
-*Generated 2026-04-29 10:56*
+*Generated 2026-05-02 17:07*

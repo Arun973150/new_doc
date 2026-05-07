@@ -58,6 +58,8 @@ class SQLiteLoader:
             ("programs", "data_contracts",                "TEXT"),
             ("programs", "migration_risks",               "TEXT"),
             ("programs", "dependencies_to_migrate_first", "TEXT"),
+            ("generated_docs", "context_metadata_json",   "TEXT"),
+            ("generated_docs", "coverage_ledger_json",    "TEXT"),
         ]
         cursor = self.conn.cursor()
         for table, col, coltype in new_columns:
@@ -74,6 +76,8 @@ class SQLiteLoader:
                 mode          TEXT NOT NULL,
                 subject       TEXT NOT NULL,
                 document_text TEXT NOT NULL,
+                context_metadata_json TEXT,
+                coverage_ledger_json  TEXT,
                 generated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(mode, subject)
             )
@@ -2301,6 +2305,170 @@ class SQLiteLoader:
                 "suggestion": "Use ‘abend’ or ‘terminates the program’ when describing the error path of this paragraph.",
             })
 
+        # ── 9a. UNCONDITIONAL_FOLLOW — PERFORM A then PERFORM B (no IF guard) ──
+        # When two PERFORMs appear back-to-back in the same paragraph WITHOUT
+        # an IF guard between them, the second always runs even if the first
+        # encountered an error. This is a common bug pattern in COBOL where a
+        # programmer expected the first to "return early" but it doesn't.
+        #
+        # We flag specifically the case `PERFORM <READ-or-fetch>` followed by
+        # `PERFORM <DELETE-or-update>` because that's the highest-risk variant.
+        for p in paragraphs:
+            ps = p.get("line_start", 0)
+            pe = p.get("line_end", 0)
+            if not (ps and pe):
+                continue
+            block_lines = lines[ps - 1:pe]
+            performs_in_para = []
+            for k, raw in enumerate(block_lines):
+                if len(raw) > 6 and raw[6] == "*":
+                    continue
+                body = raw[6:] if len(raw) > 6 else raw
+                m = re.match(r"\s*PERFORM\s+([A-Z0-9][A-Z0-9-]*)", body, re.IGNORECASE)
+                if m:
+                    performs_in_para.append((k, m.group(1).upper(), body.strip()))
+            # Look for adjacent (or near-adjacent) READ/FETCH then DELETE/UPDATE/WRITE pairs
+            for i_p in range(len(performs_in_para) - 1):
+                k1, name1, _ = performs_in_para[i_p]
+                k2, name2, _ = performs_in_para[i_p + 1]
+                # Adjacency: at most 4 lines apart (skip blanks/displays)
+                if k2 - k1 > 4:
+                    continue
+                up1, up2 = name1.upper(), name2.upper()
+                is_read = ("READ" in up1) or ("FETCH" in up1) or ("GET" in up1)
+                is_mutate = ("DELETE" in up2) or ("UPDATE" in up2) or ("WRITE" in up2) or ("REWRITE" in up2)
+                if not (is_read and is_mutate):
+                    continue
+                # Check there's no IF / EVALUATE between them
+                between = " ".join(
+                    (l[6:] if len(l) > 6 else l) for l in block_lines[k1+1:k2]
+                    if not (len(l) > 6 and l[6] == "*")
+                ).upper()
+                if re.search(r"\b(IF|EVALUATE|WHEN|END-IF)\b", between):
+                    continue
+                anomalies.append({
+                    "severity": "WARNING",
+                    "category": "LOGIC",
+                    "rule_id": "UNCONDITIONAL_FOLLOW",
+                    "title": (
+                        f"`PERFORM {name2}` runs unconditionally after `PERFORM {name1}` "
+                        f"in `{p.get('name')}`"
+                    ),
+                    "description": (
+                        f"There is no IF / EVALUATE check between the read-style "
+                        f"`{name1}` and the mutating `{name2}`. If `{name1}` "
+                        f"encounters an error (NOTFND, IO failure, etc.) without "
+                        f"setting STOP RUN or PERFORM-aborting, `{name2}` will "
+                        f"execute anyway — potentially deleting/updating against "
+                        f"stale or invalid state. Verify `{name1}` aborts the "
+                        f"program on failure or that `{name2}` checks a status "
+                        f"flag set by `{name1}`."
+                    ),
+                    "paragraph_name": p.get("name"),
+                    "line_number": ps + k1,
+                    "snippet": "\n".join(
+                        l.rstrip()[:100] for l in block_lines[k1:k2 + 1]
+                    ),
+                    "suggestion": (
+                        f"Add an `IF <status-flag> = 'OK'` guard around `PERFORM {name2}` "
+                        f"or have `{name1}` set ERR-FLG-ON / call ABEND on failure."
+                    ),
+                })
+
+        # ── 9b. OPEN_WITHOUT_CLOSE — file opened but never explicitly closed ──
+        opens_seen = {}   # file_name -> first OPEN line
+        closes_seen = set()
+        op_pat = re.compile(r"\bOPEN\s+(?:INPUT|OUTPUT|I-O|EXTEND)\s+([A-Z][A-Z0-9-]+)",
+                              re.IGNORECASE)
+        cl_pat = re.compile(r"\bCLOSE\s+([A-Z][A-Z0-9-,\s]+)", re.IGNORECASE)
+        for i, raw in enumerate(lines):
+            if len(raw) > 6 and raw[6] == "*":
+                continue
+            body = raw[6:] if len(raw) > 6 else raw
+            for mo in op_pat.finditer(body):
+                fn = mo.group(1).upper()
+                opens_seen.setdefault(fn, i + 1)
+            for mc in cl_pat.finditer(body):
+                for tok in re.split(r"[,\s]+", mc.group(1).strip()):
+                    if tok and re.match(r"^[A-Z][A-Z0-9-]+$", tok, re.IGNORECASE):
+                        if tok.upper() not in ("WITH", "REEL", "UNIT", "NO", "REWIND", "LOCK"):
+                            closes_seen.add(tok.upper())
+        for fn, ln in opens_seen.items():
+            if fn in closes_seen:
+                continue
+            anomalies.append({
+                "severity": "WARNING",
+                "category": "INCOMPLETE",
+                "rule_id": "OPEN_WITHOUT_CLOSE",
+                "title": f"`{fn}` is OPENed but never CLOSEd",
+                "description": (
+                    f"File `{fn}` is opened (line {ln}) but no `CLOSE {fn}` "
+                    f"statement appears anywhere in the program. The OS will "
+                    f"close it on STOP RUN, but explicit CLOSE is best practice "
+                    f"and the migration team must mirror this lifecycle."
+                ),
+                "paragraph_name": None,
+                "line_number": ln,
+                "snippet": "",
+                "suggestion": f"Add an explicit `CLOSE {fn}` (typically in a 9xxx-CLOSE paragraph).",
+            })
+
+        # ── 9c. STATIC_CALL — CALL 'PROGRAM' to a target not in our DB ──────
+        # E.g. CALL 'COBDATFT', CALL 'CEE3ABD' — these are real external
+        # subroutines (LE services or sister modules) that must be documented.
+        # Don't flag CALL <variable>; the dynamic CALL resolver handles those.
+        static_call_pat = re.compile(r"\bCALL\s+['\"]([A-Z][A-Z0-9-]{1,20})['\"]", re.IGNORECASE)
+        # Pull set of known program IDs once per call
+        try:
+            cursor_known = self.conn.cursor()
+            cursor_known.execute("SELECT program_id FROM programs")
+            known_progs = {r[0].upper() for r in cursor_known.fetchall()}
+        except Exception:
+            known_progs = set()
+        seen_static = set()
+        for i, raw in enumerate(lines):
+            if len(raw) > 6 and raw[6] == "*":
+                continue
+            body = raw[6:] if len(raw) > 6 else raw
+            for m in static_call_pat.finditer(body):
+                target = m.group(1).upper()
+                if target in known_progs:
+                    continue   # already in program_calls
+                if target == program_id.upper():
+                    continue
+                if target in seen_static:
+                    continue
+                seen_static.add(target)
+                # Friendly hints for well-known IBM services
+                hints = {
+                    "CEE3ABD": "IBM Language Environment ABEND service (forces program termination with a user code).",
+                    "CEEDAYS": "IBM Language Environment date conversion (date string → Lilian day count).",
+                    "CEEDATE": "IBM LE date formatter.",
+                    "CEEISEC": "IBM LE seconds since epoch.",
+                    "CEELOCT": "IBM LE local time service.",
+                    "CBLTDLI": "IMS DL/I database call interface.",
+                    "DSNHLI":  "DB2 host language interface (used implicitly by EXEC SQL).",
+                    "MVSWAIT": "Custom MVS wait subroutine.",
+                }
+                hint = hints.get(target, "External subroutine — verify whether it is a sister application program, a vendor utility, or an IBM-supplied service.")
+                anomalies.append({
+                    "severity": "NOTICE",
+                    "category": "DEPENDENCY",
+                    "rule_id": "STATIC_CALL_EXTERNAL",
+                    "title": f"Static CALL to external `{target}` (not in this codebase)",
+                    "description": (
+                        f"`CALL '{target}'` appears in the source but `{target}` is "
+                        f"not a program in the loaded codebase. {hint}"
+                    ),
+                    "paragraph_name": None,
+                    "line_number": i + 1,
+                    "snippet": body.strip(),
+                    "suggestion": (
+                        "Document this external dependency in the Migration Notes — "
+                        "the modern equivalent must replicate its behaviour."
+                    ),
+                })
+
         # ── 9. CONTROL-BREAK / ACCOUNT-BREAK pattern detector ────────────────
         # Pattern: an IF compares a key field against a "WS-LAST-..." holder,
         # then PERFORMs a flush paragraph. The same flush paragraph is also
@@ -3616,13 +3784,44 @@ class SQLiteLoader:
         except Exception:
             return None
 
-    def save_generated_doc(self, mode: str, subject: str, text: str):
+    def get_generated_doc_metadata(self, mode: str, subject: str) -> Dict:
+        """Retrieve saved context / coverage metadata for a generated document."""
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(
+                """
+                SELECT context_metadata_json, coverage_ledger_json
+                FROM generated_docs
+                WHERE mode = ? AND subject = ?
+                """,
+                (mode, subject),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return {}
+            context_meta = json.loads(row[0] or "{}")
+            coverage = json.loads(row[1] or "{}")
+            return {"context_metadata": context_meta, "coverage_ledger": coverage}
+        except Exception:
+            return {}
+
+    def save_generated_doc(self, mode: str, subject: str, text: str,
+                           context_metadata: Optional[Dict] = None,
+                           coverage_ledger: Optional[Dict] = None):
         """Save or overwrite a generated document in the DB."""
         cursor = self.conn.cursor()
         cursor.execute("""
-            INSERT OR REPLACE INTO generated_docs (mode, subject, document_text, generated_at)
-            VALUES (?, ?, ?, datetime('now'))
-        """, (mode, subject, text))
+            INSERT OR REPLACE INTO generated_docs (
+                mode, subject, document_text, context_metadata_json, coverage_ledger_json, generated_at
+            )
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
+        """, (
+            mode,
+            subject,
+            text,
+            json.dumps(context_metadata or {}, default=str),
+            json.dumps(coverage_ledger or {}, default=str),
+        ))
         self.conn.commit()
 
     def get_all_programs(self) -> List[Dict]:
